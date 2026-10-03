@@ -38,7 +38,12 @@ pub fn shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 pub fn start(app: &AppHandle) {
     let cfg = app.state::<AppState>().config();
     let shortcut = cfg.global_shortcut.trim();
-    if !shortcut.is_empty() {
+    // The plugin is only registered when a shortcut is configured (see lib.rs).
+    if !shortcut.is_empty()
+        && app
+            .try_state::<tauri_plugin_global_shortcut::GlobalShortcut<tauri::Wry>>()
+            .is_some()
+    {
         use tauri_plugin_global_shortcut::GlobalShortcutExt;
         match app.global_shortcut().register(shortcut) {
             Ok(()) => SHORTCUT_ACTIVE.store(true, Ordering::SeqCst),

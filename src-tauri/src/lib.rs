@@ -56,6 +56,9 @@ pub fn run() {
     let config = config::load();
     let plugins = plugins::load_all(config.plugins);
     let start_args = args.clone();
+    // The shortcut plugin grabs keys through X11/Win32/Carbon at startup; only load it when a
+    // shortcut is configured so a pure-Wayland session can never fail to launch because of it.
+    let want_shortcut = !config.global_shortcut.trim().is_empty();
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
@@ -63,7 +66,6 @@ pub fn run() {
             app::handle_args(app, &args, Some(std::path::Path::new(&cwd)));
         }))
         .plugin(tauri_plugin_opener::init())
-        .plugin(integration::shortcut_plugin())
         .manage(app::AppState::new(config, plugins, args.service))
         .register_asynchronous_uri_scheme_protocol("alook", |_ctx, request, responder| {
             tauri::async_runtime::spawn_blocking(move || {
@@ -118,6 +120,12 @@ pub fn run() {
             app::handle_args(&handle, &start_args, None);
             Ok(())
         });
+
+    let builder = if want_shortcut {
+        builder.plugin(integration::shortcut_plugin())
+    } else {
+        builder
+    };
 
     let app = match builder.build(tauri::generate_context!()) {
         Ok(a) => a,
