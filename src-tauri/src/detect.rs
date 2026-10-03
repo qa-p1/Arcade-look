@@ -51,7 +51,9 @@ pub const SNIFF_LEN: usize = 8192;
 /// Lower-cased "full" extension, honouring compound archive extensions (tar.gz, …).
 pub fn extension_of(name: &str) -> String {
     let lower = name.to_ascii_lowercase();
-    for compound in ["tar.gz", "tar.bz2", "tar.xz", "tar.zst", "tar.zstd", "tar.lzma"] {
+    for compound in [
+        "tar.gz", "tar.bz2", "tar.xz", "tar.zst", "tar.zstd", "tar.lzma",
+    ] {
         if lower.ends_with(&format!(".{compound}")) {
             return compound.to_string();
         }
@@ -128,7 +130,10 @@ fn det(kind: Kind, format: &str, lang: Option<&str>, mime: &str) -> Detection {
 
 fn trim_ascii_start(b: &[u8]) -> &[u8] {
     let b = b.strip_prefix(&[0xEF, 0xBB, 0xBF][..]).unwrap_or(b);
-    let start = b.iter().position(|c| !c.is_ascii_whitespace()).unwrap_or(b.len());
+    let start = b
+        .iter()
+        .position(|c| !c.is_ascii_whitespace())
+        .unwrap_or(b.len());
     &b[start..]
 }
 
@@ -153,7 +158,9 @@ fn by_extension(ext: &str) -> Option<Detection> {
         "hdr" => det(ImageDecode, "hdr", None, "image/vnd.radiance"),
         "exr" => det(ImageDecode, "exr", None, "image/x-exr"),
         "qoi" => det(ImageDecode, "qoi", None, "image/qoi"),
-        "pnm" | "pbm" | "pgm" | "ppm" | "pam" => det(ImageDecode, ext, None, "image/x-portable-anymap"),
+        "pnm" | "pbm" | "pgm" | "ppm" | "pam" => {
+            det(ImageDecode, ext, None, "image/x-portable-anymap")
+        }
         "ff" | "farbfeld" => det(ImageDecode, "farbfeld", None, "image/x-farbfeld"),
         "psd" | "psb" => det(ImagePsd, ext, None, "image/vnd.adobe.photoshop"),
         "cr2" | "cr3" | "crw" | "nef" | "nrw" | "arw" | "srf" | "sr2" | "dng" | "orf" | "rw2"
@@ -183,11 +190,21 @@ fn by_extension(ext: &str) -> Option<Detection> {
             det(Spreadsheet, ext, None, "application/vnd.ms-excel")
         }
         "docx" | "docm" | "dotx" | "dotm" => det(Document, "docx", None, MIME_DOCX),
-        "odt" | "ott" => det(Document, "odt", None, "application/vnd.oasis.opendocument.text"),
+        "odt" | "ott" => det(
+            Document,
+            "odt",
+            None,
+            "application/vnd.oasis.opendocument.text",
+        ),
         "rtf" => det(Document, "rtf", None, "application/rtf"),
         "epub" => det(Epub, "epub", None, "application/epub+zip"),
         "pptx" | "pptm" | "ppsx" | "potx" => det(Presentation, "pptx", None, MIME_PPTX),
-        "odp" | "otp" => det(Presentation, "odp", None, "application/vnd.oasis.opendocument.presentation"),
+        "odp" | "otp" => det(
+            Presentation,
+            "odp",
+            None,
+            "application/vnd.oasis.opendocument.presentation",
+        ),
         // Archives.
         "zip" | "jar" | "war" | "ear" | "apk" | "aab" | "ipa" | "xpi" | "whl" | "nupkg"
         | "vsix" | "cbz" | "kmz" | "sketch" | "aar" | "appx" | "msix" => {
@@ -206,9 +223,14 @@ fn by_extension(ext: &str) -> Option<Detection> {
         // Fonts.
         "ttf" | "otf" | "ttc" | "otc" | "woff" | "woff2" => det(Font, ext, None, mime_font(ext)),
         // 3D.
-        "glb" | "gltf" | "obj" | "stl" | "ply" | "fbx" | "dae" | "3mf" => {
-            det(Model, ext, None, "model/gltf-binary")
-        }
+        "glb" => det(Model, ext, None, "model/gltf-binary"),
+        "gltf" => det(Model, ext, None, "model/gltf+json"),
+        "obj" => det(Model, ext, None, "model/obj"),
+        "stl" => det(Model, ext, None, "model/stl"),
+        "ply" => det(Model, ext, None, "application/ply"),
+        "fbx" => det(Model, ext, None, "application/octet-stream"),
+        "dae" => det(Model, ext, None, "model/vnd.collada+xml"),
+        "3mf" => det(Model, ext, None, "model/3mf"),
         // Web.
         "html" | "htm" | "xhtml" | "shtml" => det(Html, "html", Some("xml"), "text/html"),
         _ => {
@@ -339,8 +361,8 @@ pub fn code_lang(ext: &str) -> Option<&'static str> {
         "less" => "less",
         "styl" => "stylus",
         "yaml" | "yml" => "yaml",
-        "toml" | "ini" | "cfg" | "conf" | "inf" | "desktop" | "service" | "reg" | "editorconfig"
-        | "gitconfig" | "npmrc" | "url" | "lock" => "ini",
+        "toml" | "ini" | "cfg" | "conf" | "inf" | "desktop" | "service" | "reg"
+        | "editorconfig" | "gitconfig" | "npmrc" | "url" | "lock" => "ini",
         "properties" => "properties",
         "tex" | "sty" | "cls" | "bib" | "ltx" => "latex",
         "dockerfile" | "containerfile" => "dockerfile",
@@ -378,10 +400,9 @@ pub fn code_lang(ext: &str) -> Option<&'static str> {
         | "nu" => "plaintext-code",
         "txt" | "text" | "log" | "nfo" | "rst" | "org" | "srt" | "vtt" | "sub" | "ass" | "me"
         | "1st" | "readme" | "license" | "out" | "err" | "pid" | "asc" | "pem" | "crt" | "cer"
-        | "csr" | "key" | "pub" | "sig" | "env" | "gitignore" | "gitattributes" | "dockerignore"
-        | "npmignore" | "eslintignore" | "prettierignore" | "gitmodules" | "mailmap" | "sln" => {
-            "plaintext"
-        }
+        | "csr" | "key" | "pub" | "sig" | "env" | "gitignore" | "gitattributes"
+        | "dockerignore" | "npmignore" | "eslintignore" | "prettierignore" | "gitmodules"
+        | "mailmap" | "sln" => "plaintext",
         _ => return None,
     })
 }
@@ -396,9 +417,7 @@ fn by_filename(name: &str) -> Option<Detection> {
         | "guardfile" | "capfile" => "ruby",
         "jenkinsfile" => "groovy",
         "pkgbuild" | "apkbuild" | ".bashrc" | ".bash_profile" | ".bash_logout" | ".profile"
-        | ".zshrc" | ".zprofile" | ".zshenv" | ".bash_aliases" | ".xinitrc" | ".xprofile" => {
-            "bash"
-        }
+        | ".zshrc" | ".zprofile" | ".zshenv" | ".bash_aliases" | ".xinitrc" | ".xprofile" => "bash",
         "nginx.conf" => "nginx",
         ".vimrc" | ".gvimrc" => "vim",
         "cargo.lock" | "pipfile" | "poetry.lock" | ".gitconfig" | ".editorconfig" | ".npmrc"
@@ -409,12 +428,19 @@ fn by_filename(name: &str) -> Option<Detection> {
         _ => {
             if lower.starts_with("dockerfile.") || lower.ends_with(".dockerfile") {
                 "dockerfile"
-            } else if lower.starts_with(".env") || lower.starts_with("readme")
-                || lower.starts_with("license") || lower.starts_with("licence")
-                || lower.starts_with("changelog") || lower.starts_with("authors")
-                || lower.starts_with("copying") || lower.starts_with("notice")
-                || lower.starts_with("contributors") || lower == "todo" || lower == "procfile"
-                || lower == "codeowners" || lower.starts_with(".git")
+            } else if lower.starts_with(".env")
+                || lower.starts_with("readme")
+                || lower.starts_with("license")
+                || lower.starts_with("licence")
+                || lower.starts_with("changelog")
+                || lower.starts_with("authors")
+                || lower.starts_with("copying")
+                || lower.starts_with("notice")
+                || lower.starts_with("contributors")
+                || lower == "todo"
+                || lower == "procfile"
+                || lower == "codeowners"
+                || lower.starts_with(".git")
             {
                 "plaintext"
             } else {
@@ -422,7 +448,11 @@ fn by_filename(name: &str) -> Option<Detection> {
             }
         }
     };
-    let kind = if lang == "plaintext" { Kind::Text } else { Kind::Code };
+    let kind = if lang == "plaintext" {
+        Kind::Text
+    } else {
+        Kind::Code
+    };
     Some(det(kind, "text", Some(lang), "text/plain"))
 }
 
@@ -434,7 +464,12 @@ fn by_magic(head: &[u8]) -> Option<Detection> {
         return Some(det(Kind::Pdf, "pdf", None, "application/pdf"));
     }
     if head.starts_with(b"8BPS") {
-        return Some(det(Kind::ImagePsd, "psd", None, "image/vnd.adobe.photoshop"));
+        return Some(det(
+            Kind::ImagePsd,
+            "psd",
+            None,
+            "image/vnd.adobe.photoshop",
+        ));
     }
     if head.len() > 262 && &head[257..262] == b"ustar" {
         return Some(det(Kind::Archive, "tar", None, "application/x-tar"));
@@ -523,7 +558,10 @@ fn shebang_lang(head: &[u8]) -> Option<&'static str> {
     if !head.starts_with(b"#!") {
         return None;
     }
-    let line_end = head.iter().position(|&b| b == b'\n').unwrap_or(head.len().min(200));
+    let line_end = head
+        .iter()
+        .position(|&b| b == b'\n')
+        .unwrap_or(head.len().min(200));
     let line = String::from_utf8_lossy(&head[..line_end]).to_ascii_lowercase();
     let table: &[(&str, &str)] = &[
         ("python", "python"),
@@ -544,7 +582,10 @@ fn shebang_lang(head: &[u8]) -> Option<&'static str> {
         ("awk", "awk"),
         ("tclsh", "tcl"),
     ];
-    table.iter().find(|(k, _)| line.contains(k)).map(|(_, v)| *v)
+    table
+        .iter()
+        .find(|(k, _)| line.contains(k))
+        .map(|(_, v)| *v)
 }
 
 #[cfg(test)]

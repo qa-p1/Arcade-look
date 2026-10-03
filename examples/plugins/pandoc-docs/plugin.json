@@ -1,0 +1,7 @@
+{
+  "name": "Pandoc documents",
+  "type": "command",
+  "extensions": ["org", "rst", "textile", "mediawiki", "tex", "typ", "fb2", "opml", "dbk"],
+  "command": ["pandoc", "--standalone", "--to", "html5", "--metadata", "title={stem}", "{path}"],
+  "output": "html"
+}

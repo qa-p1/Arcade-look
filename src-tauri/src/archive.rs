@@ -55,7 +55,11 @@ pub fn sniff_format(path: &Path, hint: &str) -> String {
     };
     if let Some(c) = compressed {
         // "tar.gz" stays "tar.gz"; "gz" stays single-stream (we peek inside lazily).
-        return if hint.starts_with("tar.") { format!("tar.{c}") } else { c.to_string() };
+        return if hint.starts_with("tar.") {
+            format!("tar.{c}")
+        } else {
+            c.to_string()
+        };
     }
     if h.starts_with(b"PK\x03\x04") || h.starts_with(b"PK\x05\x06") {
         return "zip".into();
@@ -192,7 +196,10 @@ fn list_tar(path: &Path, compression: &str) -> Res<Listing> {
         let e = match e {
             Ok(e) => e,
             Err(err) => {
-                l.note = Some(format!("Archive is damaged after {} entries: {err}", l.entries.len()));
+                l.note = Some(format!(
+                    "Archive is damaged after {} entries: {err}",
+                    l.entries.len()
+                ));
                 break;
             }
         };
@@ -221,7 +228,10 @@ fn list_tar(path: &Path, compression: &str) -> Res<Listing> {
         });
     }
     if l.truncated && started.elapsed() > BUDGET {
-        l.note = Some("Listing stopped after 2.5 s: the archive is large and compressed as a single stream.".into());
+        l.note = Some(
+            "Listing stopped after 2.5 s: the archive is large and compressed as a single stream."
+                .into(),
+        );
     }
     Ok(l)
 }
@@ -238,7 +248,9 @@ fn list_single(path: &Path, fmt: &str) -> Res<Listing> {
         size,
         packed: Some(packed),
         dir: false,
-        modified: std::fs::metadata(path).ok().and_then(|m| util::millis(m.modified())),
+        modified: std::fs::metadata(path)
+            .ok()
+            .and_then(|m| util::millis(m.modified())),
         encrypted: false,
     });
     Ok(l)
@@ -256,7 +268,10 @@ fn single_inner_name(path: &Path, fmt: &str) -> String {
             }
         }
     }
-    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let lower = name.to_ascii_lowercase();
     if lower.ends_with(".svgz") {
         return format!("{}.svg", &name[..name.len() - 5]);
@@ -306,8 +321,9 @@ pub fn extract(path: &Path, hint: &str, entry: &str) -> Res<PathBuf> {
                 copy_capped(&mut e, &mut w)?;
             }
             "7z" => {
-                let mut r = sevenz_rust2::ArchiveReader::open(path, sevenz_rust2::Password::empty())
-                    .or_str()?;
+                let mut r =
+                    sevenz_rust2::ArchiveReader::open(path, sevenz_rust2::Password::empty())
+                        .or_str()?;
                 let mut found = false;
                 let mut err = None;
                 r.for_each_entries(|e, rd| {
@@ -336,7 +352,10 @@ pub fn extract(path: &Path, hint: &str, entry: &str) -> Res<PathBuf> {
                 let mut found = false;
                 for e in ar.entries().or_str()? {
                     let mut e = e.or_str()?;
-                    let name = e.path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+                    let name = e
+                        .path()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_default();
                     if name == entry {
                         copy_capped(&mut e, &mut w)?;
                         found = true;
@@ -385,7 +404,13 @@ fn safe_rel_path(entry: &str) -> PathBuf {
             p => {
                 let cleaned: String = p
                     .chars()
-                    .map(|c| if matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control() { '_' } else { c })
+                    .map(|c| {
+                        if matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control() {
+                            '_'
+                        } else {
+                            c
+                        }
+                    })
                     .collect();
                 out.push(cleaned);
             }
@@ -424,7 +449,10 @@ mod tests {
         }
         let l = list(&p, "zip").unwrap();
         assert_eq!(l.entries.len(), 2);
-        assert!(l.entries.iter().any(|e| e.path == "docs/readme.md" && e.size == Some(4)));
+        assert!(l
+            .entries
+            .iter()
+            .any(|e| e.path == "docs/readme.md" && e.size == Some(4)));
         let out = extract(&p, "zip", "docs/readme.md").unwrap();
         assert_eq!(std::fs::read(out).unwrap(), b"# hi");
     }
@@ -434,7 +462,10 @@ mod tests {
         let d = tmpdir("tgz");
         let p = d.join("a.tar.gz");
         {
-            let enc = flate2::write::GzEncoder::new(File::create(&p).unwrap(), flate2::Compression::fast());
+            let enc = flate2::write::GzEncoder::new(
+                File::create(&p).unwrap(),
+                flate2::Compression::fast(),
+            );
             let mut b = tar::Builder::new(enc);
             let data = b"hello tar";
             let mut h = tar::Header::new_gnu();
@@ -446,11 +477,17 @@ mod tests {
         }
         let l = list(&p, "tar.gz").unwrap();
         assert_eq!(l.entries[0].path, "dir/x.txt");
-        assert_eq!(std::fs::read(extract(&p, "tar.gz", "dir/x.txt").unwrap()).unwrap(), b"hello tar");
+        assert_eq!(
+            std::fs::read(extract(&p, "tar.gz", "dir/x.txt").unwrap()).unwrap(),
+            b"hello tar"
+        );
 
         let g = d.join("log.txt.gz");
         {
-            let mut enc = flate2::write::GzEncoder::new(File::create(&g).unwrap(), flate2::Compression::fast());
+            let mut enc = flate2::write::GzEncoder::new(
+                File::create(&g).unwrap(),
+                flate2::Compression::fast(),
+            );
             enc.write_all(b"line1\nline2\n").unwrap();
             enc.finish().unwrap();
         }
@@ -463,7 +500,10 @@ mod tests {
 
     #[test]
     fn zip_slip_is_neutralised() {
-        assert_eq!(safe_rel_path("../../etc/passwd"), PathBuf::from("etc").join("passwd"));
+        assert_eq!(
+            safe_rel_path("../../etc/passwd"),
+            PathBuf::from("etc").join("passwd")
+        );
         assert_eq!(safe_rel_path("/abs/x"), PathBuf::from("abs").join("x"));
     }
 

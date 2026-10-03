@@ -47,7 +47,9 @@ pub fn read(path: &Path, format: &str) -> Res<Deck> {
 fn pptx(path: &Path) -> Res<Deck> {
     let mut z = open_zip(path)?;
     let pres = zip_text(&mut z, "ppt/presentation.xml").ok_or("ppt/presentation.xml missing")?;
-    let pres_rels = zip_text(&mut z, "ppt/_rels/presentation.xml.rels").map(|s| rels(&s)).unwrap_or_default();
+    let pres_rels = zip_text(&mut z, "ppt/_rels/presentation.xml.rels")
+        .map(|s| rels(&s))
+        .unwrap_or_default();
     let mut order: Vec<String> = Vec::new();
     let mut aspect = 16.0 / 9.0;
     walk(&pres, |ev| match ev {
@@ -71,9 +73,13 @@ fn pptx(path: &Path) -> Res<Deck> {
     let mut used = 0u64;
     let mut slides = Vec::with_capacity(order.len());
     for part in order {
-        let Some(xml) = zip_text(&mut z, &part) else { continue };
+        let Some(xml) = zip_text(&mut z, &part) else {
+            continue;
+        };
         let (dir, file) = part.rsplit_once('/').unwrap_or(("", &part));
-        let rel_map = zip_text(&mut z, &format!("{dir}/_rels/{file}.rels")).map(|s| rels(&s)).unwrap_or_default();
+        let rel_map = zip_text(&mut z, &format!("{dir}/_rels/{file}.rels"))
+            .map(|s| rels(&s))
+            .unwrap_or_default();
         let mut slide = parse_pptx_slide(&xml);
         // Resolve images.
         for item in slide.items.iter_mut() {
@@ -90,7 +96,9 @@ fn pptx(path: &Path) -> Res<Deck> {
                 }
             }
         }
-        slide.items.retain(|i| !matches!(i, Item::Image { src } if src.is_empty()));
+        slide
+            .items
+            .retain(|i| !matches!(i, Item::Image { src } if src.is_empty()));
         // Speaker notes.
         if let Some((t, _)) = rel_map.values().find(|(t, _)| t.contains("notesSlide")) {
             if let Some(nx) = zip_text(&mut z, &resolve_part(dir, t)) {
@@ -100,7 +108,13 @@ fn pptx(path: &Path) -> Res<Deck> {
         slides.push(slide);
     }
     let (title, meta) = crate::office::ooxml_core_props(&mut z);
-    Ok(Deck { slides, aspect, title, meta, truncated })
+    Ok(Deck {
+        slides,
+        aspect,
+        title,
+        meta,
+        truncated,
+    })
 }
 
 fn parse_pptx_slide(xml: &str) -> Slide {
@@ -138,7 +152,11 @@ fn parse_pptx_slide(xml: &str) -> Slide {
             }
         }
         X::Close("p:sp") => {
-            let text = shape_paras.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>().join(" ");
+            let text = shape_paras
+                .iter()
+                .map(|(t, _)| t.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
             match ph.as_deref() {
                 Some("title" | "ctrTitle") if s.title.is_none() => s.title = Some(text),
                 Some("subTitle") if s.subtitle.is_none() => s.subtitle = Some(text),
@@ -289,10 +307,16 @@ fn odp(path: &Path) -> Res<Deck> {
         }
         X::Close("draw:frame") if !in_notes => {
             if let Some(s) = slides.last_mut() {
-                let text = frame_paras.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>().join(" ");
+                let text = frame_paras
+                    .iter()
+                    .map(|(t, _)| t.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
                 match class.as_deref() {
                     Some("title") if s.title.is_none() && !text.is_empty() => s.title = Some(text),
-                    Some("subtitle") if s.subtitle.is_none() && !text.is_empty() => s.subtitle = Some(text),
+                    Some("subtitle") if s.subtitle.is_none() && !text.is_empty() => {
+                        s.subtitle = Some(text)
+                    }
                     Some("page-number" | "date-time" | "footer") => {}
                     _ => {
                         for (t, l) in frame_paras.drain(..) {
@@ -313,16 +337,24 @@ fn odp(path: &Path) -> Res<Deck> {
         }
         if let Some(b) = zip_bytes(&mut z, &part, MAX_IMAGE) {
             used += b.len() as u64;
-            if let Some(Item::Image { src }) = slides.get_mut(si).and_then(|s| s.items.get_mut(ii)) {
+            if let Some(Item::Image { src }) = slides.get_mut(si).and_then(|s| s.items.get_mut(ii))
+            {
                 *src = data_uri(image_mime_from_name(&part), &b);
             }
         }
     }
     for s in slides.iter_mut() {
-        s.items.retain(|i| !matches!(i, Item::Image { src } if src.is_empty()));
+        s.items
+            .retain(|i| !matches!(i, Item::Image { src } if src.is_empty()));
     }
     let (title, meta) = crate::office::odf_meta(&mut z);
-    Ok(Deck { slides, aspect: 16.0 / 9.0, title, meta, truncated: false })
+    Ok(Deck {
+        slides,
+        aspect: 16.0 / 9.0,
+        title,
+        meta,
+        truncated: false,
+    })
 }
 
 #[cfg(test)]

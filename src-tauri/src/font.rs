@@ -48,7 +48,11 @@ pub fn info(path: &Path, ext: &str) -> Res<FontInfo> {
         .or_str()?;
     if ext == "woff2" || data.starts_with(b"wOF2") {
         // WOFF2 needs Brotli + table transforms; the webview renders it, we just label it.
-        return Ok(FontInfo { format: "WOFF2".into(), faces: 1, ..Default::default() });
+        return Ok(FontInfo {
+            format: "WOFF2".into(),
+            faces: 1,
+            ..Default::default()
+        });
     }
     let (data, format) = if data.starts_with(b"wOFF") {
         (unwrap_woff(&data)?, "WOFF")
@@ -115,21 +119,33 @@ pub fn info(path: &Path, ext: &str) -> Res<FontInfo> {
 /// Convert WOFF 1.0 into a plain sfnt (zlib-compressed tables).
 fn unwrap_woff(d: &[u8]) -> Res<Vec<u8>> {
     let be16 = |o: usize| -> Res<u16> {
-        d.get(o..o + 2).map(|b| u16::from_be_bytes([b[0], b[1]])).ok_or_else(|| "truncated WOFF".to_string())
+        d.get(o..o + 2)
+            .map(|b| u16::from_be_bytes([b[0], b[1]]))
+            .ok_or_else(|| "truncated WOFF".to_string())
     };
     let be32 = |o: usize| -> Res<u32> {
-        d.get(o..o + 4).map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]])).ok_or_else(|| "truncated WOFF".to_string())
+        d.get(o..o + 4)
+            .map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
+            .ok_or_else(|| "truncated WOFF".to_string())
     };
     let flavor = be32(4)?;
     let num = be16(12)? as usize;
     let mut tables = Vec::with_capacity(num);
     for i in 0..num {
         let o = 44 + i * 20;
-        let (tag, off, clen, olen) = (be32(o)?, be32(o + 4)? as usize, be32(o + 8)? as usize, be32(o + 12)? as usize);
+        let (tag, off, clen, olen) = (
+            be32(o)?,
+            be32(o + 4)? as usize,
+            be32(o + 8)? as usize,
+            be32(o + 12)? as usize,
+        );
         let raw = d.get(off..off + clen).ok_or("truncated WOFF table")?;
         let data = if clen < olen {
             let mut v = Vec::with_capacity(olen);
-            flate2::read::ZlibDecoder::new(raw).take(olen as u64).read_to_end(&mut v).or_str()?;
+            flate2::read::ZlibDecoder::new(raw)
+                .take(olen as u64)
+                .read_to_end(&mut v)
+                .or_str()?;
             v
         } else {
             raw.to_vec()
@@ -147,7 +163,9 @@ fn unwrap_woff(d: &[u8]) -> Res<Vec<u8>> {
     }
     out.extend_from_slice(&(pow * 16).to_be_bytes());
     out.extend_from_slice(&log.to_be_bytes());
-    out.extend_from_slice(&((num as u16).saturating_mul(16).saturating_sub(pow * 16)).to_be_bytes());
+    out.extend_from_slice(
+        &((num as u16).saturating_mul(16).saturating_sub(pow * 16)).to_be_bytes(),
+    );
     let mut offset = 12 + num * 16;
     let mut dir = Vec::new();
     let mut body = Vec::new();

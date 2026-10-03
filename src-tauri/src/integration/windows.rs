@@ -16,20 +16,23 @@ use tauri::{AppHandle, Manager};
 use windows::core::{Interface, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoTaskMemFree, IServiceProvider, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
+    CoCreateInstance, CoInitializeEx, CoTaskMemFree, IServiceProvider, CLSCTX_ALL,
+    COINIT_APARTMENTTHREADED,
 };
 use windows::Win32::System::Variant::{VARIANT, VT_I4};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT, VK_SPACE,
 };
 use windows::Win32::UI::Shell::{
-    IFolderView, IShellBrowser, IShellItemArray, IShellWindows, IWebBrowser2, ShellWindows, SID_STopLevelBrowser,
-    CSIDL_DESKTOP, SIGDN_FILESYSPATH, SVGIO_SELECTION, SWC_DESKTOP, SWFO_NEEDDISPATCH,
+    IFolderView, IShellBrowser, IShellItemArray, IShellWindows, IWebBrowser2, SID_STopLevelBrowser,
+    ShellWindows, CSIDL_DESKTOP, SIGDN_FILESYSPATH, SVGIO_SELECTION, SWC_DESKTOP,
+    SWFO_NEEDDISPATCH,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, DispatchMessageW, FindWindowExW, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo,
-    GetMessageW, GetWindowThreadProcessId, SetWindowsHookExW, TranslateMessage, GUITHREADINFO, HC_ACTION,
-    KBDLLHOOKSTRUCT, LLKHF_INJECTED, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_SYSKEYDOWN,
+    CallNextHookEx, DispatchMessageW, FindWindowExW, GetClassNameW, GetForegroundWindow,
+    GetGUIThreadInfo, GetMessageW, GetWindowThreadProcessId, SetWindowsHookExW, TranslateMessage,
+    GUITHREADINFO, HC_ACTION, KBDLLHOOKSTRUCT, LLKHF_INJECTED, MSG, WH_KEYBOARD_LL, WM_KEYDOWN,
+    WM_SYSKEYDOWN,
 };
 
 static HOOK_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -51,7 +54,9 @@ pub fn start_hook(app: AppHandle) {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         }
         while let Ok(hwnd) = rx.recv() {
-            let Some(path) = selection_of(HWND(hwnd as *mut _)) else { continue };
+            let Some(path) = selection_of(HWND(hwnd as *mut _)) else {
+                continue;
+            };
             let state = app.state::<AppState>();
             let same = state.current.lock().ok().and_then(|c| c.clone()) == Some(path.clone());
             if same && state.is_visible() {
@@ -91,7 +96,9 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
                 if SWALLOWING.load(Ordering::SeqCst) {
                     return LRESULT(1); // auto-repeat while held
                 }
-                let modifiers = [VK_SHIFT, VK_CONTROL, VK_MENU, VK_LWIN, VK_RWIN].iter().any(|k| key_down(k.0));
+                let modifiers = [VK_SHIFT, VK_CONTROL, VK_MENU, VK_LWIN, VK_RWIN]
+                    .iter()
+                    .any(|k| key_down(k.0));
                 if !modifiers {
                     if let Some(hwnd) = explorer_item_view_focused() {
                         SWALLOWING.store(true, Ordering::SeqCst);
@@ -123,11 +130,17 @@ fn explorer_item_view_focused() -> Option<HWND> {
             return None;
         }
         let class = class_of(fg);
-        if !matches!(class.as_str(), "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW") {
+        if !matches!(
+            class.as_str(),
+            "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW"
+        ) {
             return None;
         }
         let tid = GetWindowThreadProcessId(fg, None);
-        let mut gui = GUITHREADINFO { cbSize: std::mem::size_of::<GUITHREADINFO>() as u32, ..Default::default() };
+        let mut gui = GUITHREADINFO {
+            cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
+            ..Default::default()
+        };
         GetGUIThreadInfo(tid, &mut gui).ok()?;
         if !gui.hwndCaret.0.is_null() {
             return None; // a text field (rename, address bar, search) is being edited
@@ -155,24 +168,35 @@ fn selection_of(fg: HWND) -> Option<PathBuf> {
             let loc = variant_i4(CSIDL_DESKTOP as i32);
             let empty = VARIANT::default();
             let mut hwnd = 0i32;
-            let disp = windows.FindWindowSW(&loc, &empty, SWC_DESKTOP, &mut hwnd, SWFO_NEEDDISPATCH).ok()?;
+            let disp = windows
+                .FindWindowSW(&loc, &empty, SWC_DESKTOP, &mut hwnd, SWFO_NEEDDISPATCH)
+                .ok()?;
             let sp: IServiceProvider = disp.cast().ok()?;
             let browser: IShellBrowser = sp.QueryService(&SID_STopLevelBrowser).ok()?;
             return first_selected(&browser);
         }
         // Windows 11 tabs: the first ShellTabWindowClass child is the active tab.
         let tab_class: Vec<u16> = "ShellTabWindowClass\0".encode_utf16().collect();
-        let active_tab = FindWindowExW(Some(fg), None, PCWSTR(tab_class.as_ptr()), PCWSTR::null()).ok();
+        let active_tab =
+            FindWindowExW(Some(fg), None, PCWSTR(tab_class.as_ptr()), PCWSTR::null()).ok();
         let count = windows.Count().ok()?;
         for i in 0..count {
-            let Ok(disp) = windows.Item(&variant_i4(i)) else { continue };
-            let Ok(wb) = disp.cast::<IWebBrowser2>() else { continue };
+            let Ok(disp) = windows.Item(&variant_i4(i)) else {
+                continue;
+            };
+            let Ok(wb) = disp.cast::<IWebBrowser2>() else {
+                continue;
+            };
             let Ok(h) = wb.HWND() else { continue };
             if h.0 != fg.0 as isize {
                 continue;
             }
-            let Ok(sp) = wb.cast::<IServiceProvider>() else { continue };
-            let Ok(browser) = sp.QueryService::<IShellBrowser>(&SID_STopLevelBrowser) else { continue };
+            let Ok(sp) = wb.cast::<IServiceProvider>() else {
+                continue;
+            };
+            let Ok(browser) = sp.QueryService::<IShellBrowser>(&SID_STopLevelBrowser) else {
+                continue;
+            };
             if let Some(tab) = active_tab {
                 if let Ok(w) = browser.GetWindow() {
                     if w != tab {
@@ -210,7 +234,10 @@ pub fn foreground_selection() -> Option<PathBuf> {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let fg = GetForegroundWindow();
         let class = class_of(fg);
-        if !matches!(class.as_str(), "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW") {
+        if !matches!(
+            class.as_str(),
+            "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW"
+        ) {
             return None;
         }
         selection_of(fg)
@@ -247,23 +274,50 @@ const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 pub fn install() -> Res<String> {
     let exe = super::launcher_path();
     let exe = exe.to_string_lossy();
-    reg(&["add", RUN_KEY, "/v", "ArcadeLook", "/d", &format!("\"{exe}\" --service"), "/f"])?;
-    for base in [r"HKCU\Software\Classes\*\shell\ArcadeLook", r"HKCU\Software\Classes\Directory\shell\ArcadeLook"] {
+    reg(&[
+        "add",
+        RUN_KEY,
+        "/v",
+        "ArcadeLook",
+        "/d",
+        &format!("\"{exe}\" --service"),
+        "/f",
+    ])?;
+    for base in [
+        r"HKCU\Software\Classes\*\shell\ArcadeLook",
+        r"HKCU\Software\Classes\Directory\shell\ArcadeLook",
+    ] {
         reg(&["add", base, "/v", "MUIVerb", "/d", "Quick Look", "/f"])?;
         reg(&["add", base, "/v", "Icon", "/d", &format!("\"{exe}\""), "/f"])?;
-        reg(&["add", &format!(r"{base}\command"), "/ve", "/d", &format!("\"{exe}\" \"%1\""), "/f"])?;
+        reg(&[
+            "add",
+            &format!(r"{base}\command"),
+            "/ve",
+            "/d",
+            &format!("\"{exe}\" \"%1\""),
+            "/f",
+        ])?;
     }
     // Start the background listener now so Space works without logging out.
     use std::os::windows::process::CommandExt;
-    let _ = std::process::Command::new(&*exe).arg("--service").creation_flags(0x0800_0000).spawn();
-    Ok("Installed: press Space on any file in File Explorer. Arcade Look now starts with Windows \
+    let _ = std::process::Command::new(&*exe)
+        .arg("--service")
+        .creation_flags(0x0800_0000)
+        .spawn();
+    Ok(
+        "Installed: press Space on any file in File Explorer. Arcade Look now starts with Windows \
         in the background, and \"Quick Look\" is in the right-click menu."
-        .into())
+            .into(),
+    )
 }
 
 pub fn uninstall() -> Res<String> {
     let _ = reg(&["delete", RUN_KEY, "/v", "ArcadeLook", "/f"]);
     let _ = reg(&["delete", r"HKCU\Software\Classes\*\shell\ArcadeLook", "/f"]);
-    let _ = reg(&["delete", r"HKCU\Software\Classes\Directory\shell\ArcadeLook", "/f"]);
+    let _ = reg(&[
+        "delete",
+        r"HKCU\Software\Classes\Directory\shell\ArcadeLook",
+        "/f",
+    ]);
     Ok("Removed Arcade Look autostart and context menu entries.".into())
 }

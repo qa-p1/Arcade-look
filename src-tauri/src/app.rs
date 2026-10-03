@@ -68,6 +68,7 @@ pub const MAIN: &str = "main";
 
 /// Ask the UI to preview `path` (or show the welcome screen for `None`).
 pub fn open(app: &AppHandle, path: Option<PathBuf>, source: Source) {
+    crate::dbg_log!("open {path:?} from {source:?}");
     let state = app.state::<AppState>();
     if let Ok(mut s) = state.source.lock() {
         *s = source;
@@ -98,13 +99,17 @@ pub fn open(app: &AppHandle, path: Option<PathBuf>, source: Source) {
 }
 
 pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    crate::dbg_log!("creating window");
     let state = app.state::<AppState>();
     state.frontend_ready.store(false, Ordering::SeqCst);
     let ws = state.window_state.lock().map(|s| *s).unwrap_or_default();
     let dark = !matches!(state.config().theme.as_str(), "light");
     let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
         .title("Arcade Look")
-        .inner_size(ws.width.clamp(420.0, 6000.0), ws.height.clamp(300.0, 4000.0))
+        .inner_size(
+            ws.width.clamp(420.0, 6000.0),
+            ws.height.clamp(300.0, 4000.0),
+        )
         .min_inner_size(420.0, 300.0)
         .visible(false)
         .resizable(true)
@@ -126,8 +131,11 @@ pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
 
 /// Show and focus the window (called by the UI once the preview has painted).
 pub fn show(app: &AppHandle) {
+    crate::dbg_log!("show");
     let state = app.state::<AppState>();
-    let Some(w) = app.get_webview_window(MAIN) else { return };
+    let Some(w) = app.get_webview_window(MAIN) else {
+        return;
+    };
     let was_visible = state.visible.swap(true, Ordering::SeqCst);
     if let Ok(mut h) = state.hidden_since.lock() {
         *h = None;
@@ -135,7 +143,12 @@ pub fn show(app: &AppHandle) {
     if !was_visible {
         center_on_cursor_monitor(app, &w);
         #[cfg(target_os = "linux")]
-        if let Some(token) = state.activation_token.lock().ok().and_then(|mut t| t.take()) {
+        if let Some(token) = state
+            .activation_token
+            .lock()
+            .ok()
+            .and_then(|mut t| t.take())
+        {
             crate::integration::linux::apply_activation_token(&w, &token);
         }
     }
@@ -148,6 +161,7 @@ pub fn show(app: &AppHandle) {
 }
 
 pub fn hide(app: &AppHandle) {
+    crate::dbg_log!("hide");
     let state = app.state::<AppState>();
     if let Some(w) = app.get_webview_window(MAIN) {
         if w.is_fullscreen().unwrap_or(false) {
@@ -169,7 +183,9 @@ fn remember_size(app: &AppHandle, w: &WebviewWindow) {
     if w.is_maximized().unwrap_or(false) || w.is_fullscreen().unwrap_or(false) {
         return;
     }
-    let (Ok(size), Ok(scale)) = (w.inner_size(), w.scale_factor()) else { return };
+    let (Ok(size), Ok(scale)) = (w.inner_size(), w.scale_factor()) else {
+        return;
+    };
     let logical = size.to_logical::<f64>(scale);
     let state = app.state::<AppState>();
     if let Ok(mut s) = state.window_state.lock() {
@@ -182,8 +198,12 @@ fn remember_size(app: &AppHandle, w: &WebviewWindow) {
 }
 
 fn center_on_cursor_monitor(app: &AppHandle, w: &WebviewWindow) {
-    let Ok(cursor) = app.cursor_position() else { return };
-    let Ok(monitors) = w.available_monitors() else { return };
+    let Ok(cursor) = app.cursor_position() else {
+        return;
+    };
+    let Ok(monitors) = w.available_monitors() else {
+        return;
+    };
     let Some(m) = monitors.into_iter().find(|m| {
         let (p, s) = (m.position(), m.size());
         cursor.x >= p.x as f64
@@ -193,10 +213,25 @@ fn center_on_cursor_monitor(app: &AppHandle, w: &WebviewWindow) {
     }) else {
         return;
     };
-    let Ok(size) = w.outer_size() else { return };
+    // An unmapped window may report a bogus size, so use the size we created it with.
+    let ws = app
+        .state::<AppState>()
+        .window_state
+        .lock()
+        .map(|s| *s)
+        .unwrap_or_default();
+    let scale = m.scale_factor();
+    let mut width = (ws.width * scale) as i32;
+    let mut height = (ws.height * scale) as i32;
+    if let Ok(size) = w.outer_size() {
+        if size.width > 200 && size.height > 150 {
+            width = size.width as i32;
+            height = size.height as i32;
+        }
+    }
     let (mp, ms) = (m.position(), m.size());
-    let x = mp.x + (ms.width as i32 - size.width as i32) / 2;
-    let y = mp.y + (ms.height as i32 - size.height as i32) / 2;
+    let x = mp.x + (ms.width as i32 - width) / 2;
+    let y = mp.y + (ms.height as i32 - height) / 2;
     let _ = w.set_position(tauri::PhysicalPosition::new(x, y.max(mp.y)));
 }
 
@@ -244,9 +279,14 @@ pub fn handle_args(app: &AppHandle, args: &crate::cli::Args, cwd: Option<&std::p
         return;
     }
     if args.service {
-        app.state::<AppState>().service.store(true, Ordering::SeqCst);
+        app.state::<AppState>()
+            .service
+            .store(true, Ordering::SeqCst);
     }
-    let path = args.paths.iter().find_map(|p| crate::util::normalize_arg(p, cwd));
+    let path = args
+        .paths
+        .iter()
+        .find_map(|p| crate::util::normalize_arg(p, cwd));
     match path {
         Some(p) => open(app, Some(p), Source::Local),
         None if args.service => {}

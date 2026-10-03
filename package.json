@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "fixtures": "python3 scripts/make-fixtures.py fixtures"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.1",
@@ -20,5 +21,7 @@
     "@types/three": "0.186.0",
     "typescript": "7.0.2",
     "vite": "8.3.2"
-  }
+  },
+  "description": "Universal Quick Look: select a file, press Space, see it instantly.",
+  "license": "MIT"
 }

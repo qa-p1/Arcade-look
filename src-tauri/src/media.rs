@@ -50,7 +50,9 @@ pub fn info(path: &Path) -> Res<AudioInfo> {
         ..Default::default()
     };
     if let Some(t) = best_tag(&f) {
-        let s = |v: Option<std::borrow::Cow<str>>| v.map(|c| c.trim().to_string()).filter(|s| !s.is_empty());
+        let s = |v: Option<std::borrow::Cow<str>>| {
+            v.map(|c| c.trim().to_string()).filter(|s| !s.is_empty())
+        };
         ai.title = s(t.title());
         ai.artist = s(t.artist());
         ai.album = s(t.album());

@@ -1,0 +1,60 @@
+/* ---------------------------------------------------------------- paper documents */
+.doc-scroll { background: var(--surface-2); }
+.prose.paper {
+  width: min(860px, calc(100% - 48px));
+  max-width: none;
+  margin: 28px auto 96px;
+  padding: clamp(28px, 7%, 64px) clamp(22px, 8%, 72px);
+  background: var(--paper);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 12px 32px rgba(0, 0, 0, 0.08);
+  font-size: 14.5px;
+}
+.prose.paper.book { font-family: Charter, 'Iowan Old Style', Georgia, 'Noto Serif', 'DejaVu Serif', serif; font-size: 16.5px; line-height: 1.75; }
+.prose.paper .doc-title { font-size: 2.1em; border: 0; }
+.prose.paper .doc-subtitle { font-size: 1.25em; color: var(--text-2); font-weight: 400; border: 0; }
+.prose.paper table { display: table; width: auto; }
+.prose.paper td p { margin: 0; }
+.prose.paper img { display: inline-block; }
+.epub-cover { text-align: center; margin: 0 0 2em; }
+.epub-cover img { max-height: 70vh; box-shadow: var(--shadow); }
+.chapter + .chapter { margin-top: 3em; padding-top: 2em; border-top: 1px solid var(--border); }
+
+/* ---------------------------------------------------------------- slides */
+.slides-scroll { background: var(--surface-2); }
+.slides { max-width: 980px; margin: 0 auto; padding: 24px 28px 96px; display: flex; flex-direction: column; gap: 22px; }
+.slide-wrap { position: relative; }
+.slide-num { position: absolute; left: -26px; top: 6px; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.slide {
+  background: var(--paper);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 10px 28px rgba(0, 0, 0, 0.08);
+  padding: 4.5% 6%;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5%;
+  min-height: 0;
+  overflow: hidden;
+  container-type: inline-size;
+}
+.slide.title-only { justify-content: center; text-align: center; }
+.slide-title { margin: 0; font-size: clamp(18px, 4.2cqw, 40px); line-height: 1.2; letter-spacing: -0.01em; }
+.slide-subtitle { color: var(--text-2); font-size: clamp(13px, 2.4cqw, 22px); }
+.slide-body { display: flex; gap: 4%; flex: 1; min-height: 0; }
+.slide-texts { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.6em; font-size: clamp(12px, 2cqw, 19px); }
+.slide-text { position: relative; padding-left: 1.1em; white-space: pre-wrap; }
+.slide-text::before { content: '•'; position: absolute; left: 0; color: var(--accent); }
+.slide-text.lvl-1 { margin-left: 1.4em; font-size: 0.92em; }
+.slide-text.lvl-2, .slide-text.lvl-3, .slide-text.lvl-4 { margin-left: 2.8em; font-size: 0.86em; }
+.slide-media { flex: 0 1 46%; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; min-width: 0; }
+.slide-media.only { flex: 1; }
+.slide-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 3px; }
+.slide-table { border-collapse: collapse; font-size: clamp(10px, 1.5cqw, 14px); }
+.slide-table td, .slide-table th { border: 1px solid var(--border-strong); padding: 3px 8px; }
+.slide-table th { background: var(--surface-2); }
+.slide-notes { margin-top: 8px; font-size: 12.5px; color: var(--text-2); white-space: pre-wrap; }
+.slide-notes summary { cursor: pointer; color: var(--text-3); }
+
+/* ---------------------------------------------------------------- html */
+.html-host { flex: 1; min-height: 0; display: flex; background: #fff; }
+.html-frame { flex: 1; border: 0; width: 100%; height: 100%; background: #fff; color-scheme: light; }

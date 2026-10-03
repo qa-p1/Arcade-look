@@ -125,7 +125,14 @@ Security: previews of untrusted content never execute it. HTML runs in a `sandbo
 - An end-to-end smoke run of the real app under Xvfb that screenshots each viewer.
 - GitHub Actions: CI (fmt, clippy, tests, typecheck, build) on Linux/macOS/Windows, and a tag-triggered release workflow producing `.msi`/`.exe`, `.dmg`, `.deb`/`.rpm`/`.AppImage`.
 
-## 9. Honest limits
+## 9. Decisions made during the build
+
+- **Linux media streams over loopback HTTP.** WebKitGTK's GStreamer pipeline fails on custom URL schemes (it reads one small range and gives up), so `<video>`/`<audio>` use a tiny token-protected server on `127.0.0.1`. Everything else stays on `alook://`.
+- **One WebGL renderer and one pdf.js worker per session.** WebKit doesn't release WebGL contexts promptly, so creating one per preview leaked ~35 MB each time. Reusing them keeps memory flat (verified over 10+ cycles).
+- **Ignore auto-repeat on close keys.** The Space that opens a preview may still be held when the window takes focus; its repeats must not close the preview.
+- **No `requestAnimationFrame` before showing the window.** WebKit doesn't run it for hidden windows, which would block the first show.
+
+## 10. Honest limits
 
 - Codec support for video/audio is whatever the OS webview supports (e.g. MKV/HEVC varies). Unsupported media falls back to the info card; a command plugin with ffmpeg can transcode.
 - Legacy binary Office (`.doc`/`.ppt`) needs a plugin (LibreOffice). `.xls` works natively.

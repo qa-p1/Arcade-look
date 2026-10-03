@@ -29,7 +29,13 @@ pub fn read_text(path: &Path, max: u64) -> Res<TextData> {
     let truncated = (bytes.len() as u64) < size;
     let (text, encoding) = decode(&bytes);
     let lines = text.lines().count().max(1);
-    Ok(TextData { text, encoding, truncated, size, lines })
+    Ok(TextData {
+        text,
+        encoding,
+        truncated,
+        size,
+        lines,
+    })
 }
 
 /// Decode bytes to a String, detecting UTF-8/UTF-16 BOMs and guessing legacy encodings.
@@ -48,7 +54,10 @@ pub fn decode(bytes: &[u8]) -> (String, String) {
         Err(_) => {}
     }
     let mut det = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
-    det.feed(&bytes[..bytes.len().min(64 * 1024)], bytes.len() <= 64 * 1024);
+    det.feed(
+        &bytes[..bytes.len().min(64 * 1024)],
+        bytes.len() <= 64 * 1024,
+    );
     let enc = det.guess(None, chardetng::Utf8Detection::Allow);
     let (cow, _, _) = enc.decode(bytes);
     (cow.into_owned(), enc.name().to_string())

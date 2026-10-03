@@ -12,7 +12,11 @@ const SCRIPT: &str = r#"tell application "Finder"
 end tell"#;
 
 pub fn finder_selection() -> Option<PathBuf> {
-    let out = Command::new("osascript").arg("-e").arg(SCRIPT).output().ok()?;
+    let out = Command::new("osascript")
+        .arg("-e")
+        .arg(SCRIPT)
+        .output()
+        .ok()?;
     if !out.status.success() {
         return None;
     }
@@ -25,8 +29,10 @@ pub fn status() -> Vec<(String, bool)> {
 }
 
 pub fn install() -> Res<String> {
-    Ok("macOS needs no setup: select a file in Finder and press the global shortcut \
+    Ok(
+        "macOS needs no setup: select a file in Finder and press the global shortcut \
         (Ctrl+Option+Space by default). The first time, allow Arcade Look to control Finder \
         when macOS asks. Change the shortcut in config.json (globalShortcut)."
-        .into())
+            .into(),
+    )
 }

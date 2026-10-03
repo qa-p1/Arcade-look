@@ -42,17 +42,22 @@ pub fn inspect_path(path: &Path, plugins: &[plugins::Plugin]) -> Res<FileInfo> {
         std::io::ErrorKind::PermissionDenied => "Permission denied.".to_string(),
         _ => e.to_string(),
     })?;
-    let symlink = lmeta
-        .file_type()
-        .is_symlink()
-        .then(|| std::fs::read_link(path).map(|t| t.to_string_lossy().to_string()).unwrap_or_default());
+    let symlink = lmeta.file_type().is_symlink().then(|| {
+        std::fs::read_link(path)
+            .map(|t| t.to_string_lossy().to_string())
+            .unwrap_or_default()
+    });
     let meta = std::fs::metadata(path).unwrap_or(lmeta);
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.to_string_lossy().to_string());
     let d = detect::detect(path);
-    let ext = if meta.is_dir() { String::new() } else { detect::extension_of(&name) };
+    let ext = if meta.is_dir() {
+        String::new()
+    } else {
+        detect::extension_of(&name)
+    };
     #[cfg(unix)]
     let mode = {
         use std::os::unix::fs::PermissionsExt;
@@ -60,7 +65,10 @@ pub fn inspect_path(path: &Path, plugins: &[plugins::Plugin]) -> Res<FileInfo> {
     };
     #[cfg(not(unix))]
     let mode = None;
-    let kind_str = serde_json::to_value(d.kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+    let kind_str = serde_json::to_value(d.kind)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default();
     let (over, fall) = plugins::matching(plugins, &ext, &kind_str);
     Ok(FileInfo {
         path: path.to_string_lossy().to_string(),
@@ -91,7 +99,11 @@ pub async fn inspect(state: State<'_, app::AppState>, path: String) -> Res<FileI
 }
 
 #[tauri::command]
-pub async fn read_text(state: State<'_, app::AppState>, path: String, max_bytes: Option<u64>) -> Res<crate::text::TextData> {
+pub async fn read_text(
+    state: State<'_, app::AppState>,
+    path: String,
+    max_bytes: Option<u64>,
+) -> Res<crate::text::TextData> {
     let limit = state.config().text_limit_mb.max(1) << 20;
     let max = max_bytes.unwrap_or(limit).min(limit * 4);
     blocking(move || crate::text::read_text(&path_arg(&path)?, max)).await
@@ -109,14 +121,23 @@ pub async fn render_markdown(state: State<'_, app::AppState>, path: String) -> R
     let limit = state.config().text_limit_mb.max(1) << 20;
     blocking(move || {
         let t = crate::text::read_text(&path_arg(&path)?, limit)?;
-        Ok(Markdown { html: crate::markdown::to_html(&t.text), truncated: t.truncated })
+        Ok(Markdown {
+            html: crate::markdown::to_html(&t.text),
+            truncated: t.truncated,
+        })
     })
     .await
 }
 
 #[tauri::command]
 pub async fn markdown_batch(sources: Vec<String>) -> Res<Vec<String>> {
-    blocking(move || Ok(sources.iter().map(|s| crate::markdown::to_html(s)).collect())).await
+    blocking(move || {
+        Ok(sources
+            .iter()
+            .map(|s| crate::markdown::to_html(s))
+            .collect())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -139,11 +160,20 @@ pub async fn list_archive(path: String, format: String) -> Res<crate::archive::L
 
 #[tauri::command]
 pub async fn extract_entry(path: String, format: String, entry: String) -> Res<String> {
-    blocking(move || Ok(crate::archive::extract(&path_arg(&path)?, &format, &entry)?.to_string_lossy().to_string())).await
+    blocking(move || {
+        Ok(crate::archive::extract(&path_arg(&path)?, &format, &entry)?
+            .to_string_lossy()
+            .to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-pub async fn read_table(path: String, format: String, sheet: Option<usize>) -> Res<crate::table::TableData> {
+pub async fn read_table(
+    path: String,
+    format: String,
+    sheet: Option<usize>,
+) -> Res<crate::table::TableData> {
     blocking(move || {
         let p = path_arg(&path)?;
         match format.as_str() {
@@ -186,7 +216,13 @@ pub async fn list_dir(path: String) -> Res<crate::fsx::DirListing> {
 
 #[tauri::command]
 pub async fn dir_size(path: String) -> Res<crate::fsx::DirSize> {
-    blocking(move || Ok(crate::fsx::dir_size(&path_arg(&path)?, Duration::from_millis(1500)))).await
+    blocking(move || {
+        Ok(crate::fsx::dir_size(
+            &path_arg(&path)?,
+            Duration::from_millis(1500),
+        ))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -195,7 +231,11 @@ pub async fn neighbor(path: String, delta: i64) -> Res<Option<String>> {
 }
 
 #[tauri::command]
-pub async fn run_plugin(state: State<'_, app::AppState>, id: String, path: String) -> Res<plugins::PluginOutput> {
+pub async fn run_plugin(
+    state: State<'_, app::AppState>,
+    id: String,
+    path: String,
+) -> Res<plugins::PluginOutput> {
     let plugin = state
         .plugins
         .read()
@@ -215,7 +255,10 @@ pub fn open_default(app: AppHandle, path: String) -> Res<()> {
 pub fn open_url(app: AppHandle, url: String) -> Res<()> {
     use tauri_plugin_opener::OpenerExt;
     let lower = url.to_ascii_lowercase();
-    if !(lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("mailto:")) {
+    if !(lower.starts_with("https://")
+        || lower.starts_with("http://")
+        || lower.starts_with("mailto:"))
+    {
         return Err("only web and mail links can be opened".into());
     }
     app.opener().open_url(url, None::<&str>).or_str()
@@ -238,12 +281,17 @@ pub struct Bootstrap {
     plugins_dir: String,
     info_panel: bool,
     service: bool,
+    debug: bool,
+    media_base: Option<String>,
     integration: Vec<(String, bool)>,
 }
 
 #[tauri::command]
 pub fn bootstrap(state: State<'_, app::AppState>) -> Bootstrap {
-    state.frontend_ready.store(true, std::sync::atomic::Ordering::SeqCst);
+    state
+        .frontend_ready
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    crate::dbg_log!("frontend ready");
     // With no pending file the UI shows its welcome screen (unless running as a service).
     let pending = state.pending.lock().ok().and_then(|mut p| p.take());
     Bootstrap {
@@ -253,10 +301,22 @@ pub fn bootstrap(state: State<'_, app::AppState>) -> Bootstrap {
         config: state.config(),
         config_path: crate::config::config_path().to_string_lossy().to_string(),
         plugins_dir: crate::config::plugins_dir().to_string_lossy().to_string(),
-        info_panel: state.window_state.lock().map(|s| s.info_panel).unwrap_or(false),
+        info_panel: state
+            .window_state
+            .lock()
+            .map(|s| s.info_panel)
+            .unwrap_or(false),
         service: state.service.load(std::sync::atomic::Ordering::SeqCst),
+        debug: crate::util::debug_enabled(),
+        media_base: crate::mediaserver::base(),
         integration: crate::integration::status(),
     }
+}
+
+/// Frontend diagnostics, printed only with `ALOOK_DEBUG=1`.
+#[tauri::command]
+pub fn log(level: String, message: String) {
+    crate::dbg_log!("ui {level}: {message}");
 }
 
 #[tauri::command]
@@ -287,7 +347,11 @@ pub fn set_info_panel(state: State<'_, app::AppState>, open: bool) {
 #[tauri::command]
 pub fn navigate_external(app: AppHandle, delta: i64) -> bool {
     let state = app.state::<app::AppState>();
-    let source = state.source.lock().map(|s| *s).unwrap_or(app::Source::Local);
+    let source = state
+        .source
+        .lock()
+        .map(|s| *s)
+        .unwrap_or(app::Source::Local);
     crate::integration::navigate(&app, source, delta)
 }
 

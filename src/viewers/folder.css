@@ -1,0 +1,47 @@
+.folder-view { max-width: 1200px; margin: 0 auto; padding: 26px 28px 96px; }
+.folder-head { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; }
+.folder-icon {
+  width: 76px;
+  height: 76px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.14);
+  background: color-mix(in srgb, #60a5fa 15%, transparent);
+  flex: none;
+}
+.folder-name { font-size: 20px; font-weight: 650; word-break: break-word; }
+.folder-stats { color: var(--text-2); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 8px; }
+.ftile {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 12px;
+  padding: 12px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ftile:hover { background: var(--surface-2); border-color: var(--border); }
+.ftile.dim { opacity: 0.55; }
+.ftile .kind-badge { width: 54px; height: 54px; border-radius: 14px; }
+.fthumb-wrap { width: 72px; height: 54px; display: flex; align-items: center; justify-content: center; }
+.fthumb { max-width: 72px; max-height: 54px; border-radius: 5px; box-shadow: var(--shadow-sm); object-fit: contain; }
+.ftile-name {
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.ftile-meta { font-size: 10.5px; color: var(--text-3); min-height: 1em; }
+.folder-empty { grid-column: 1 / -1; color: var(--text-3); padding: 24px; text-align: center; }

@@ -30,11 +30,39 @@ pub fn to_html(path: &Path) -> Res<DocOut> {
 }
 
 const SKIP_DESTS: &[&str] = &[
-    "fonttbl", "colortbl", "stylesheet", "info", "pict", "header", "footer", "headerl",
-    "headerr", "footerl", "footerr", "headerf", "footerf", "xmlnstbl", "listtable",
-    "listoverridetable", "rsidtbl", "generator", "themedata", "colorschememapping",
-    "latentstyles", "datastore", "object", "fldinst", "filetbl", "revtbl", "footnote",
-    "bkmkstart", "bkmkend", "pgdsctbl", "mmathPr", "wgrffmtfilter", "nonshppict",
+    "fonttbl",
+    "colortbl",
+    "stylesheet",
+    "info",
+    "pict",
+    "header",
+    "footer",
+    "headerl",
+    "headerr",
+    "footerl",
+    "footerr",
+    "headerf",
+    "footerf",
+    "xmlnstbl",
+    "listtable",
+    "listoverridetable",
+    "rsidtbl",
+    "generator",
+    "themedata",
+    "colorschememapping",
+    "latentstyles",
+    "datastore",
+    "object",
+    "fldinst",
+    "filetbl",
+    "revtbl",
+    "footnote",
+    "bkmkstart",
+    "bkmkend",
+    "pgdsctbl",
+    "mmathPr",
+    "wgrffmtfilter",
+    "nonshppict",
 ];
 
 #[allow(unused_assignments)]
@@ -42,7 +70,10 @@ fn convert(b: &[u8]) -> String {
     let mut out = String::with_capacity(b.len() / 2);
     let mut para = String::new();
     let mut stack: Vec<State> = Vec::new();
-    let mut st = State { uc: 1, ..Default::default() };
+    let mut st = State {
+        uc: 1,
+        ..Default::default()
+    };
     let mut run = String::new();
     let mut run_fmt = (false, false, false);
     let mut pending_skip = 0u32; // chars to skip after \uN
@@ -126,7 +157,9 @@ fn convert(b: &[u8]) -> String {
                             i += 1;
                         }
                     }
-                    let param: Option<i32> = std::str::from_utf8(&b[pstart..i]).ok().and_then(|s| s.parse().ok());
+                    let param: Option<i32> = std::str::from_utf8(&b[pstart..i])
+                        .ok()
+                        .and_then(|s| s.parse().ok());
                     if i < b.len() && b[i] == b' ' {
                         i += 1;
                     }
@@ -190,7 +223,10 @@ fn convert(b: &[u8]) -> String {
                     i += 1;
                     match n {
                         b'\'' => {
-                            let hex = b.get(i..i + 2).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok());
+                            let hex = b
+                                .get(i..i + 2)
+                                .and_then(|h| std::str::from_utf8(h).ok())
+                                .and_then(|h| u8::from_str_radix(h, 16).ok());
                             i += 2;
                             if let Some(byte) = hex {
                                 let buf = [byte];

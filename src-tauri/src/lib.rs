@@ -12,6 +12,7 @@ pub mod imaging;
 pub mod integration;
 pub mod markdown;
 pub mod media;
+pub mod mediaserver;
 pub mod office;
 pub mod plugins;
 pub mod protocol;
@@ -35,7 +36,11 @@ pub fn run() {
         } else if args.help {
             print!("{}", cli::HELP);
         } else {
-            let r = if args.install { integration::install() } else { integration::uninstall() };
+            let r = if args.install {
+                integration::install()
+            } else {
+                integration::uninstall()
+            };
             match r {
                 Ok(msg) => println!("{msg}"),
                 Err(e) => {
@@ -93,6 +98,7 @@ pub fn run() {
             commands::open_default,
             commands::open_url,
             commands::reveal,
+            commands::log,
             commands::show_window,
             commands::hide_window,
             commands::quit,
@@ -102,7 +108,11 @@ pub fn run() {
             commands::reload_plugins,
         ])
         .setup(move |app| {
+            dbg_log!("setup, args: {start_args:?}");
             let handle = app.handle().clone();
+            // WebKitGTK streams media reliably only over HTTP (see mediaserver.rs).
+            #[cfg(target_os = "linux")]
+            mediaserver::start();
             integration::start(&handle);
             app::start_idle_watcher(handle.clone());
             app::handle_args(&handle, &start_args, None);
@@ -117,7 +127,10 @@ pub fn run() {
         }
     };
     app.run(|app, event| {
-        if let RunEvent::ExitRequested { code: None, api, .. } = event {
+        if let RunEvent::ExitRequested {
+            code: None, api, ..
+        } = event
+        {
             // The last window was destroyed (idle release): keep listening if needed.
             if app::keep_alive(app) {
                 api.prevent_exit();

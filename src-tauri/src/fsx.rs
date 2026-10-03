@@ -56,7 +56,11 @@ pub fn list_dir(path: &Path) -> Res<DirListing> {
         let p = e.path();
         let meta = std::fs::metadata(&p).ok();
         let dir = meta.as_ref().is_some_and(|m| m.is_dir());
-        let ext = if dir { String::new() } else { extension_of(&name) };
+        let ext = if dir {
+            String::new()
+        } else {
+            extension_of(&name)
+        };
         entries.push(DirEntry {
             kind: if dir { "folder" } else { icon_hint(&ext) },
             ext,
@@ -68,8 +72,16 @@ pub fn list_dir(path: &Path) -> Res<DirListing> {
             name,
         });
     }
-    entries.sort_by(|a, b| b.dir.cmp(&a.dir).then_with(|| natural_cmp(&a.name, &b.name)));
-    Ok(DirListing { truncated: total > entries.len(), entries, total })
+    entries.sort_by(|a, b| {
+        b.dir
+            .cmp(&a.dir)
+            .then_with(|| natural_cmp(&a.name, &b.name))
+    });
+    Ok(DirListing {
+        truncated: total > entries.len(),
+        entries,
+        total,
+    })
 }
 
 #[derive(Serialize)]
@@ -84,14 +96,21 @@ pub struct DirSize {
 /// Recursive size with a time and entry budget. Symlinks are not followed.
 pub fn dir_size(path: &Path, budget: Duration) -> DirSize {
     let started = Instant::now();
-    let mut s = DirSize { bytes: 0, files: 0, dirs: 0, complete: true };
+    let mut s = DirSize {
+        bytes: 0,
+        files: 0,
+        dirs: 0,
+        complete: true,
+    };
     let mut stack: Vec<PathBuf> = vec![path.to_path_buf()];
     while let Some(d) = stack.pop() {
         if started.elapsed() > budget || s.files + s.dirs > 400_000 {
             s.complete = false;
             break;
         }
-        let Ok(rd) = std::fs::read_dir(&d) else { continue };
+        let Ok(rd) = std::fs::read_dir(&d) else {
+            continue;
+        };
         for e in rd.flatten() {
             let Ok(ft) = e.file_type() else { continue };
             if ft.is_dir() {
@@ -110,7 +129,10 @@ pub fn dir_size(path: &Path, budget: Duration) -> DirSize {
 /// first, hidden files only if the current one is hidden).
 pub fn neighbor(path: &Path, delta: i64) -> Res<Option<String>> {
     let parent = path.parent().ok_or("no parent folder")?;
-    let cur_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let cur_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let show_hidden = is_hidden(&cur_name, path);
     let mut names: Vec<(bool, String)> = std::fs::read_dir(parent)
         .or_str()?
@@ -132,7 +154,12 @@ pub fn neighbor(path: &Path, delta: i64) -> Res<Option<String>> {
     if next < 0 || next >= names.len() as i64 {
         return Ok(None);
     }
-    Ok(Some(parent.join(&names[next as usize].1).to_string_lossy().to_string()))
+    Ok(Some(
+        parent
+            .join(&names[next as usize].1)
+            .to_string_lossy()
+            .to_string(),
+    ))
 }
 
 /// Cheap kind hint for folder listings (no IO).
@@ -173,11 +200,20 @@ mod tests {
         }
         std::fs::write(d.join("sub/x"), b"12").unwrap();
         let a2 = d.join("a2.txt");
-        assert_eq!(neighbor(&a2, 1).unwrap().unwrap(), d.join("a10.txt").to_string_lossy());
-        assert_eq!(neighbor(&a2, -1).unwrap().unwrap(), d.join("a1.txt").to_string_lossy());
+        assert_eq!(
+            neighbor(&a2, 1).unwrap().unwrap(),
+            d.join("a10.txt").to_string_lossy()
+        );
+        assert_eq!(
+            neighbor(&a2, -1).unwrap().unwrap(),
+            d.join("a1.txt").to_string_lossy()
+        );
         assert_eq!(neighbor(&d.join("a10.txt"), 1).unwrap(), None);
         // Folders come first.
-        assert_eq!(neighbor(&d.join("a1.txt"), -1).unwrap().unwrap(), d.join("sub").to_string_lossy());
+        assert_eq!(
+            neighbor(&d.join("a1.txt"), -1).unwrap().unwrap(),
+            d.join("sub").to_string_lossy()
+        );
         let s = dir_size(&d, Duration::from_secs(5));
         assert_eq!((s.bytes, s.files, s.dirs, s.complete), (18, 5, 1, true));
         let l = list_dir(&d).unwrap();

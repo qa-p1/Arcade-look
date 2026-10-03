@@ -129,7 +129,9 @@ impl Lists {
 fn docx(path: &Path) -> Res<DocOut> {
     let mut z = open_zip(path)?;
     let doc = zip_text(&mut z, "word/document.xml").ok_or("word/document.xml is missing")?;
-    let rel = zip_text(&mut z, "word/_rels/document.xml.rels").map(|s| rels(&s)).unwrap_or_default();
+    let rel = zip_text(&mut z, "word/_rels/document.xml.rels")
+        .map(|s| rels(&s))
+        .unwrap_or_default();
 
     // styleId → (lower-cased name, outline level)
     let mut styles: HashMap<String, (String, Option<u8>)> = HashMap::new();
@@ -165,10 +167,13 @@ fn docx(path: &Path) -> Res<DocOut> {
     let mut num_abs: HashMap<String, String> = HashMap::new();
     let mut abs_fmt: HashMap<(String, u8), bool> = HashMap::new();
     if let Some(s) = zip_text(&mut z, "word/numbering.xml") {
-        let (mut cur_abs, mut cur_num, mut cur_lvl): (Option<String>, Option<String>, u8) = (None, None, 0);
+        let (mut cur_abs, mut cur_num, mut cur_lvl): (Option<String>, Option<String>, u8) =
+            (None, None, 0);
         let _ = walk(&s, |ev| match ev {
             X::Open("w:abstractNum", a) => cur_abs = a.get("w:abstractNumId").map(str::to_string),
-            X::Open("w:lvl", a) => cur_lvl = a.get("w:ilvl").and_then(|v| v.parse().ok()).unwrap_or(0),
+            X::Open("w:lvl", a) => {
+                cur_lvl = a.get("w:ilvl").and_then(|v| v.parse().ok()).unwrap_or(0)
+            }
             X::Open("w:numFmt", a) => {
                 if let Some(ab) = &cur_abs {
                     let fmt = a.get("w:val").unwrap_or("bullet");
@@ -229,7 +234,15 @@ fn docx(path: &Path) -> Res<DocOut> {
             return;
         }
         match ev {
-            X::Open(n, _) if matches!(n, "w:delText" | "w:instrText" | "w:footnoteReference" | "w:commentReference" | "mc:Fallback" | "w:del") => {
+            X::Open(
+                "w:delText"
+                | "w:instrText"
+                | "w:footnoteReference"
+                | "w:commentReference"
+                | "mc:Fallback"
+                | "w:del",
+                _,
+            ) => {
                 skip_depth = 1;
             }
             X::Open("w:p", _) => paras.push(Para::default()),
@@ -300,7 +313,11 @@ fn docx(path: &Path) -> Res<DocOut> {
             }
             X::Open("w:cr", _) => run_text.push_str("<br>"),
             X::Open("w:sym", a) => {
-                if let Some(c) = a.get("w:char").and_then(|c| u32::from_str_radix(c, 16).ok()).and_then(char::from_u32) {
+                if let Some(c) = a
+                    .get("w:char")
+                    .and_then(|c| u32::from_str_radix(c, 16).ok())
+                    .and_then(char::from_u32)
+                {
                     run_text.push(c);
                 }
             }
@@ -314,7 +331,9 @@ fn docx(path: &Path) -> Res<DocOut> {
                     .or_else(|| a.get("w:anchor").map(|x| format!("#{x}")));
                 if let Some(p) = paras.last_mut() {
                     match href {
-                        Some(h) => p.html.push_str(&format!("<a href=\"{}\">", escape_html(&h))),
+                        Some(h) => p
+                            .html
+                            .push_str(&format!("<a href=\"{}\">", escape_html(&h))),
                         None => p.html.push_str("<a>"),
                     }
                 }
@@ -326,7 +345,10 @@ fn docx(path: &Path) -> Res<DocOut> {
                 }
             }
             X::Open("wp:extent", a) => {
-                extent_w = a.get("cx").and_then(|v| v.parse::<u64>().ok()).map(|emu| (emu / 9525) as u32);
+                extent_w = a
+                    .get("cx")
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .map(|emu| (emu / 9525) as u32);
             }
             X::Open("a:blip", a) => {
                 if let Some(rid) = a.get("r:embed").or_else(|| a.get("r:link")) {
@@ -351,15 +373,24 @@ fn docx(path: &Path) -> Res<DocOut> {
                 flush_run(&mut paras, &mut run_text, &run);
                 let Some(p) = paras.pop() else { return };
                 let style = p.style.as_ref().and_then(|s| styles.get(s));
-                let name = style.map(|s| s.0.as_str()).or(p.style.as_deref()).unwrap_or("");
+                let name = style
+                    .map(|s| s.0.as_str())
+                    .or(p.style.as_deref())
+                    .unwrap_or("");
                 let heading = if name == "title" {
                     Some(1)
                 } else if name == "subtitle" {
                     Some(2)
-                } else if let Some(n) = name.strip_prefix("heading ").or_else(|| name.strip_prefix("heading")) {
+                } else if let Some(n) = name
+                    .strip_prefix("heading ")
+                    .or_else(|| name.strip_prefix("heading"))
+                {
                     n.trim().parse::<u8>().ok().map(|n| n.clamp(1, 6))
                 } else {
-                    p.outline.or(style.and_then(|s| s.1)).filter(|l| *l < 9).map(|l| (l + 1).min(6))
+                    p.outline
+                        .or(style.and_then(|s| s.1))
+                        .filter(|l| *l < 9)
+                        .map(|l| (l + 1).min(6))
                 };
                 let align = p
                     .align
@@ -381,7 +412,13 @@ fn docx(path: &Path) -> Res<DocOut> {
                 } else {
                     lists.close_all(target);
                     if let Some(h) = heading {
-                        let cls = if name == "title" { " class=\"doc-title\"" } else if name == "subtitle" { " class=\"doc-subtitle\"" } else { "" };
+                        let cls = if name == "title" {
+                            " class=\"doc-title\""
+                        } else if name == "subtitle" {
+                            " class=\"doc-subtitle\""
+                        } else {
+                            ""
+                        };
                         target.push_str(&format!("<h{h}{cls}{align}>{}</h{h}>", p.html));
                     } else if name.contains("quote") {
                         target.push_str(&format!("<blockquote><p>{}</p></blockquote>", p.html));
@@ -400,9 +437,21 @@ fn docx(path: &Path) -> Res<DocOut> {
                 lists.close_all(t);
                 t.push_str("<table>");
             }
-            X::Close("w:tbl") => paras.last_mut().map(|p| &mut p.html).unwrap_or(&mut out).push_str("</table>"),
-            X::Open("w:tr", _) => paras.last_mut().map(|p| &mut p.html).unwrap_or(&mut out).push_str("<tr>"),
-            X::Close("w:tr") => paras.last_mut().map(|p| &mut p.html).unwrap_or(&mut out).push_str("</tr>"),
+            X::Close("w:tbl") => paras
+                .last_mut()
+                .map(|p| &mut p.html)
+                .unwrap_or(&mut out)
+                .push_str("</table>"),
+            X::Open("w:tr", _) => paras
+                .last_mut()
+                .map(|p| &mut p.html)
+                .unwrap_or(&mut out)
+                .push_str("<tr>"),
+            X::Close("w:tr") => paras
+                .last_mut()
+                .map(|p| &mut p.html)
+                .unwrap_or(&mut out)
+                .push_str("</tr>"),
             X::Open("w:gridSpan", a) => {
                 // Patch the most recent <td> with a colspan.
                 if let Some(n) = a.get("w:val").and_then(|v| v.parse::<u32>().ok()) {
@@ -444,7 +493,12 @@ fn docx(path: &Path) -> Res<DocOut> {
     }
 
     let (title, meta) = ooxml_core_props(&mut z);
-    Ok(DocOut { html: out, title, meta, truncated })
+    Ok(DocOut {
+        html: out,
+        title,
+        meta,
+        truncated,
+    })
 }
 
 /// docProps/core.xml + app.xml → (title, metadata rows).
@@ -457,7 +511,12 @@ pub fn ooxml_core_props<R: std::io::Read + std::io::Seek>(
         let mut cur: Option<&str> = None;
         let mut found: Vec<(String, String)> = Vec::new();
         let _ = walk(xml, |ev| match ev {
-            X::Open(n, _) => cur = fields.iter().find(|(k, _)| *k == n).map(|(_, label)| *label),
+            X::Open(n, _) => {
+                cur = fields
+                    .iter()
+                    .find(|(k, _)| *k == n)
+                    .map(|(_, label)| *label)
+            }
             X::Text(t) => {
                 if let Some(label) = cur {
                     if !t.trim().is_empty() {
@@ -522,16 +581,22 @@ fn odf_styles(xml: &str, into: &mut HashMap<String, OdfStyle>) {
         X::Open("style:text-properties", a) => {
             if let Some(name) = &cur {
                 let e = into.entry(name.clone()).or_default();
-                if a.get("fo:font-weight").is_some_and(|w| w == "bold" || w.parse::<u32>().is_ok_and(|n| n >= 600)) {
+                if a.get("fo:font-weight")
+                    .is_some_and(|w| w == "bold" || w.parse::<u32>().is_ok_and(|n| n >= 600))
+                {
                     e.run.b = true;
                 }
                 if a.get("fo:font-style") == Some("italic") {
                     e.run.i = true;
                 }
-                if a.get("style:text-underline-style").is_some_and(|v| v != "none") {
+                if a.get("style:text-underline-style")
+                    .is_some_and(|v| v != "none")
+                {
                     e.run.u = true;
                 }
-                if a.get("style:text-line-through-style").is_some_and(|v| v != "none") {
+                if a.get("style:text-line-through-style")
+                    .is_some_and(|v| v != "none")
+                {
                     e.run.s = true;
                 }
                 if let Some(pos) = a.get("style:text-position") {
@@ -645,14 +710,33 @@ fn odt(path: &Path) -> Res<DocOut> {
             X::Open("office:text", _) => in_body = true,
             X::Close("office:text") => in_body = false,
             _ if !in_body => {}
-            X::Open(n, _) if matches!(n, "text:note-body" | "office:annotation" | "text:tracked-changes" | "text:sequence-decls" | "office:forms" | "text:table-of-content-source" | "svg:desc" | "svg:title") => skip = 1,
+            X::Open(
+                "text:note-body"
+                | "office:annotation"
+                | "text:tracked-changes"
+                | "text:sequence-decls"
+                | "office:forms"
+                | "text:table-of-content-source"
+                | "svg:desc"
+                | "svg:title",
+                _,
+            ) => skip = 1,
             X::Open("text:h", a) => {
-                let lvl: u8 = a.get("text:outline-level").and_then(|v| v.parse().ok()).unwrap_or(1).clamp(1, 6);
+                let lvl: u8 = a
+                    .get("text:outline-level")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1)
+                    .clamp(1, 6);
                 out.push_str(&format!("<h{lvl}>"));
-                closers.push(["</h1>", "</h2>", "</h3>", "</h4>", "</h5>", "</h6>"][lvl as usize - 1]);
+                closers
+                    .push(["</h1>", "</h2>", "</h3>", "</h4>", "</h5>", "</h6>"][lvl as usize - 1]);
             }
             X::Open("text:p", a) => {
-                let st = a.get("text:style-name").and_then(|s| styles.get(s)).copied().unwrap_or_default();
+                let st = a
+                    .get("text:style-name")
+                    .and_then(|s| styles.get(s))
+                    .copied()
+                    .unwrap_or_default();
                 out.push_str("<p>");
                 let w = st.run.wrap("\u{1}");
                 let (open, close) = w.split_once('\u{1}').unwrap_or(("", ""));
@@ -660,7 +744,11 @@ fn odt(path: &Path) -> Res<DocOut> {
                 closers.push(leak_closer(&format!("{close}</p>")));
             }
             X::Open("text:span", a) => {
-                let st = a.get("text:style-name").and_then(|s| styles.get(s)).copied().unwrap_or_default();
+                let st = a
+                    .get("text:style-name")
+                    .and_then(|s| styles.get(s))
+                    .copied()
+                    .unwrap_or_default();
                 let w = st.run.wrap("\u{1}");
                 let (open, close) = w.split_once('\u{1}').unwrap_or(("", ""));
                 out.push_str(open);
@@ -695,7 +783,10 @@ fn odt(path: &Path) -> Res<DocOut> {
                 closers.push("</tr>");
             }
             X::Open("table:table-cell", a) => {
-                let span = a.get("table:number-columns-spanned").and_then(|v| v.parse::<u32>().ok()).filter(|n| *n > 1);
+                let span = a
+                    .get("table:number-columns-spanned")
+                    .and_then(|v| v.parse::<u32>().ok())
+                    .filter(|n| *n > 1);
                 match span {
                     Some(n) => out.push_str(&format!("<td colspan=\"{n}\">")),
                     None => out.push_str("<td>"),
@@ -717,7 +808,11 @@ fn odt(path: &Path) -> Res<DocOut> {
                 closers.push("");
             }
             X::Open("text:s", a) => {
-                let n: usize = a.get("text:c").and_then(|v| v.parse().ok()).unwrap_or(1).min(200);
+                let n: usize = a
+                    .get("text:c")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1)
+                    .min(200);
                 out.push_str(&" ".repeat(n));
                 closers.push("");
             }
@@ -765,7 +860,12 @@ fn odt(path: &Path) -> Res<DocOut> {
         out = out.replacen(&marker, &img, 1);
     }
     let (title, meta) = odf_meta(&mut z);
-    Ok(DocOut { html: out, title, meta, truncated })
+    Ok(DocOut {
+        html: out,
+        title,
+        meta,
+        truncated,
+    })
 }
 
 /// Closers are tiny strings built from a handful of fixed tag combinations; intern them so
@@ -787,7 +887,8 @@ fn leak_closer(s: &str) -> &'static str {
 
 fn epub(path: &Path) -> Res<DocOut> {
     let mut z = open_zip(path)?;
-    let container = zip_text(&mut z, "META-INF/container.xml").ok_or("Not an EPUB (container.xml missing)")?;
+    let container =
+        zip_text(&mut z, "META-INF/container.xml").ok_or("Not an EPUB (container.xml missing)")?;
     let mut opf_path = None;
     walk(&container, |ev| {
         if let X::Open("rootfile", a) = ev {
@@ -798,7 +899,10 @@ fn epub(path: &Path) -> Res<DocOut> {
     })?;
     let opf_path = opf_path.ok_or("EPUB rootfile not found")?;
     let opf = zip_text(&mut z, &opf_path).ok_or("EPUB package document missing")?;
-    let opf_dir = opf_path.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
+    let opf_dir = opf_path
+        .rsplit_once('/')
+        .map(|(d, _)| d.to_string())
+        .unwrap_or_default();
 
     let mut manifest: HashMap<String, (String, String, String)> = HashMap::new(); // id → (href, media-type, properties)
     let mut spine: Vec<String> = Vec::new();
@@ -812,7 +916,9 @@ fn epub(path: &Path) -> Res<DocOut> {
                 manifest.insert(
                     id.to_string(),
                     (
-                        percent_encoding::percent_decode_str(href).decode_utf8_lossy().to_string(),
+                        percent_encoding::percent_decode_str(href)
+                            .decode_utf8_lossy()
+                            .to_string(),
                         a.get("media-type").unwrap_or("").to_string(),
                         a.get("properties").unwrap_or("").to_string(),
                     ),
@@ -857,16 +963,24 @@ fn epub(path: &Path) -> Res<DocOut> {
         .values()
         .find(|(_, _, p)| p.split_whitespace().any(|x| x == "cover-image"))
         .map(|(h, _, _)| h.clone())
-        .or_else(|| cover_id.and_then(|id| manifest.get(&id)).map(|(h, _, _)| h.clone()));
+        .or_else(|| {
+            cover_id
+                .and_then(|id| manifest.get(&id))
+                .map(|(h, _, _)| h.clone())
+        });
     if let Some(c) = cover {
         if let Some(src) = budget.take(&mut z, &resolve_part(&opf_dir, &c)) {
-            out.push_str(&format!("<figure class=\"epub-cover\"><img src=\"{src}\" alt=\"Cover\"></figure>"));
+            out.push_str(&format!(
+                "<figure class=\"epub-cover\"><img src=\"{src}\" alt=\"Cover\"></figure>"
+            ));
         }
     }
 
     let mut truncated = false;
     for id in &spine {
-        let Some((href, media, _)) = manifest.get(id) else { continue };
+        let Some((href, media, _)) = manifest.get(id) else {
+            continue;
+        };
         if !media.contains("html") && !href.ends_with("html") && !href.ends_with(".htm") {
             continue;
         }
@@ -875,17 +989,33 @@ fn epub(path: &Path) -> Res<DocOut> {
             break;
         }
         let part = resolve_part(&opf_dir, href);
-        let part_dir = part.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
-        let Some(xhtml) = zip_text(&mut z, &part) else { continue };
+        let part_dir = part
+            .rsplit_once('/')
+            .map(|(d, _)| d.to_string())
+            .unwrap_or_default();
+        let Some(xhtml) = zip_text(&mut z, &part) else {
+            continue;
+        };
         out.push_str("<section class=\"chapter\">");
-        xhtml_body_to_html(&xhtml, &mut out, |src| budget.take(&mut z, &resolve_part(&part_dir, src)));
+        xhtml_body_to_html(&xhtml, &mut out, |src| {
+            budget.take(&mut z, &resolve_part(&part_dir, src))
+        });
         out.push_str("</section>");
     }
-    Ok(DocOut { html: out, title, meta, truncated })
+    Ok(DocOut {
+        html: out,
+        title,
+        meta,
+        truncated,
+    })
 }
 
 /// Re-serialise the <body> of an XHTML chapter, keeping structure and inlining images.
-fn xhtml_body_to_html(xhtml: &str, out: &mut String, mut image: impl FnMut(&str) -> Option<String>) {
+fn xhtml_body_to_html(
+    xhtml: &str,
+    out: &mut String,
+    mut image: impl FnMut(&str) -> Option<String>,
+) {
     let mut in_body = false;
     let mut skip = 0usize;
     let _ = walk(xhtml, |ev| {
@@ -908,7 +1038,10 @@ fn xhtml_body_to_html(xhtml: &str, out: &mut String, mut image: impl FnMut(&str)
                     "img" | "image" => {
                         let src = a.get("src").or_else(|| a.get("xlink:href")).unwrap_or("");
                         if let Some(uri) = image(src) {
-                            out.push_str(&format!("<img src=\"{uri}\" alt=\"{}\">", escape_html(a.get("alt").unwrap_or(""))));
+                            out.push_str(&format!(
+                                "<img src=\"{uri}\" alt=\"{}\">",
+                                escape_html(a.get("alt").unwrap_or(""))
+                            ));
                         }
                     }
                     "svg" => {}
@@ -973,18 +1106,30 @@ pub(crate) mod tests {
         let styles = br#"<w:styles xmlns:w="w"><w:style w:styleId="Heading1"><w:name w:val="heading 1"/></w:style></w:styles>"#;
         let rels = br#"<Relationships><Relationship Id="rId9" Target="https://example.com" TargetMode="External"/></Relationships>"#;
         let core = br#"<cp:coreProperties xmlns:cp="c" xmlns:dc="d"><dc:title>My Doc</dc:title></cp:coreProperties>"#;
-        make_zip(&p, &[
-            ("word/document.xml", doc),
-            ("word/styles.xml", styles),
-            ("word/_rels/document.xml.rels", rels),
-            ("docProps/core.xml", core),
-        ]);
+        make_zip(
+            &p,
+            &[
+                ("word/document.xml", doc),
+                ("word/styles.xml", styles),
+                ("word/_rels/document.xml.rels", rels),
+                ("docProps/core.xml", core),
+            ],
+        );
         let d = read(&p, "docx").unwrap();
         assert!(d.html.contains("<h1>Intro &amp; more</h1>"), "{}", d.html);
         assert!(d.html.contains("<strong>Bold</strong> plain"), "{}", d.html);
         assert!(d.html.contains("<ul><li>Item</li></ul>"), "{}", d.html);
-        assert!(d.html.contains("<table><tr><td><p>Cell</p></td></tr></table>"), "{}", d.html);
-        assert!(d.html.contains("<a href=\"https://example.com\">link</a>"), "{}", d.html);
+        assert!(
+            d.html
+                .contains("<table><tr><td><p>Cell</p></td></tr></table>"),
+            "{}",
+            d.html
+        );
+        assert!(
+            d.html.contains("<a href=\"https://example.com\">link</a>"),
+            "{}",
+            d.html
+        );
         assert_eq!(d.title.as_deref(), Some("My Doc"));
     }
 
@@ -1001,8 +1146,16 @@ pub(crate) mod tests {
         make_zip(&p, &[("content.xml", content)]);
         let d = read(&p, "odt").unwrap();
         assert!(d.html.contains("<h2>Title</h2>"), "{}", d.html);
-        assert!(d.html.contains("<p>Hello <strong>world</strong>  !</p>"), "{}", d.html);
-        assert!(d.html.contains("<ul><li><p>one</p></li></ul>"), "{}", d.html);
+        assert!(
+            d.html.contains("<p>Hello <strong>world</strong>  !</p>"),
+            "{}",
+            d.html
+        );
+        assert!(
+            d.html.contains("<ul><li><p>one</p></li></ul>"),
+            "{}",
+            d.html
+        );
     }
 
     #[test]
@@ -1015,7 +1168,12 @@ pub(crate) mod tests {
         ]);
         let d = read(&p, "epub").unwrap();
         assert_eq!(d.title.as_deref(), Some("Book"));
-        assert!(d.html.contains("<h1>Chapter 1</h1><p>It was a <em>dark</em> night.</p>"), "{}", d.html);
+        assert!(
+            d.html
+                .contains("<h1>Chapter 1</h1><p>It was a <em>dark</em> night.</p>"),
+            "{}",
+            d.html
+        );
         assert!(!d.html.contains("alert"));
     }
 

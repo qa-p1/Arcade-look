@@ -1,0 +1,6 @@
+{
+  "name": "Color palette",
+  "type": "script",
+  "extensions": ["palette", "gpl", "ase-txt"],
+  "entry": "index.js"
+}

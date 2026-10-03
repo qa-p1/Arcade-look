@@ -1,0 +1,8 @@
+{
+  "name": "Legacy Office via LibreOffice",
+  "type": "command",
+  "extensions": ["doc", "ppt", "pps", "rtfd", "wpd", "pages", "key", "numbers", "vsd", "pub"],
+  "command": ["soffice", "--headless", "--convert-to", "pdf", "--outdir", "{outdir}", "{path}"],
+  "output": "file",
+  "timeoutMs": 60000
+}

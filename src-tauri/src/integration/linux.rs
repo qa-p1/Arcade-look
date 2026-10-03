@@ -68,7 +68,9 @@ async fn serve(app: AppHandle) -> zbus::Result<()> {
         .request_name_with_flags(NAME, zbus::fdo::RequestNameFlags::DoNotQueue.into())
         .await;
     match reply {
-        Ok(zbus::fdo::RequestNameReply::PrimaryOwner | zbus::fdo::RequestNameReply::AlreadyOwner) => {}
+        Ok(
+            zbus::fdo::RequestNameReply::PrimaryOwner | zbus::fdo::RequestNameReply::AlreadyOwner,
+        ) => {}
         _ => {
             // Another previewer (e.g. Sushi) is running; stay out of its way.
             return Ok(());
@@ -89,11 +91,21 @@ async fn serve(app: AppHandle) -> zbus::Result<()> {
     Ok(())
 }
 
-async fn dispatch(app: &AppHandle, conn: &zbus::Connection, msg: &zbus::Message) -> zbus::Result<()> {
+async fn dispatch(
+    app: &AppHandle,
+    conn: &zbus::Connection,
+    msg: &zbus::Message,
+) -> zbus::Result<()> {
     let hdr = msg.header();
-    let path = hdr.path().map(|p| p.as_str().to_string()).unwrap_or_default();
+    let path = hdr
+        .path()
+        .map(|p| p.as_str().to_string())
+        .unwrap_or_default();
     let iface = hdr.interface().map(|i| i.as_str().to_string());
-    let member = hdr.member().map(|m| m.as_str().to_string()).unwrap_or_default();
+    let member = hdr
+        .member()
+        .map(|m| m.as_str().to_string())
+        .unwrap_or_default();
     let body = msg.body();
 
     match (iface.as_deref(), member.as_str()) {
@@ -117,22 +129,42 @@ async fn dispatch(app: &AppHandle, conn: &zbus::Connection, msg: &zbus::Message)
             return conn.reply(&hdr, &xml).await;
         }
         return conn
-            .reply_dbus_error(&hdr, zbus::fdo::Error::UnknownObject(format!("No object at {path}")))
+            .reply_dbus_error(
+                &hdr,
+                zbus::fdo::Error::UnknownObject(format!("No object at {path}")),
+            )
             .await;
     }
 
     match (iface.as_deref(), member.as_str()) {
         (Some(IFACE2) | Some(IFACE1) | None, "ShowFile") => {
+            // zbus renders the body signature as a struct, e.g. "(ssbs)".
             let sig = body.signature().to_string();
+            let sig = sig
+                .trim_start_matches('(')
+                .trim_end_matches(')')
+                .to_string();
             let parsed: Option<(String, bool, String)> = match sig.as_str() {
-                "ssbs" => body.deserialize::<(String, String, bool, String)>().ok().map(|(u, _, c, t)| (u, c, t)),
-                "ssb" => body.deserialize::<(String, String, bool)>().ok().map(|(u, _, c)| (u, c, String::new())),
-                "sib" => body.deserialize::<(String, i32, bool)>().ok().map(|(u, _, c)| (u, c, String::new())),
+                "ssbs" => body
+                    .deserialize::<(String, String, bool, String)>()
+                    .ok()
+                    .map(|(u, _, c, t)| (u, c, t)),
+                "ssb" => body
+                    .deserialize::<(String, String, bool)>()
+                    .ok()
+                    .map(|(u, _, c)| (u, c, String::new())),
+                "sib" => body
+                    .deserialize::<(String, i32, bool)>()
+                    .ok()
+                    .map(|(u, _, c)| (u, c, String::new())),
                 _ => None,
             };
             let Some((uri, close_if_shown, token)) = parsed else {
                 return conn
-                    .reply_dbus_error(&hdr, zbus::fdo::Error::InvalidArgs(format!("unexpected signature {sig}")))
+                    .reply_dbus_error(
+                        &hdr,
+                        zbus::fdo::Error::InvalidArgs(format!("unexpected signature {sig}")),
+                    )
                     .await;
             };
             conn.reply(&hdr, &()).await?;
@@ -148,9 +180,15 @@ async fn dispatch(app: &AppHandle, conn: &zbus::Connection, msg: &zbus::Message)
         (Some(PROPS), "Get") => {
             let (_, prop): (String, String) = body.deserialize().unwrap_or_default();
             match prop.as_str() {
-                "Visible" => conn.reply(&hdr, &Value::from(VISIBLE.load(Ordering::SeqCst))).await,
+                "Visible" => {
+                    conn.reply(&hdr, &Value::from(VISIBLE.load(Ordering::SeqCst)))
+                        .await
+                }
                 "ParentHandle" => conn.reply(&hdr, &Value::from("")).await,
-                _ => conn.reply_dbus_error(&hdr, zbus::fdo::Error::UnknownProperty(prop)).await,
+                _ => {
+                    conn.reply_dbus_error(&hdr, zbus::fdo::Error::UnknownProperty(prop))
+                        .await
+                }
             }
         }
         (Some(PROPS), "GetAll") => {
@@ -160,18 +198,26 @@ async fn dispatch(app: &AppHandle, conn: &zbus::Connection, msg: &zbus::Message)
             conn.reply(&hdr, &m).await
         }
         (Some(PROPS), "Set") => {
-            conn.reply_dbus_error(&hdr, zbus::fdo::Error::PropertyReadOnly("read-only".into())).await
-        }
-        (Some("org.freedesktop.DBus.Introspectable"), "Introspect") => conn.reply(&hdr, &INTROSPECT).await,
-        _ => {
-            conn.reply_dbus_error(&hdr, zbus::fdo::Error::UnknownMethod(format!("Unknown method {member}")))
+            conn.reply_dbus_error(&hdr, zbus::fdo::Error::PropertyReadOnly("read-only".into()))
                 .await
+        }
+        (Some("org.freedesktop.DBus.Introspectable"), "Introspect") => {
+            conn.reply(&hdr, &INTROSPECT).await
+        }
+        _ => {
+            conn.reply_dbus_error(
+                &hdr,
+                zbus::fdo::Error::UnknownMethod(format!("Unknown method {member}")),
+            )
+            .await
         }
     }
 }
 
 fn show_file(app: &AppHandle, uri: &str, close_if_shown: bool, token: String) {
-    let Some(path) = normalize_arg(uri, None) else { return };
+    let Some(path) = normalize_arg(uri, None) else {
+        return;
+    };
     let state = app.state::<AppState>();
     if close_if_shown && state.is_visible() {
         let app2 = app.clone();
@@ -188,12 +234,20 @@ fn show_file(app: &AppHandle, uri: &str, close_if_shown: bool, token: String) {
 
 /// Ask GNOME Files to move its selection; it answers with ShowFile for the new file.
 pub fn selection_event(delta: i64) -> bool {
-    let Some(conn) = CONN.get().cloned() else { return false };
+    let Some(conn) = CONN.get().cloned() else {
+        return false;
+    };
     // GtkDirectionType: LEFT = 4, RIGHT = 5.
     let dir: u32 = if delta < 0 { 4 } else { 5 };
     tauri::async_runtime::spawn(async move {
         let _ = conn
-            .emit_signal(None::<zbus::names::BusName>, PATH, IFACE2, "SelectionEvent", &(dir,))
+            .emit_signal(
+                None::<zbus::names::BusName>,
+                PATH,
+                IFACE2,
+                "SelectionEvent",
+                &(dir,),
+            )
             .await;
     });
     true
@@ -201,7 +255,9 @@ pub fn selection_event(delta: i64) -> bool {
 
 pub fn visibility_changed(visible: bool) {
     VISIBLE.store(visible, Ordering::SeqCst);
-    let Some(conn) = CONN.get().cloned() else { return };
+    let Some(conn) = CONN.get().cloned() else {
+        return;
+    };
     tauri::async_runtime::spawn(async move {
         let mut changed: HashMap<&str, Value> = HashMap::new();
         changed.insert("Visible", Value::from(visible));
@@ -251,8 +307,15 @@ fn files() -> Files {
 pub fn status() -> Vec<(String, bool)> {
     let f = files();
     vec![
-        ("GNOME Files Space key".into(), OWNS_NAME.load(Ordering::SeqCst) || f.dbus.exists()),
-        ("Open With menu".into(), f.desktop.exists() || PathBuf::from("/usr/share/applications/arcade-look.desktop").exists()),
+        (
+            "GNOME Files Space key".into(),
+            OWNS_NAME.load(Ordering::SeqCst) || f.dbus.exists(),
+        ),
+        (
+            "Open With menu".into(),
+            f.desktop.exists()
+                || PathBuf::from("/usr/share/applications/arcade-look.desktop").exists(),
+        ),
     ]
 }
 
@@ -277,11 +340,15 @@ pub fn install() -> Res<String> {
     write(
         &f.desktop,
         &format!(
-            "[Desktop Entry]\nType=Application\nName=Arcade Look\nGenericName=File Previewer\nComment=Preview any file instantly\nExec={exe_q} %U\nIcon=arcade-look\nTerminal=false\nCategories=Utility;Viewer;\nMimeType={MIME_TYPES}\nStartupNotify=true\nNoDisplay=false\n"
+            "[Desktop Entry]\nType=Application\nName=Arcade Look\nGenericName=File Previewer\nComment=Preview any file instantly\nExec={exe_q} %U\nIcon=arcade-look\nTerminal=false\nCategories=Utility;Viewer;\nMimeType={MIME_TYPES}\nStartupNotify=true\nInitialPreference=1\n"
         ),
         false,
     )?;
-    write(&f.dbus, &format!("[D-BUS Service]\nName={NAME}\nExec={exe_q} --service\n"), false)?;
+    write(
+        &f.dbus,
+        &format!("[D-BUS Service]\nName={NAME}\nExec={exe_q} --service\n"),
+        false,
+    )?;
     write(
         &f.dolphin,
         &format!(

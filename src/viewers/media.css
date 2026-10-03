@@ -1,0 +1,123 @@
+/* ---------------------------------------------------------------- controls */
+.media-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.mc-btn {
+  border: 0;
+  background: transparent;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  flex: none;
+}
+.mc-btn:hover { background: var(--surface-2); color: var(--text); }
+.mc-btn.active { color: var(--accent); }
+.mc-play { width: 36px; height: 36px; color: var(--text); }
+.mc-speed { width: auto; padding: 0 6px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mc-time { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; min-width: 36px; text-align: center; flex: none; }
+.mc-volume { display: flex; align-items: center; flex: none; }
+.mc-vol { width: 70px; accent-color: var(--accent); }
+
+.seek { position: relative; flex: 1; min-width: 80px; height: 22px; cursor: pointer; display: flex; align-items: center; touch-action: none; }
+.seek-track { position: relative; width: 100%; height: 4px; border-radius: 4px; background: var(--surface-3); overflow: hidden; transition: height 0.12s; }
+.seek:hover .seek-track { height: 6px; }
+.seek-buffered { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--text-3) 45%, transparent); }
+.seek-played { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.seek:hover .seek-thumb { opacity: 1; }
+.seek-tip {
+  position: absolute;
+  bottom: 24px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--text);
+  color: var(--bg);
+  opacity: 0;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.seek:hover .seek-tip { opacity: 1; }
+
+/* ---------------------------------------------------------------- video */
+.video-wrap { position: relative; flex: 1; background: #000; display: flex; overflow: hidden; }
+.video-el { width: 100%; height: 100%; object-fit: contain; outline: none; }
+.video-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: min(760px, calc(100% - 32px));
+  transform: translateX(-50%);
+  transition: opacity 0.3s, transform 0.3s var(--ease);
+}
+.video-wrap.idle { cursor: none; }
+.video-wrap.idle .video-controls { opacity: 0; transform: translateX(-50%) translateY(8px); }
+
+/* ---------------------------------------------------------------- audio */
+.audio-view { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 24px; }
+.audio-backdrop {
+  position: absolute;
+  inset: -80px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(70px) saturate(1.5);
+  opacity: 0;
+  transition: opacity 0.6s;
+}
+.audio-backdrop.on { opacity: 0.45; }
+.audio-card {
+  position: relative;
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.audio-art {
+  width: min(260px, 38vh);
+  aspect-ratio: 1;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #ec4899, #8b5cf6 60%, #6366f1);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.audio-art.has-cover { background: var(--surface-2); }
+.audio-art img { width: 100%; height: 100%; object-fit: cover; }
+.audio-meta { text-align: center; max-width: 100%; }
+.audio-title { font-size: 19px; font-weight: 650; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.audio-sub { color: var(--text-2); margin-top: 2px; }
+.audio-tech { color: var(--text-3); font-size: 11.5px; margin-top: 6px; letter-spacing: 0.02em; }
+.waveform-wrap { --wave: color-mix(in srgb, var(--text-3) 55%, transparent); width: 100%; height: 64px; cursor: pointer; opacity: 0.35; transition: opacity 0.4s; }
+.waveform-wrap.ready { opacity: 1; }
+.waveform { width: 100%; height: 100%; display: block; }
+.audio-card .media-controls { width: 100%; }

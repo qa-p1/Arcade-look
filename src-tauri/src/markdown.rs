@@ -18,12 +18,21 @@ fn options() -> Options {
         | Options::ENABLE_DEFINITION_LIST
 }
 
+/// A heading whose events are buffered until we know its text (for the anchor id).
+type PendingHeading<'a> = (
+    HeadingLevel,
+    Option<CowStr<'a>>,
+    Vec<CowStr<'a>>,
+    Vec<(CowStr<'a>, Option<CowStr<'a>>)>,
+    Vec<Event<'a>>,
+);
+
 pub fn to_html(src: &str) -> String {
     let parser = Parser::new_ext(src, options());
     let mut out_events: Vec<Event> = Vec::new();
     let mut slugs: HashMap<String, usize> = HashMap::new();
 
-    let mut heading: Option<(HeadingLevel, Option<CowStr>, Vec<CowStr>, Vec<(CowStr, Option<CowStr>)>, Vec<Event>)> = None;
+    let mut heading: Option<PendingHeading> = None;
     let mut meta: Option<String> = None;
 
     for ev in parser {
@@ -63,7 +72,12 @@ pub fn to_html(src: &str) -> String {
                     *n += 1;
                     id.into()
                 });
-                out_events.push(Event::Start(Tag::Heading { level, id: Some(id), classes, attrs }));
+                out_events.push(Event::Start(Tag::Heading {
+                    level,
+                    id: Some(id),
+                    classes,
+                    attrs,
+                }));
                 out_events.extend(inner);
                 out_events.push(ev);
             } else {
@@ -73,9 +87,12 @@ pub fn to_html(src: &str) -> String {
         }
         match ev {
             Event::Start(Tag::MetadataBlock(_)) => meta = Some(String::new()),
-            Event::Start(Tag::Heading { level, id, classes, attrs }) => {
-                heading = Some((level, id, classes, attrs, Vec::new()))
-            }
+            Event::Start(Tag::Heading {
+                level,
+                id,
+                classes,
+                attrs,
+            }) => heading = Some((level, id, classes, attrs, Vec::new())),
             other => out_events.push(other),
         }
     }

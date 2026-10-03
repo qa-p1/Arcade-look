@@ -1,0 +1,28 @@
+.info-top { flex: none; padding: 18px 20px 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border); background: var(--bg-elev); }
+.info-card { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.info-card .kind-badge { width: 56px; height: 56px; border-radius: 14px; }
+.info-card-text { flex: 1; min-width: 200px; }
+.info-card-name { font-size: 16px; font-weight: 650; word-break: break-word; }
+.info-card-meta { color: var(--text-2); font-size: 12.5px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.info-card-actions { display: flex; gap: 8px; }
+.info-error {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  color: var(--text);
+  background: rgba(220, 38, 38, 0.08);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.info-error .icon { color: var(--danger); margin-top: 1px; }
+.hex-head, .hex-row { display: flex; gap: 22px; font: 12.5px/20px var(--mono); padding: 0 20px; white-space: pre; }
+.hex-head { flex: none; color: var(--text-3); padding-top: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-size: 11px; }
+.hex-scroll { flex: 1; min-height: 0; padding-bottom: 40px; }
+.hex-off { color: var(--text-3); min-width: 9ch; }
+.hex-bytes { color: var(--text); }
+.hex-bytes.loading { color: var(--text-3); }
+.hex-ascii { color: var(--hl-string); }
+.hex-row:hover { background: var(--surface-2); }

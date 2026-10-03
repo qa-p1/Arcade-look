@@ -21,6 +21,20 @@ const FULL_MAX: u64 = 1 << 30;
 type Resp = Response<Vec<u8>>;
 
 pub fn handle(req: &Request<Vec<u8>>) -> Resp {
+    let resp = route(req);
+    crate::dbg_log!(
+        "{} {} range={:?} -> {} {:?} len={}",
+        req.method(),
+        req.uri().path(),
+        req.headers().get(header::RANGE),
+        resp.status(),
+        resp.headers().get(header::CONTENT_RANGE),
+        resp.body().len()
+    );
+    resp
+}
+
+fn route(req: &Request<Vec<u8>>) -> Resp {
     let path = req.uri().path();
     let path = path.strip_prefix('/').unwrap_or(path);
     let (route, rest) = path.split_once('/').unwrap_or((path, ""));
@@ -36,14 +50,20 @@ pub fn handle(req: &Request<Vec<u8>>) -> Resp {
                 Err(e) => error(StatusCode::UNPROCESSABLE_ENTITY, &e),
             }
         }
-        "cover" => match crate::util::catch(|| crate::media::cover(&path_from_url_segments(rest))) {
-            Ok((mime, bytes)) => ok(&mime, bytes),
-            Err(e) => error(StatusCode::NOT_FOUND, &e),
-        },
+        "cover" => {
+            match crate::util::catch(|| crate::media::cover(&path_from_url_segments(rest))) {
+                Ok((mime, bytes)) => ok(&mime, bytes),
+                Err(e) => error(StatusCode::NOT_FOUND, &e),
+            }
+        }
         "plugin" => {
             let (id, file) = rest.split_once('/').unwrap_or((rest, ""));
-            let id = percent_encoding::percent_decode_str(id).decode_utf8_lossy().to_string();
-            let file = percent_encoding::percent_decode_str(file).decode_utf8_lossy().to_string();
+            let id = percent_encoding::percent_decode_str(id)
+                .decode_utf8_lossy()
+                .to_string();
+            let file = percent_encoding::percent_decode_str(file)
+                .decode_utf8_lossy()
+                .to_string();
             if id.contains("..") || file.split(['/', '\\']).any(|s| s == "..") {
                 return error(StatusCode::FORBIDDEN, "forbidden");
             }
@@ -59,7 +79,10 @@ fn base(status: StatusCode, mime: &str) -> tauri::http::response::Builder {
         .status(status)
         .header(header::CONTENT_TYPE, mime)
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-        .header(header::ACCESS_CONTROL_EXPOSE_HEADERS, "Accept-Ranges, Content-Range, Content-Length")
+        .header(
+            header::ACCESS_CONTROL_EXPOSE_HEADERS,
+            "Accept-Ranges, Content-Range, Content-Length",
+        )
         .header(header::CACHE_CONTROL, "no-cache")
 }
 
@@ -73,8 +96,11 @@ fn error(status: StatusCode, msg: &str) -> Resp {
         .unwrap_or_default()
 }
 
-fn mime_for(path: &Path) -> String {
-    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+pub fn mime_for(path: &Path) -> String {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let ext = crate::detect::extension_of(&name);
     match ext.as_str() {
         "js" | "mjs" => return "text/javascript".into(),
@@ -102,7 +128,11 @@ pub fn parse_range(h: &str, len: u64) -> Option<(u64, u64)> {
         (len.saturating_sub(n), len.checked_sub(1)?)
     } else {
         let s: u64 = a.parse().ok()?;
-        let e = if b.is_empty() { len.checked_sub(1)? } else { b.parse::<u64>().ok()?.min(len.checked_sub(1)?) };
+        let e = if b.is_empty() {
+            len.checked_sub(1)?
+        } else {
+            b.parse::<u64>().ok()?.min(len.checked_sub(1)?)
+        };
         (s, e)
     };
     (start <= end && start < len).then_some((start, end))
@@ -138,13 +168,22 @@ fn serve_file(req: &Request<Vec<u8>>, path: &Path) -> Resp {
     let mut body = Vec::new();
     if !head_only && count > 0 {
         body.reserve(count as usize);
-        if f.seek(SeekFrom::Start(start)).is_err() || (&mut f).take(count).read_to_end(&mut body).is_err() {
+        if f.seek(SeekFrom::Start(start)).is_err()
+            || (&mut f).take(count).read_to_end(&mut body).is_err()
+        {
             return error(StatusCode::INTERNAL_SERVER_ERROR, "read failed");
         }
     }
-    let mut b = base(if partial { StatusCode::PARTIAL_CONTENT } else { StatusCode::OK }, &mime)
-        .header(header::ACCEPT_RANGES, "bytes")
-        .header(header::CONTENT_LENGTH, count.to_string());
+    let mut b = base(
+        if partial {
+            StatusCode::PARTIAL_CONTENT
+        } else {
+            StatusCode::OK
+        },
+        &mime,
+    )
+    .header(header::ACCEPT_RANGES, "bytes")
+    .header(header::CONTENT_LENGTH, count.to_string());
     if partial {
         b = b.header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{len}"));
     }
@@ -171,8 +210,15 @@ mod tests {
     fn serves_ranges() {
         let p = std::env::temp_dir().join(format!("alook-proto-{}.bin", std::process::id()));
         std::fs::write(&p, (0u8..=255).collect::<Vec<_>>()).unwrap();
-        let url = format!("alook://localhost/f/{}", crate::util::url_segments_from_path(&p));
-        let req = Request::builder().uri(&url).header("Range", "bytes=16-31").body(Vec::new()).unwrap();
+        let url = format!(
+            "alook://localhost/f/{}",
+            crate::util::url_segments_from_path(&p)
+        );
+        let req = Request::builder()
+            .uri(&url)
+            .header("Range", "bytes=16-31")
+            .body(Vec::new())
+            .unwrap();
         let r = handle(&req);
         assert_eq!(r.status(), StatusCode::PARTIAL_CONTENT);
         assert_eq!(r.body(), &(16u8..=31).collect::<Vec<_>>());

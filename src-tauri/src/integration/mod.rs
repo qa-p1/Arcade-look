@@ -42,7 +42,9 @@ pub fn start(app: &AppHandle) {
         use tauri_plugin_global_shortcut::GlobalShortcutExt;
         match app.global_shortcut().register(shortcut) {
             Ok(()) => SHORTCUT_ACTIVE.store(true, Ordering::SeqCst),
-            Err(e) => eprintln!("arcade-look: could not register global shortcut {shortcut:?}: {e}"),
+            Err(e) => {
+                eprintln!("arcade-look: could not register global shortcut {shortcut:?}: {e}")
+            }
         }
     }
     #[cfg(target_os = "linux")]
@@ -76,7 +78,11 @@ fn on_global_shortcut(app: &AppHandle) {
             }
         }
         None if state.is_visible() => app::hide(app),
-        None => app::open(app, state.current.lock().ok().and_then(|c| c.clone()), Source::Local),
+        None => app::open(
+            app,
+            state.current.lock().ok().and_then(|c| c.clone()),
+            Source::Local,
+        ),
     }
 }
 
@@ -118,7 +124,10 @@ pub fn status() -> Vec<(String, bool)> {
     v.extend(windows::status());
     #[cfg(target_os = "macos")]
     v.extend(macos::status());
-    v.push(("Global shortcut".into(), SHORTCUT_ACTIVE.load(Ordering::SeqCst)));
+    v.push((
+        "Global shortcut".into(),
+        SHORTCUT_ACTIVE.load(Ordering::SeqCst),
+    ));
     v
 }
 

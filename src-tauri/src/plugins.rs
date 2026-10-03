@@ -60,18 +60,26 @@ pub fn load_all(enabled: bool) -> Vec<Plugin> {
     if !enabled {
         return Vec::new();
     }
-    let Ok(rd) = std::fs::read_dir(crate::config::plugins_dir()) else { return Vec::new() };
+    let Ok(rd) = std::fs::read_dir(crate::config::plugins_dir()) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
     for e in rd.flatten() {
         let manifest = e.path().join("plugin.json");
-        let Ok(s) = std::fs::read_to_string(&manifest) else { continue };
+        let Ok(s) = std::fs::read_to_string(&manifest) else {
+            continue;
+        };
         match serde_json::from_str::<Plugin>(&s) {
             Ok(mut p) => {
                 if p.id.is_empty() {
                     p.id = e.file_name().to_string_lossy().to_string();
                 }
                 p.dir = e.path().to_string_lossy().to_string();
-                p.extensions = p.extensions.iter().map(|x| x.trim_start_matches('.').to_ascii_lowercase()).collect();
+                p.extensions = p
+                    .extensions
+                    .iter()
+                    .map(|x| x.trim_start_matches('.').to_ascii_lowercase())
+                    .collect();
                 let valid = match p.kind.as_str() {
                     "command" => !p.command.is_empty(),
                     "script" => p.entry.is_some(),
@@ -80,10 +88,16 @@ pub fn load_all(enabled: bool) -> Vec<Plugin> {
                 if valid {
                     out.push(p);
                 } else {
-                    eprintln!("arcade-look: plugin {} is missing `command`/`entry`", manifest.display());
+                    eprintln!(
+                        "arcade-look: plugin {} is missing `command`/`entry`",
+                        manifest.display()
+                    );
                 }
             }
-            Err(err) => eprintln!("arcade-look: invalid plugin manifest {}: {err}", manifest.display()),
+            Err(err) => eprintln!(
+                "arcade-look: invalid plugin manifest {}: {err}",
+                manifest.display()
+            ),
         }
     }
     out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -91,8 +105,13 @@ pub fn load_all(enabled: bool) -> Vec<Plugin> {
 }
 
 /// Find the plugin for a file: (override plugin, fallback plugin).
-pub fn matching<'a>(plugins: &'a [Plugin], ext: &str, kind: &str) -> (Option<&'a Plugin>, Option<&'a Plugin>) {
-    let hit = |p: &&Plugin| p.extensions.iter().any(|e| e == ext) || p.kinds.iter().any(|k| k == kind);
+pub fn matching<'a>(
+    plugins: &'a [Plugin],
+    ext: &str,
+    kind: &str,
+) -> (Option<&'a Plugin>, Option<&'a Plugin>) {
+    let hit =
+        |p: &&Plugin| p.extensions.iter().any(|e| e == ext) || p.kinds.iter().any(|k| k == kind);
     let over = plugins.iter().filter(hit).find(|p| p.mode != "fallback");
     let fall = plugins.iter().filter(hit).find(|p| p.mode == "fallback");
     (over, fall)
@@ -124,7 +143,12 @@ pub fn run(p: &Plugin, file: &Path) -> Res<PluginOutput> {
         std::fs::write(&done, b"").or_str()?;
     }
 
-    let mut out = PluginOutput { output: p.output.clone(), text: None, path: None, language: p.language.clone() };
+    let mut out = PluginOutput {
+        output: p.output.clone(),
+        text: None,
+        path: None,
+        language: p.language.clone(),
+    };
     match p.output.as_str() {
         "html" | "text" | "markdown" => {
             let bytes = std::fs::read(&stdout_file).or_str()?;
@@ -137,7 +161,9 @@ pub fn run(p: &Plugin, file: &Path) -> Res<PluginOutput> {
                 .flatten()
                 .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
                 .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok());
-            let path: PathBuf = newest.map(|e| e.path()).ok_or("The plugin command produced no file")?;
+            let path: PathBuf = newest
+                .map(|e| e.path())
+                .ok_or("The plugin command produced no file")?;
             out.path = Some(path.to_string_lossy().to_string());
         }
         other => return Err(format!("unknown plugin output type: {other}")),
@@ -146,8 +172,14 @@ pub fn run(p: &Plugin, file: &Path) -> Res<PluginOutput> {
 }
 
 fn execute(p: &Plugin, file: &Path, outdir: &Path) -> Res<Vec<u8>> {
-    let name = file.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-    let stem = file.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = file
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let stem = file
+        .file_stem()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let subst = |s: &str| {
         s.replace("{path}", &file.to_string_lossy())
             .replace("{outdir}", &outdir.to_string_lossy())
@@ -168,7 +200,9 @@ fn execute(p: &Plugin, file: &Path, outdir: &Path) -> Res<Vec<u8>> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
-    let mut child = cmd.spawn().map_err(|e| format!("Could not run `{}`: {e}", args[0]))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Could not run `{}`: {e}", args[0]))?;
     let mut so = child.stdout.take().ok_or("no stdout")?;
     let mut se = child.stderr.take().ok_or("no stderr")?;
     let out_t = std::thread::spawn(move || {
@@ -193,7 +227,11 @@ fn execute(p: &Plugin, file: &Path, outdir: &Path) -> Res<Vec<u8>> {
         if started.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(format!("`{}` timed out after {} s", args[0], timeout.as_secs()));
+            return Err(format!(
+                "`{}` timed out after {} s",
+                args[0],
+                timeout.as_secs()
+            ));
         }
         std::thread::sleep(Duration::from_millis(15));
     };
@@ -223,7 +261,12 @@ mod tests {
             kind: "command".into(),
             extensions: vec!["txt".into()],
             kinds: vec![],
-            command: vec!["sh".into(), "-c".into(), "printf '<b>%s</b>' \"$(cat \"$0\")\"".into(), "{path}".into()],
+            command: vec![
+                "sh".into(),
+                "-c".into(),
+                "printf '<b>%s</b>' \"$(cat \"$0\")\"".into(),
+                "{path}".into(),
+            ],
             output: "html".into(),
             language: None,
             entry: None,
@@ -236,7 +279,12 @@ mod tests {
         let (o, fb) = matching(std::slice::from_ref(&p), "txt", "text");
         assert!(o.is_some() && fb.is_none());
 
-        let slow = Plugin { command: vec!["sleep".into(), "5".into()], timeout_ms: Some(200), id: "slow".into(), ..p };
+        let slow = Plugin {
+            command: vec!["sleep".into(), "5".into()],
+            timeout_ms: Some(200),
+            id: "slow".into(),
+            ..p
+        };
         let e = run(&slow, &f).unwrap_err();
         assert!(e.contains("timed out"), "{e}");
     }

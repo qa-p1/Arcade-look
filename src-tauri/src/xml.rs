@@ -17,7 +17,9 @@ impl Attrs {
             .find(|(k, _)| k == name)
             .or_else(|| {
                 let local = name.rsplit(':').next().unwrap_or(name);
-                self.0.iter().find(|(k, _)| k.rsplit(':').next() == Some(local))
+                self.0
+                    .iter()
+                    .find(|(k, _)| k.rsplit(':').next() == Some(local))
             })
             .map(|(_, v)| v.as_str())
     }
@@ -212,8 +214,14 @@ mod tests {
 
     #[test]
     fn resolves_parts() {
-        assert_eq!(resolve_part("ppt/slides", "../media/image1.png"), "ppt/media/image1.png");
+        assert_eq!(
+            resolve_part("ppt/slides", "../media/image1.png"),
+            "ppt/media/image1.png"
+        );
         assert_eq!(resolve_part("word", "media/a.png"), "word/media/a.png");
-        assert_eq!(resolve_part("word", "/word/media/a.png"), "word/media/a.png");
+        assert_eq!(
+            resolve_part("word", "/word/media/a.png"),
+            "word/media/a.png"
+        );
     }
 }

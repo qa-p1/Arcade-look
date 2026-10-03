@@ -30,7 +30,9 @@ pub fn info(path: &Path, kind_format: &str) -> Res<ImageInfo> {
 }
 
 fn exif_fields(path: &Path) -> Vec<(String, String)> {
-    let Ok(f) = std::fs::File::open(path) else { return Vec::new() };
+    let Ok(f) = std::fs::File::open(path) else {
+        return Vec::new();
+    };
     let Ok(ex) = exif::Reader::new().read_from_container(&mut BufReader::new(f)) else {
         return Vec::new();
     };
@@ -71,8 +73,16 @@ fn exif_fields(path: &Path) -> Vec<(String, String)> {
         ex.get_field(Tag::GPSLongitudeRef, In::PRIMARY),
     ) {
         if let (Some(a), Some(b)) = (dms(&lat.value), dms(&lon.value)) {
-            let sa = if lat_ref.display_value().to_string().contains('S') { -a } else { a };
-            let sb = if lon_ref.display_value().to_string().contains('W') { -b } else { b };
+            let sa = if lat_ref.display_value().to_string().contains('S') {
+                -a
+            } else {
+                a
+            };
+            let sb = if lon_ref.display_value().to_string().contains('W') {
+                -b
+            } else {
+                b
+            };
             out.push(("GPS".into(), format!("{sa:.6}, {sb:.6}")));
         }
     }
@@ -126,7 +136,10 @@ fn encode_png(img: image::DynamicImage, max: u32) -> Res<(String, Vec<u8>)> {
             }
             image::DynamicImage::ImageRgba32F(f).to_rgba8().into()
         }
-        image::DynamicImage::ImageRgb8(_) | image::DynamicImage::ImageRgba8(_) | image::DynamicImage::ImageLuma8(_) | image::DynamicImage::ImageLumaA8(_) => img,
+        image::DynamicImage::ImageRgb8(_)
+        | image::DynamicImage::ImageRgba8(_)
+        | image::DynamicImage::ImageLuma8(_)
+        | image::DynamicImage::ImageLumaA8(_) => img,
         other => other.to_rgba8().into(),
     };
     let mut out = Vec::new();
@@ -135,14 +148,19 @@ fn encode_png(img: image::DynamicImage, max: u32) -> Res<(String, Vec<u8>)> {
         image::codecs::png::CompressionType::Fast,
         image::codecs::png::FilterType::Adaptive,
     );
-    img.write_with_encoder(enc).ctx("Could not encode preview")?;
+    img.write_with_encoder(enc)
+        .ctx("Could not encode preview")?;
     Ok(("image/png".into(), out))
 }
 
 /// Camera RAW files embed full-size JPEG previews. Find the largest valid one.
 pub fn raw_preview(path: &Path) -> Res<Vec<u8>> {
     let mut data = Vec::new();
-    std::fs::File::open(path).or_str()?.take(512 << 20).read_to_end(&mut data).or_str()?;
+    std::fs::File::open(path)
+        .or_str()?
+        .take(512 << 20)
+        .read_to_end(&mut data)
+        .or_str()?;
     let mut best: Option<(usize, usize)> = None;
     let mut i = 0;
     while i + 3 < data.len() {
@@ -219,7 +237,10 @@ struct PsdHeader {
 
 fn psd_header(path: &Path) -> Res<PsdHeader> {
     let mut b = [0u8; 26];
-    std::fs::File::open(path).or_str()?.read_exact(&mut b).or_str()?;
+    std::fs::File::open(path)
+        .or_str()?
+        .read_exact(&mut b)
+        .or_str()?;
     parse_psd_header(&b)
 }
 
@@ -242,7 +263,11 @@ fn parse_psd_header(b: &[u8]) -> Res<PsdHeader> {
 /// Decode the flattened composite stored at the end of PSD/PSB files.
 fn psd_composite(path: &Path) -> Res<image::DynamicImage> {
     let mut d = Vec::new();
-    std::fs::File::open(path).or_str()?.take(2 << 30).read_to_end(&mut d).or_str()?;
+    std::fs::File::open(path)
+        .or_str()?
+        .take(2 << 30)
+        .read_to_end(&mut d)
+        .or_str()?;
     let h = parse_psd_header(&d)?;
     let psb = h.version == 2;
     let (w, ht) = (h.width as usize, h.height as usize);
@@ -253,16 +278,23 @@ fn psd_composite(path: &Path) -> Res<image::DynamicImage> {
         return Err(format!("{}-bit PSD files aren't supported", h.depth));
     }
     let rd32 = |o: usize| -> Res<usize> {
-        d.get(o..o + 4).map(|x| u32::from_be_bytes([x[0], x[1], x[2], x[3]]) as usize).ok_or_else(|| "truncated PSD".to_string())
+        d.get(o..o + 4)
+            .map(|x| u32::from_be_bytes([x[0], x[1], x[2], x[3]]) as usize)
+            .ok_or_else(|| "truncated PSD".to_string())
     };
     let rd64 = |o: usize| -> Res<usize> {
-        d.get(o..o + 8).map(|x| u64::from_be_bytes(x.try_into().unwrap()) as usize).ok_or_else(|| "truncated PSD".to_string())
+        d.get(o..o + 8)
+            .map(|x| u64::from_be_bytes(x.try_into().unwrap()) as usize)
+            .ok_or_else(|| "truncated PSD".to_string())
     };
     let mut o = 26;
     o += 4 + rd32(o)?; // color mode data
     o += 4 + rd32(o)?; // image resources
     o += if psb { 8 + rd64(o)? } else { 4 + rd32(o)? }; // layer & mask info
-    let comp = d.get(o..o + 2).map(|x| u16::from_be_bytes([x[0], x[1]])).ok_or("truncated PSD")?;
+    let comp = d
+        .get(o..o + 2)
+        .map(|x| u16::from_be_bytes([x[0], x[1]]))
+        .ok_or("truncated PSD")?;
     o += 2;
     let bps = (h.depth / 8) as usize;
     let row_bytes = w * bps;
@@ -278,7 +310,9 @@ fn psd_composite(path: &Path) -> Res<image::DynamicImage> {
         0 => {
             for c in 0..use_ch {
                 let start = o + c * row_bytes * ht;
-                let plane = d.get(start..start + row_bytes * ht).ok_or("truncated PSD")?;
+                let plane = d
+                    .get(start..start + row_bytes * ht)
+                    .ok_or("truncated PSD")?;
                 planes.push(plane.to_vec());
             }
         }
@@ -287,7 +321,13 @@ fn psd_composite(path: &Path) -> Res<image::DynamicImage> {
             let mut counts = Vec::with_capacity(channels * ht);
             for i in 0..channels * ht {
                 let p = o + i * count_size;
-                let c = if psb { rd32(p)? } else { d.get(p..p + 2).map(|x| u16::from_be_bytes([x[0], x[1]]) as usize).ok_or("truncated PSD")? };
+                let c = if psb {
+                    rd32(p)?
+                } else {
+                    d.get(p..p + 2)
+                        .map(|x| u16::from_be_bytes([x[0], x[1]]) as usize)
+                        .ok_or("truncated PSD")?
+                };
                 counts.push(c);
             }
             let mut pos = o + channels * ht * count_size;
@@ -304,13 +344,22 @@ fn psd_composite(path: &Path) -> Res<image::DynamicImage> {
                 }
             }
         }
-        _ => return Err("This PSD uses ZIP compression for its composite, which isn't supported".into()),
+        _ => {
+            return Err(
+                "This PSD uses ZIP compression for its composite, which isn't supported".into(),
+            )
+        }
     }
     let px = |plane: &[u8], i: usize| -> u8 { plane.get(i * bps).copied().unwrap_or(0) };
     let mut rgba = vec![255u8; w * ht * 4];
     for i in 0..w * ht {
         let (r, g, b, a) = match h.mode {
-            3 => (px(&planes[0], i), px(&planes[1.min(use_ch - 1)], i), px(&planes[2.min(use_ch - 1)], i), if use_ch > 3 { px(&planes[3], i) } else { 255 }),
+            3 => (
+                px(&planes[0], i),
+                px(&planes[1.min(use_ch - 1)], i),
+                px(&planes[2.min(use_ch - 1)], i),
+                if use_ch > 3 { px(&planes[3], i) } else { 255 },
+            ),
             4 => {
                 // PSD stores CMYK inverted.
                 let c = 255 - px(&planes[0], i) as u32;
@@ -318,7 +367,12 @@ fn psd_composite(path: &Path) -> Res<image::DynamicImage> {
                 let y = 255 - px(&planes[2], i) as u32;
                 let k = 255 - px(&planes[3.min(use_ch - 1)], i) as u32;
                 let conv = |x: u32| (((255 - x) * (255 - k)) / 255) as u8;
-                (conv(c), conv(m), conv(y), if use_ch > 4 { px(&planes[4], i) } else { 255 })
+                (
+                    conv(c),
+                    conv(m),
+                    conv(y),
+                    if use_ch > 4 { px(&planes[4], i) } else { 255 },
+                )
             }
             _ => {
                 let v = px(&planes[0], i);
@@ -370,7 +424,10 @@ mod tests {
         // Build a fake RAW: junk + a tiny real JPEG padded with APP segment to pass the size filter.
         let mut jpeg = Vec::new();
         image::DynamicImage::new_rgb8(64, 64)
-            .write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)
+            .write_to(
+                &mut std::io::Cursor::new(&mut jpeg),
+                image::ImageFormat::Jpeg,
+            )
             .unwrap();
         let mut padded = vec![0xFF, 0xD8, 0xFF, 0xE1, 0x7F, 0xFF];
         padded.extend(std::iter::repeat_n(0u8, 0x7FFF - 2));

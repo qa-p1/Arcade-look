@@ -5,6 +5,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub type Res<T> = Result<T, String>;
 
+/// `ALOOK_DEBUG=1` prints lifecycle tracing to stderr.
+pub fn debug_enabled() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("ALOOK_DEBUG").is_some_and(|v| v != "0"))
+}
+
+#[macro_export]
+macro_rules! dbg_log {
+    ($($t:tt)*) => {
+        if $crate::util::debug_enabled() {
+            eprintln!("[arcade-look] {}", format!($($t)*));
+        }
+    };
+}
+
 /// Convert any displayable error into the `String` errors our commands return.
 pub trait OrStr<T> {
     fn or_str(self) -> Res<T>;
@@ -76,8 +91,10 @@ pub fn natural_cmp(a: &str, b: &str) -> Ordering {
             (None, _) => return Ordering::Less,
             (_, None) => return Ordering::Greater,
             (Some(x), Some(y)) if x.is_ascii_digit() && y.is_ascii_digit() => {
-                let na: String = std::iter::from_fn(|| ai.next_if(|c| c.is_ascii_digit())).collect();
-                let nb: String = std::iter::from_fn(|| bi.next_if(|c| c.is_ascii_digit())).collect();
+                let na: String =
+                    std::iter::from_fn(|| ai.next_if(|c| c.is_ascii_digit())).collect();
+                let nb: String =
+                    std::iter::from_fn(|| bi.next_if(|c| c.is_ascii_digit())).collect();
                 let ta = na.trim_start_matches('0');
                 let tb = nb.trim_start_matches('0');
                 let ord = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb));
@@ -127,7 +144,9 @@ pub fn temp_root() -> PathBuf {
 
 /// Remove temp sub-directories older than a day. Best effort.
 pub fn clean_temp() {
-    let Ok(rd) = std::fs::read_dir(temp_root()) else { return };
+    let Ok(rd) = std::fs::read_dir(temp_root()) else {
+        return;
+    };
     for e in rd.flatten() {
         let old = e
             .metadata()
@@ -301,8 +320,14 @@ mod tests {
         let cwd = Path::new("/tmp/x");
         #[cfg(not(windows))]
         {
-            assert_eq!(normalize_arg("a/../b.txt", Some(cwd)).unwrap(), Path::new("/tmp/x/b.txt"));
-            assert_eq!(normalize_arg("file:///etc/my%20file", None).unwrap(), Path::new("/etc/my file"));
+            assert_eq!(
+                normalize_arg("a/../b.txt", Some(cwd)).unwrap(),
+                Path::new("/tmp/x/b.txt")
+            );
+            assert_eq!(
+                normalize_arg("file:///etc/my%20file", None).unwrap(),
+                Path::new("/etc/my file")
+            );
         }
         assert!(normalize_arg("  ", Some(cwd)).is_none());
     }

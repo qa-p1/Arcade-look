@@ -85,7 +85,11 @@ pub fn read_csv(path: &Path, format: &str) -> Res<TableData> {
             .take(MAX_COLS)
             .enumerate()
             .map(|(i, f)| {
-                let f = if i == 0 && t.rows.is_empty() { f.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(f) } else { f };
+                let f = if i == 0 && t.rows.is_empty() {
+                    f.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(f)
+                } else {
+                    f
+                };
                 clip(if utf8 {
                     String::from_utf8_lossy(f).into_owned()
                 } else {
@@ -101,11 +105,20 @@ pub fn read_csv(path: &Path, format: &str) -> Res<TableData> {
 
 /// Pick the delimiter that splits the first lines most consistently.
 pub fn sniff_delimiter(sample: &str) -> u8 {
-    let lines: Vec<&str> = sample.lines().filter(|l| !l.trim().is_empty()).take(20).collect();
+    let lines: Vec<&str> = sample
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .take(20)
+        .collect();
     let mut best = (b',', 0usize);
-    for d in [b',', b';', b'\t', b'|'] {
-        let counts: Vec<usize> = lines.iter().map(|l| count_outside_quotes(l, d as char)).collect();
-        let Some(&first) = counts.first() else { continue };
+    for d in *b",;\t|" {
+        let counts: Vec<usize> = lines
+            .iter()
+            .map(|l| count_outside_quotes(l, d as char))
+            .collect();
+        let Some(&first) = counts.first() else {
+            continue;
+        };
         if first == 0 {
             continue;
         }
@@ -138,7 +151,9 @@ pub fn read_sheet(path: &Path, index: usize) -> Res<TableData> {
         return Err("The workbook has no sheets".into());
     }
     let index = index.min(sheets.len() - 1);
-    let range = wb.worksheet_range(&sheets[index]).ctx("Could not read sheet")?;
+    let range = wb
+        .worksheet_range(&sheets[index])
+        .ctx("Could not read sheet")?;
     let (h, w) = range.get_size();
     let mut t = TableData {
         sheets: sheets.clone(),
@@ -148,7 +163,10 @@ pub fn read_sheet(path: &Path, index: usize) -> Res<TableData> {
         ..Default::default()
     };
     // Keep absolute positions: a sheet that starts at C5 still shows from A1.
-    let (r0, c0) = range.start().map(|(r, c)| (r as usize, c as usize)).unwrap_or((0, 0));
+    let (r0, c0) = range
+        .start()
+        .map(|(r, c)| (r as usize, c as usize))
+        .unwrap_or((0, 0));
     let lead_cols = c0.min(MAX_COLS);
     for _ in 0..r0.min(MAX_ROWS) {
         t.rows.push(Vec::new());
@@ -171,7 +189,13 @@ pub fn read_sheet(path: &Path, index: usize) -> Res<TableData> {
                         format!("{y:04}-{mo:02}-{da:02} {hh:02}:{mi:02}")
                     }
                 }
-                Data::Bool(b) => if *b { "TRUE".into() } else { "FALSE".into() },
+                Data::Bool(b) => {
+                    if *b {
+                        "TRUE".into()
+                    } else {
+                        "FALSE".into()
+                    }
+                }
                 other => other.to_string(),
             }));
         }

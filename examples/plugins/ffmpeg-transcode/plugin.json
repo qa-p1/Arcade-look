@@ -1,0 +1,9 @@
+{
+  "name": "Transcode unsupported video with ffmpeg",
+  "type": "command",
+  "kinds": ["video"],
+  "mode": "fallback",
+  "command": ["ffmpeg", "-v", "error", "-t", "300", "-i", "{path}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-c:a", "aac", "-movflags", "+faststart", "{outdir}/{stem}.mp4"],
+  "output": "file",
+  "timeoutMs": 120000
+}
