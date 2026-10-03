@@ -150,11 +150,10 @@ fn respond(
     out.flush()
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     #[test]
     fn serves_ranges_with_token() {
         start();

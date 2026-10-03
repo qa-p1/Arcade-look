@@ -244,11 +244,10 @@ fn execute(p: &Plugin, file: &Path, outdir: &Path) -> Res<Vec<u8>> {
     Ok(stdout)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     #[test]
     fn runs_command_plugin() {
         let d = std::env::temp_dir().join(format!("alook-plug-{}", std::process::id()));
