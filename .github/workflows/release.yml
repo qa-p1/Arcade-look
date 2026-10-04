@@ -36,7 +36,10 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request')
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ github.token }}
+      # The built-in token can't create a tag on an older commit whose workflow files differ
+      # from main's. Add a RELEASE_TOKEN secret (a token with the "workflow" scope) if that
+      # ever blocks a release; until then the built-in token is used.
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
       - name: Find the CI run
