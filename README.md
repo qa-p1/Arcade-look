@@ -141,7 +141,7 @@ npm run tauri dev            # run with hot reload
 npm run tauri build          # installers in src-tauri/target/release/bundle/
 ```
 
-CI (`.github/workflows`) checks every pull request, and packages every push to `main` (`build.yml`: NSIS setup `.exe`, AppImage, universal `.dmg`). When that succeeds, `release.yml` publishes the installers: as release `v<version>` if `version` in `src-tauri/tauri.conf.json` hasn't been released yet, otherwise as the rolling `nightly` pre-release. To ship a new version, bump `version` (also in `src-tauri/Cargo.toml` and `package.json`) and push.
+CI (`.github/workflows`) checks every pull request, and packages every push to `main` (`build.yml`: NSIS setup `.exe`, AppImage, universal `.dmg`). When that succeeds, `release.yml` publishes the installers: as release `v<version>` if `version` in `src-tauri/tauri.conf.json` hasn't been released yet, otherwise as the rolling `nightly` pre-release. To ship a new version, bump `version` (also in `src-tauri/Cargo.toml` and `package.json`) and push. A draft release for that version is filled in and published rather than skipped. No secrets are required; if the built-in token can't create a tag (it can't tag an older commit whose workflow files differ from `main`'s), add a `RELEASE_TOKEN` secret with the `workflow` scope and `release.yml` uses it instead.
 
 Checks:
 
