@@ -66,7 +66,7 @@ jobs:
           github-token: ${{ github.token }}
           pattern: arcade-look-*
           merge-multiple: true
-          path: built
+          path: ${{ runner.temp }}/built
 
       - name: Decide what to publish
         id: plan
@@ -89,23 +89,25 @@ jobs:
           VERSION: ${{ steps.plan.outputs.version }}
           LABEL: ${{ steps.plan.outputs.label }}
         run: |
-          mkdir assets
+          # Outside the checkout, which has its own assets/ folder.
+          cd "$RUNNER_TEMP"
+          mkdir release
           # "Arcade Look_0.1.0_x64-setup.exe" -> "Arcade-Look_0.1.0_x64-setup.exe" (or _nightly_)
           for f in built/*; do
             name="$(basename "$f")"
             name="${name// /-}"
             name="${name/_${VERSION}_/_${LABEL}_}"
-            cp "$f" "assets/$name"
+            cp "$f" "release/$name"
           done
-          count="$(find assets -type f | wc -l)"
+          count="$(find release -type f | wc -l)"
           if [ "$count" -ne 3 ]; then
             echo "::error::Expected 3 installers (Windows, Linux, macOS), found $count"
             ls -l built
             exit 1
           fi
-          (cd assets && sha256sum -- * > ../SHA256SUMS.txt) && mv SHA256SUMS.txt assets/
-          ls -l assets
-          cat assets/SHA256SUMS.txt
+          (cd release && sha256sum -- * > ../SHA256SUMS.txt) && mv SHA256SUMS.txt release/
+          ls -l release
+          cat release/SHA256SUMS.txt
 
       - name: Write release notes
         env:
@@ -137,7 +139,7 @@ jobs:
             echo "Arcade Look then waits in the background with an icon in the system tray: click it for Settings."
             echo
             echo "The installers are not code-signed yet, so the first time Windows SmartScreen needs **More info → Run anyway** and macOS needs **right-click → Open**. Verify downloads with \`SHA256SUMS.txt\`."
-          } > notes.md
+          } > "$RUNNER_TEMP/notes.md"
 
       - name: Publish release
         if: steps.plan.outputs.tag != 'nightly'
@@ -145,8 +147,8 @@ jobs:
           TAG: ${{ steps.plan.outputs.tag }}
           SHA: ${{ steps.run.outputs.sha }}
         run: |
-          gh release create "$TAG" assets/* --target "$SHA" --latest \
-            --title "Arcade Look $TAG" --notes "$(cat notes.md)" --generate-notes
+          gh release create "$TAG" "$RUNNER_TEMP"/release/* --target "$SHA" --latest \
+            --title "Arcade Look $TAG" --notes "$(cat "$RUNNER_TEMP/notes.md")" --generate-notes
           echo "Released [$TAG](https://github.com/$GH_REPO/releases/tag/$TAG)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update nightly pre-release
@@ -158,10 +160,11 @@ jobs:
           if gh release view nightly >/dev/null 2>&1; then
             # Point the tag at the new build, then swap the assets.
             gh api -X PATCH "repos/$GH_REPO/git/refs/tags/nightly" -f sha="$SHA" -F force=true > /dev/null
-            gh release upload nightly assets/* --clobber
-            gh release edit nightly --prerelease --latest=false --title "$title" --notes-file notes.md
+            gh release upload nightly "$RUNNER_TEMP"/release/* --clobber
+            gh release edit nightly --prerelease --latest=false --title "$title" \
+              --notes-file "$RUNNER_TEMP/notes.md"
           else
-            gh release create nightly assets/* --target "$SHA" --prerelease --latest=false \
-              --title "$title" --notes-file notes.md
+            gh release create nightly "$RUNNER_TEMP"/release/* --target "$SHA" --prerelease \
+              --latest=false --title "$title" --notes-file "$RUNNER_TEMP/notes.md"
           fi
           echo "Updated [nightly](https://github.com/$GH_REPO/releases/tag/nightly) to $SHA" >> "$GITHUB_STEP_SUMMARY"
