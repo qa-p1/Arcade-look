@@ -1,5 +1,5 @@
-# Builds the installers for every OS. Called by ci.yml (every push to main: downloadable
-# workflow artifacts) and release.yml (version tags: assets on the GitHub Release).
+# Builds the installers for every OS as workflow artifacts. Called by ci.yml for every push
+# to main; release.yml then publishes them as a GitHub Release.
 #
 #   Windows  NSIS setup .exe (per-user, no admin). Its hooks set up the File Explorer
 #            integration and start at login (src-tauri/windows/installer-hooks.nsh).
@@ -9,11 +9,6 @@ name: Build installers
 
 on:
   workflow_call:
-    inputs:
-      release-tag:
-        description: Also upload the installers to this GitHub Release (empty = artifacts only)
-        type: string
-        default: ''
 
 jobs:
   bundle:
@@ -79,11 +74,3 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
-
-      - name: Attach to release
-        if: inputs.release-tag != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.release-tag }}
-        run: gh release upload "$TAG" ${{ matrix.files }} --clobber

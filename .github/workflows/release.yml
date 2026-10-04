@@ -1,53 +1,167 @@
-# Push a version tag (e.g. `git tag v0.2.0 && git push origin v0.2.0`) to publish a release:
-# a draft GitHub Release is created with the Windows, Linux and macOS installers attached.
-# Review it and click "Publish". The tag must match "version" in src-tauri/tauri.conf.json.
+# Publishes the installers that CI built, whenever CI succeeds on main:
+#
+#   * "version" in src-tauri/tauri.conf.json has no release yet -> release v<version>,
+#     marked Latest. To ship a new version, bump the version and push.
+#   * otherwise -> refresh the rolling "nightly" pre-release with the newest build.
+#
+# Nothing is rebuilt: the assets are the artifacts of the CI run that passed. Run it by hand
+# (Actions -> Release -> Run workflow) to publish a specific CI run's installers.
 name: Release
 
 on:
-  push:
-    tags: ['v*']
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: ID of the CI run whose installers to publish (empty = latest successful run on main)
+        type: string
+        default: ''
 
 permissions:
   contents: write
+  actions: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  draft:
-    name: Draft release
+  publish:
+    name: Publish
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request')
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Find the CI run
+        id: run
+        env:
+          INPUT_RUN: ${{ inputs.run-id }}
+          EVENT_RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          run="${INPUT_RUN:-$EVENT_RUN}"
+          if [ -z "$run" ]; then
+            run="$(gh run list --workflow CI --branch main --event push --status success --limit 1 \
+              --json databaseId --jq '.[0].databaseId')"
+          fi
+          sha="$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)"
+          echo "CI run $run at $sha"
+          echo "id=$run" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-      - name: Check the tag matches the app version
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.run.outputs.sha }}
+
+      - name: Download the installers
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.run.outputs.id }}
+          github-token: ${{ github.token }}
+          pattern: arcade-look-*
+          merge-multiple: true
+          path: built
+
+      - name: Decide what to publish
+        id: plan
         run: |
           version="$(jq -r .version src-tauri/tauri.conf.json)"
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in src-tauri/tauri.conf.json"
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "v$version is already released: updating the nightly pre-release"
+            echo "tag=nightly" >> "$GITHUB_OUTPUT"
+            label=nightly
+          else
+            echo "Releasing v$version"
+            echo "tag=v$version" >> "$GITHUB_OUTPUT"
+            label="$version"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare assets
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          LABEL: ${{ steps.plan.outputs.label }}
+        run: |
+          mkdir assets
+          # "Arcade Look_0.1.0_x64-setup.exe" -> "Arcade-Look_0.1.0_x64-setup.exe" (or _nightly_)
+          for f in built/*; do
+            name="$(basename "$f")"
+            name="${name// /-}"
+            name="${name/_${VERSION}_/_${LABEL}_}"
+            cp "$f" "assets/$name"
+          done
+          count="$(find assets -type f | wc -l)"
+          if [ "$count" -ne 3 ]; then
+            echo "::error::Expected 3 installers (Windows, Linux, macOS), found $count"
+            ls -l built
             exit 1
           fi
+          (cd assets && sha256sum -- * > ../SHA256SUMS.txt) && mv SHA256SUMS.txt assets/
+          ls -l assets
+          cat assets/SHA256SUMS.txt
 
-      - name: Create draft release
+      - name: Write release notes
         env:
-          GH_TOKEN: ${{ github.token }}
+          LABEL: ${{ steps.plan.outputs.label }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          SHA: ${{ steps.run.outputs.sha }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && exit 0
-          gh release create "$GITHUB_REF_NAME" --draft --generate-notes \
-            --title "Arcade Look $GITHUB_REF_NAME" \
-            --notes "$(cat <<'NOTES'
-          ## Install
+          base="https://github.com/$GH_REPO/releases/download/$TAG"
+          {
+            if [ "$TAG" = nightly ]; then
+              echo "> [!WARNING]"
+              echo "> Automatic build of the latest commit on \`main\` ($SHA). It may be unstable: for everyday use, install the [latest release](https://github.com/$GH_REPO/releases/latest)."
+              echo
+            fi
+            echo "## Download"
+            echo
+            echo "| Platform | Installer |"
+            echo "|---|---|"
+            echo "| **Windows** 10/11 (x64) | [Arcade-Look_${LABEL}_x64-setup.exe]($base/Arcade-Look_${LABEL}_x64-setup.exe) |"
+            echo "| **macOS** 10.15+ (Apple Silicon and Intel) | [Arcade-Look_${LABEL}_universal.dmg]($base/Arcade-Look_${LABEL}_universal.dmg) |"
+            echo "| **Linux** (x86_64) | [Arcade-Look_${LABEL}_amd64.AppImage]($base/Arcade-Look_${LABEL}_amd64.AppImage) |"
+            echo
+            echo "## Install"
+            echo
+            echo "- **Windows:** run the setup (no admin needed). It sets up Space in File Explorer, the *Quick Look* context-menu item and start at login."
+            echo "- **macOS:** open the disk image, drag Arcade Look to Applications and open it from there. Preview with Ctrl+Option+Space."
+            echo "- **Linux:** make the AppImage executable (\`chmod +x\`), keep it somewhere permanent such as \`~/Applications\`, and run it once. It sets up GNOME Files (Space), Dolphin and Nemo (*Quick Look*), *Open With* and start on login."
+            echo
+            echo "Arcade Look then waits in the background with an icon in the system tray: click it for Settings."
+            echo
+            echo "The installers are not code-signed yet, so the first time Windows SmartScreen needs **More info → Run anyway** and macOS needs **right-click → Open**. Verify downloads with \`SHA256SUMS.txt\`."
+          } > notes.md
 
-          | Platform | Download | Setup |
-          |---|---|---|
-          | **Windows 10/11** | `Arcade Look_*_x64-setup.exe` | Run it. Space in File Explorer, the *Quick Look* context menu and start at login are set up for you. |
-          | **Linux** | `Arcade Look_*_amd64.AppImage` | `chmod +x` it, keep it somewhere permanent and run it once. It sets up GNOME Files (Space), Dolphin/Nemo (*Quick Look*), *Open With* and start on login. |
-          | **macOS 10.15+** | `Arcade Look_*_universal.dmg` | Drag it to Applications and open it from there (right-click → Open the first time). Preview with Ctrl+Option+Space. |
+      - name: Publish release
+        if: steps.plan.outputs.tag != 'nightly'
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
+          SHA: ${{ steps.run.outputs.sha }}
+        run: |
+          gh release create "$TAG" assets/* --target "$SHA" --latest \
+            --title "Arcade Look $TAG" --notes "$(cat notes.md)" --generate-notes
+          echo "Released [$TAG](https://github.com/$GH_REPO/releases/tag/$TAG)" >> "$GITHUB_STEP_SUMMARY"
 
-          The builds are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper ask for confirmation the first time.
-          NOTES
-          )"
-
-  installers:
-    name: Installers
-    needs: draft
-    uses: ./.github/workflows/build.yml
-    with:
-      release-tag: ${{ github.ref_name }}
+      - name: Update nightly pre-release
+        if: steps.plan.outputs.tag == 'nightly'
+        env:
+          SHA: ${{ steps.run.outputs.sha }}
+        run: |
+          title="Nightly build ($(date -u +%Y-%m-%d), ${SHA:0:7})"
+          if gh release view nightly >/dev/null 2>&1; then
+            # Point the tag at the new build, then swap the assets.
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/nightly" -f sha="$SHA" -F force=true > /dev/null
+            gh release upload nightly assets/* --clobber
+            gh release edit nightly --prerelease --latest=false --title "$title" --notes-file notes.md
+          else
+            gh release create nightly assets/* --target "$SHA" --prerelease --latest=false \
+              --title "$title" --notes-file notes.md
+          fi
+          echo "Updated [nightly](https://github.com/$GH_REPO/releases/tag/nightly) to $SHA" >> "$GITHUB_STEP_SUMMARY"

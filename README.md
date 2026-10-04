@@ -48,13 +48,13 @@ More screenshots: [video](docs/screenshots/video.webp) · [image](docs/screensho
 
 ## Install
 
-Download the installer for your platform from the [Releases](../../releases) page, or [build from source](#build-from-source). Every commit to `main` is also built: open the latest [CI run](../../actions/workflows/ci.yml) and download the installer from its **Artifacts**.
+Download the installer for your platform from the [latest release](../../releases/latest), or [build from source](#build-from-source). The [nightly pre-release](../../releases/tag/nightly) always has the newest build of `main`.
 
 | Platform | Download | Install |
 |---|---|---|
-| **Windows 10/11** | `Arcade Look_<version>_x64-setup.exe` | Run it (no admin needed). It sets up Space in File Explorer, the **Quick Look** context-menu item and start at login. |
-| **Linux** (x86_64) | `Arcade Look_<version>_amd64.AppImage` | `chmod +x` it, keep it somewhere permanent (e.g. `~/Applications`) and run it once. |
-| **macOS 10.15+** (Apple Silicon and Intel) | `Arcade Look_<version>_universal.dmg` | Drag it to Applications and open it from there. |
+| **Windows 10/11** | `Arcade-Look_<version>_x64-setup.exe` | Run it (no admin needed). It sets up Space in File Explorer, the **Quick Look** context-menu item and start at login. |
+| **Linux** (x86_64) | `Arcade-Look_<version>_amd64.AppImage` | `chmod +x` it, keep it somewhere permanent (e.g. `~/Applications`) and run it once. |
+| **macOS 10.15+** (Apple Silicon and Intel) | `Arcade-Look_<version>_universal.dmg` | Drag it to Applications and open it from there. |
 
 The first run sets everything up: file manager integration, and **start on login** so Arcade Look waits in the background with an icon in the system tray (click it for Settings, right-click for the menu). Turn start on login off in Settings. The builds aren't code-signed yet, so the first time Windows SmartScreen needs **More info → Run anyway** and macOS needs **right-click → Open**.
 
@@ -141,7 +141,7 @@ npm run tauri dev            # run with hot reload
 npm run tauri build          # installers in src-tauri/target/release/bundle/
 ```
 
-CI (`.github/workflows`) checks every pull request, and packages every push to `main` (`build.yml`: NSIS setup `.exe`, AppImage, universal `.dmg`). Pushing a tag that matches the version in `src-tauri/tauri.conf.json` (e.g. `v0.2.0`) creates a draft GitHub Release with those installers attached.
+CI (`.github/workflows`) checks every pull request, and packages every push to `main` (`build.yml`: NSIS setup `.exe`, AppImage, universal `.dmg`). When that succeeds, `release.yml` publishes the installers: as release `v<version>` if `version` in `src-tauri/tauri.conf.json` hasn't been released yet, otherwise as the rolling `nightly` pre-release. To ship a new version, bump `version` (also in `src-tauri/Cargo.toml` and `package.json`) and push.
 
 Checks:
 
