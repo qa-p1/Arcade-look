@@ -75,17 +75,25 @@ jobs:
         id: plan
         run: |
           version="$(jq -r .version src-tauri/tauri.conf.json)"
-          if gh release view "v$version" >/dev/null 2>&1; then
+          # A draft for this version (e.g. prepared by hand) doesn't count as released: it gets
+          # the installers and is published.
+          state="$(gh release view "v$version" --json isDraft \
+            --jq 'if .isDraft then "draft" else "published" end' 2>/dev/null || echo none)"
+          if [ "$state" = published ]; then
             echo "v$version is already released: updating the nightly pre-release"
-            echo "tag=nightly" >> "$GITHUB_OUTPUT"
+            tag=nightly
             label=nightly
           else
-            echo "Releasing v$version"
-            echo "tag=v$version" >> "$GITHUB_OUTPUT"
+            echo "Releasing v$version (existing release: $state)"
+            tag="v$version"
             label="$version"
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "label=$label" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$tag"
+            echo "state=$state"
+            echo "version=$version"
+            echo "label=$label"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Prepare assets
         env:
@@ -149,9 +157,20 @@ jobs:
         env:
           TAG: ${{ steps.plan.outputs.tag }}
           SHA: ${{ steps.run.outputs.sha }}
+          STATE: ${{ steps.plan.outputs.state }}
         run: |
-          gh release create "$TAG" "$RUNNER_TEMP"/release/* --target "$SHA" --latest \
-            --title "Arcade Look $TAG" --notes "$(cat "$RUNNER_TEMP/notes.md")" --generate-notes
+          # Install notes, then GitHub's generated changelog (what changed, contributors).
+          changes="$(gh api "repos/$GH_REPO/releases/generate-notes" \
+            -f tag_name="$TAG" -f target_commitish="$SHA" --jq .body)"
+          printf '%s\n\n%s\n' "$(cat "$RUNNER_TEMP/notes.md")" "$changes" > "$RUNNER_TEMP/full-notes.md"
+          if [ "$STATE" = draft ]; then
+            gh release upload "$TAG" "$RUNNER_TEMP"/release/* --clobber
+            gh release edit "$TAG" --draft=false --latest --title "Arcade Look $TAG" \
+              --notes-file "$RUNNER_TEMP/full-notes.md"
+          else
+            gh release create "$TAG" "$RUNNER_TEMP"/release/* --target "$SHA" --latest \
+              --title "Arcade Look $TAG" --notes-file "$RUNNER_TEMP/full-notes.md"
+          fi
           echo "Released [$TAG](https://github.com/$GH_REPO/releases/tag/$TAG)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update nightly pre-release
