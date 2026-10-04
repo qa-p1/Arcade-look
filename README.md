@@ -48,17 +48,25 @@ More screenshots: [video](docs/screenshots/video.webp) · [image](docs/screensho
 
 ## Install
 
-Download the installer for your platform from the [Releases](../../releases) page (`.msi`/`.exe`, `.dmg`, `.deb`/`.rpm`/`.AppImage`), or [build from source](#build-from-source).
+Download the installer for your platform from the [Releases](../../releases) page, or [build from source](#build-from-source). Every commit to `main` is also built: open the latest [CI run](../../actions/workflows/ci.yml) and download the installer from its **Artifacts**.
 
-Then turn on the integration for your file manager:
-
-| Platform | How you preview | Setup |
+| Platform | Download | Install |
 |---|---|---|
-| **Linux: GNOME Files** | Select a file and press **Space** (Arcade Look implements the same D-Bus previewer protocol as GNOME Sushi) | Click **Set up file manager integration** on the welcome screen, or run `arcade-look --install-integration`. Then run `nautilus -q` once. |
-| **Linux: Dolphin, Nemo** | Right-click → **Quick Look** | Same command |
-| **Linux: other file managers** | *Open With → Arcade Look*, or bind a custom action to `arcade-look %f` | Same command |
-| **Windows: File Explorer** | Select a file and press **Space** (also works on the desktop) | Run the installer, then click **Set up file manager integration** (adds the background listener at login and a **Quick Look** context-menu item) |
-| **macOS: Finder** | Select a file and press **Ctrl+Option+Space** (Finder's own Space stays Apple's Quick Look) | Allow Arcade Look to control Finder when macOS asks |
+| **Windows 10/11** | `Arcade Look_<version>_x64-setup.exe` | Run it (no admin needed). It sets up Space in File Explorer, the **Quick Look** context-menu item and start at login. |
+| **Linux** (x86_64) | `Arcade Look_<version>_amd64.AppImage` | `chmod +x` it, keep it somewhere permanent (e.g. `~/Applications`) and run it once. |
+| **macOS 10.15+** (Apple Silicon and Intel) | `Arcade Look_<version>_universal.dmg` | Drag it to Applications and open it from there. |
+
+The first run sets everything up: file manager integration, and **start on login** so Arcade Look waits in the background with an icon in the system tray (click it for Settings, right-click for the menu). Turn start on login off in Settings. The builds aren't code-signed yet, so the first time Windows SmartScreen needs **More info → Run anyway** and macOS needs **right-click → Open**.
+
+| Platform | How you preview |
+|---|---|
+| **Linux: GNOME Files** | Select a file and press **Space** (Arcade Look implements the same D-Bus previewer protocol as GNOME Sushi). Run `nautilus -q` once after the first run. |
+| **Linux: Dolphin, Nemo** | Right-click → **Quick Look** |
+| **Linux: other file managers** | *Open With → Arcade Look*, or bind a custom action to `arcade-look %f` |
+| **Windows: File Explorer** | Select a file and press **Space** (also works on the desktop), or right-click → **Quick Look** |
+| **macOS: Finder** | Select a file and press **Ctrl+Option+Space** (Finder's own Space stays Apple's Quick Look). Allow Arcade Look to control Finder when macOS asks. |
+
+To set up the integration again, click **Set up file manager integration** in Settings or run `arcade-look --install-integration`; `--uninstall-integration` removes it.
 
 You can always preview from a terminal: `arcade-look path/to/file`, or drop a file onto the window.
 
@@ -102,7 +110,7 @@ Settings live in `config.json` in your config folder: `~/.config/arcade-look/` o
 }
 ```
 
-**Memory.** After you close a preview, the window stays warm so the next one is instant. Once it has been hidden for `idleMinutes`, the web view is released. The process then exits, unless it's needed to listen for Space (Windows Explorer hook or global shortcut), in which case only a few MB stay resident.
+**Memory.** After you close a preview, the window stays warm so the next one is instant. Once it has been hidden for `idleMinutes`, the web view is released. The process then exits, unless it's needed in the background (start on login, the tray icon, the Windows Explorer hook or a global shortcut), in which case only a few MB stay resident.
 
 ## Plugins
 
@@ -132,6 +140,8 @@ npm install
 npm run tauri dev            # run with hot reload
 npm run tauri build          # installers in src-tauri/target/release/bundle/
 ```
+
+CI (`.github/workflows`) checks every pull request, and packages every push to `main` (`build.yml`: NSIS setup `.exe`, AppImage, universal `.dmg`). Pushing a tag that matches the version in `src-tauri/tauri.conf.json` (e.g. `v0.2.0`) creates a draft GitHub Release with those installers attached.
 
 Checks:
 

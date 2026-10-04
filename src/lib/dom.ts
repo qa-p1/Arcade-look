@@ -61,9 +61,14 @@ export function svg(markup: string): SVGElement {
   return t.content.firstElementChild as SVGElement;
 }
 
+/** Inputs that don't take typing: once clicked they keep focus, but Space/Esc/arrows must still work. */
+const NON_TEXT_INPUTS = new Set(['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file', 'image']);
+
+/** True for elements that take typed text (and so own Space, Esc and the arrow keys). */
 export function isEditable(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;
-  return t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
+  if (t.isContentEditable || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return true;
+  return t instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(t.type);
 }
 
 /** Run `fn` at most once per animation frame. */

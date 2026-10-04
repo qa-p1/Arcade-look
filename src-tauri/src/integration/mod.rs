@@ -153,9 +153,76 @@ pub fn uninstall() -> Res<String> {
     #[cfg(windows)]
     return windows::uninstall();
     #[cfg(target_os = "macos")]
-    return Ok("Nothing to remove on macOS.".into());
+    return macos::uninstall();
     #[allow(unreachable_code)]
     Err("No integration is available for this platform.".into())
+}
+
+/// Whether Arcade Look starts (in the background, with its tray icon) when the user logs in.
+pub fn autostart_enabled() -> bool {
+    #[cfg(target_os = "linux")]
+    return linux::autostart_enabled();
+    #[cfg(windows)]
+    return windows::autostart_enabled();
+    #[cfg(target_os = "macos")]
+    return macos::autostart_enabled();
+    #[allow(unreachable_code)]
+    false
+}
+
+pub fn set_autostart(enabled: bool) -> Res<()> {
+    #[cfg(target_os = "linux")]
+    return linux::set_autostart(enabled);
+    #[cfg(windows)]
+    return windows::set_autostart(enabled);
+    #[cfg(target_os = "macos")]
+    return macos::set_autostart(enabled);
+    #[allow(unreachable_code)]
+    {
+        let _ = enabled;
+        Err("Start on login is not available on this platform.".into())
+    }
+}
+
+/// Do once what an installer would: set up the file manager integration and start on login.
+/// AppImages and macOS apps have no install step, so this runs on their first launch; the
+/// Windows installer does it itself (`--install-integration`). It is retried on later launches
+/// until it succeeds (e.g. the app was first started from a temporary folder or a disk image),
+/// and never again afterwards, so turning start on login off sticks.
+pub fn first_run_setup(app: &AppHandle) {
+    // Development builds keep whatever integration the developer has installed.
+    if cfg!(debug_assertions) || cfg!(windows) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let state = app.state::<AppState>();
+        if state
+            .window_state
+            .lock()
+            .map(|s| s.setup_done)
+            .unwrap_or(true)
+        {
+            return;
+        }
+        match install() {
+            Ok(_) if autostart_enabled() => {
+                crate::dbg_log!("first-run setup done");
+                if let Ok(mut s) = state.window_state.lock() {
+                    s.setup_done = true;
+                    crate::config::save_state(&s);
+                }
+            }
+            Ok(_) => crate::dbg_log!("first-run setup incomplete, will retry next launch"),
+            Err(e) => eprintln!("arcade-look: first-run setup failed: {e}"),
+        }
+    });
+}
+
+/// Repair a start-on-login entry that points at an executable that has since moved.
+pub fn refresh_autostart() {
+    #[cfg(target_os = "linux")]
+    std::thread::spawn(linux::refresh_autostart);
 }
 
 /// Windows GUI-subsystem builds have no console; attach to the parent's for CLI output.
@@ -165,9 +232,16 @@ pub fn attach_console() {
 }
 
 /// Path of the executable that integrations should launch (the AppImage, not its mount).
+/// `APPIMAGE` is only ours if we run from that AppImage's mount (`APPDIR`); a process started
+/// from another AppImage inherits both variables.
 pub fn launcher_path() -> PathBuf {
-    if let Some(appimage) = std::env::var_os("APPIMAGE") {
-        return PathBuf::from(appimage);
+    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("arcade-look"));
+    if let (Some(appimage), Some(appdir)) =
+        (std::env::var_os("APPIMAGE"), std::env::var_os("APPDIR"))
+    {
+        if exe.starts_with(&appdir) {
+            return PathBuf::from(appimage);
+        }
     }
-    std::env::current_exe().unwrap_or_else(|_| PathBuf::from("arcade-look"))
+    exe
 }

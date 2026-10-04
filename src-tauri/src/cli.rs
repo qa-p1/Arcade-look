@@ -4,6 +4,7 @@
 pub struct Args {
     pub paths: Vec<String>,
     pub service: bool,
+    pub settings: bool,
     pub quit: bool,
     pub install: bool,
     pub uninstall: bool,
@@ -23,6 +24,7 @@ ARGS:
 OPTIONS:
     --service                Start in the background without a window
                              (used by file manager integrations and autostart)
+    --settings               Open the settings
     --install-integration    Set up file manager integration for this user
     --uninstall-integration  Remove the file manager integration
     --quit                   Quit the running instance
@@ -47,6 +49,7 @@ pub fn parse<S: AsRef<str>>(argv: &[S]) -> Args {
         match arg {
             "--" => only_paths = true,
             "--service" | "--background" | "--gapplication-service" => a.service = true,
+            "--settings" => a.settings = true,
             "--quit" => a.quit = true,
             "--install-integration" => a.install = true,
             "--uninstall-integration" => a.uninstall = true,

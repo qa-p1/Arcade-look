@@ -273,6 +273,8 @@ pub fn reveal(app: AppHandle, path: String) -> Res<()> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Bootstrap {
+    /// What to show first: "file" (`pending`), "welcome", "settings", or nothing (`None`).
+    screen: Option<&'static str>,
     pending: Option<String>,
     platform: &'static str,
     version: &'static str,
@@ -292,10 +294,15 @@ pub fn bootstrap(state: State<'_, app::AppState>) -> Bootstrap {
         .frontend_ready
         .store(true, std::sync::atomic::Ordering::SeqCst);
     crate::dbg_log!("frontend ready");
-    // With no pending file the UI shows its welcome screen (unless running as a service).
-    let pending = state.pending.lock().ok().and_then(|mut p| p.take());
+    let (screen, pending) = match state.pending.lock().ok().and_then(|mut p| p.take()) {
+        Some(app::Request::File(p)) => (Some("file"), Some(p.to_string_lossy().to_string())),
+        Some(app::Request::Welcome) => (Some("welcome"), None),
+        Some(app::Request::Settings) => (Some("settings"), None),
+        None => (None, None),
+    };
     Bootstrap {
-        pending: pending.map(|p| p.to_string_lossy().to_string()),
+        screen,
+        pending,
         platform: std::env::consts::OS,
         version: env!("CARGO_PKG_VERSION"),
         config: state.config(),
@@ -358,6 +365,42 @@ pub fn navigate_external(app: AppHandle, delta: i64) -> bool {
 #[tauri::command]
 pub async fn install_integration() -> Res<String> {
     blocking(crate::integration::install).await
+}
+
+#[tauri::command]
+pub async fn get_autostart() -> Res<bool> {
+    blocking(|| Ok(crate::integration::autostart_enabled())).await
+}
+
+/// Turn "Start on login" on or off; returns the resulting state.
+#[tauri::command]
+pub async fn set_autostart(enabled: bool) -> Res<bool> {
+    blocking(move || {
+        crate::integration::set_autostart(enabled)?;
+        Ok(crate::integration::autostart_enabled())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn integration_status() -> Res<Vec<(String, bool)>> {
+    blocking(|| Ok(crate::integration::status())).await
+}
+
+/// Change settings from the settings screen; returns the new config.
+#[tauri::command]
+pub fn set_config(
+    state: State<'_, app::AppState>,
+    patch: serde_json::Map<String, serde_json::Value>,
+) -> Res<crate::config::Config> {
+    let config = crate::config::update(&state.config(), patch)?;
+    if let Ok(mut c) = state.config.write() {
+        *c = config.clone();
+    }
+    if let Ok(mut s) = state.config_stamp.lock() {
+        *s = crate::config::stamp();
+    }
+    Ok(config)
 }
 
 #[tauri::command]

@@ -1,17 +1,23 @@
 name: CI
 
+# Every pull request is checked. Every push to main is checked and then packaged: the
+# installers for Windows, Linux and macOS are attached to the run as downloadable artifacts.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: ${{ matrix.os }}
+  check:
+    name: Check (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -56,3 +62,9 @@ jobs:
       - name: Tests
         working-directory: src-tauri
         run: cargo test
+
+  installers:
+    name: Installers
+    needs: check
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/build.yml

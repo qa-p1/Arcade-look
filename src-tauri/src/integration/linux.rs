@@ -10,7 +10,7 @@ use crate::util::{normalize_arg, OrStr, Res};
 use futures_util::StreamExt;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::OnceLock;
 use tauri::{AppHandle, Manager};
 use zbus::message::Type as MsgType;
@@ -64,6 +64,7 @@ pub fn start_previewer(app: AppHandle) {
 
 async fn serve(app: AppHandle) -> zbus::Result<()> {
     let conn = zbus::connection::Builder::session()?.build().await?;
+    ensure_activatable(&conn).await;
     let reply = conn
         .request_name_with_flags(NAME, zbus::fdo::RequestNameFlags::DoNotQueue.into())
         .await;
@@ -214,6 +215,26 @@ async fn dispatch(
     }
 }
 
+/// dbus-broker reads service files only at login or on ReloadConfig. If GNOME Files can't
+/// reach (or start) the previewer even once, it switches to `NautilusPreviewerDevel` and never
+/// tries us again until it restarts, so make sure our service file is known to the bus.
+async fn ensure_activatable(conn: &zbus::Connection) {
+    if !files().dbus.exists() {
+        return;
+    }
+    let Ok(proxy) = zbus::fdo::DBusProxy::new(conn).await else {
+        return;
+    };
+    let known = proxy
+        .list_activatable_names()
+        .await
+        .is_ok_and(|names| names.iter().any(|n| n.as_str() == NAME));
+    if !known {
+        crate::dbg_log!("reloading D-Bus config so {NAME} is activatable");
+        let _ = proxy.reload_config().await;
+    }
+}
+
 fn show_file(app: &AppHandle, uri: &str, close_if_shown: bool, token: String) {
     let Some(path) = normalize_arg(uri, None) else {
         return;
@@ -281,6 +302,36 @@ pub fn apply_activation_token(w: &tauri::WebviewWindow, token: &str) {
     }
 }
 
+/// Generation of the current size pin (0 = not pinned).
+static PINNED: AtomicU64 = AtomicU64::new(0);
+static PIN_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// Tiling compositors (Hyprland, Sway, i3, ...) tile ordinary windows but float fixed-size ones,
+/// which they also center. Pin the size while the window maps so it opens as a centered popup,
+/// then make it resizable again once it has focus (or after a second, whichever comes first).
+pub fn pin_size_for_map(w: &tauri::WebviewWindow, width: f64, height: f64) {
+    let gen = PIN_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    PINNED.store(gen, Ordering::SeqCst);
+    let size = tauri::LogicalSize::new(width, height);
+    let _ = w.set_min_size(Some(size));
+    let _ = w.set_max_size(Some(size));
+    let w = w.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        if PINNED.load(Ordering::SeqCst) == gen {
+            unpin_size(&w);
+        }
+    });
+}
+
+pub fn unpin_size(w: &tauri::WebviewWindow) {
+    if PINNED.swap(0, Ordering::SeqCst) == 0 {
+        return;
+    }
+    let _ = w.set_max_size(None::<tauri::Size>);
+    let _ = w.set_min_size(Some(tauri::LogicalSize::new(420.0, 300.0)));
+}
+
 fn data_home() -> PathBuf {
     dirs::data_dir().unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".local/share"))
 }
@@ -301,6 +352,120 @@ fn files() -> Files {
         dolphin: d.join("kio/servicemenus/arcade-look.desktop"),
         nemo: d.join("nemo/actions/arcade-look.nemo_action"),
         icon: d.join("icons/hicolor/256x256/apps/arcade-look.png"),
+    }
+}
+
+fn autostart_file() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"))
+        .join("autostart/arcade-look.desktop")
+}
+
+/// Quote a path as one argument of a desktop entry's `Exec` key. The spec applies string
+/// unescaping (`\\` -> `\`) first, then shell-like quoting, and `%` starts a field code.
+fn exec_quote(path: &std::path::Path) -> String {
+    let mut out = String::from("\"");
+    for c in path.to_string_lossy().chars() {
+        match c {
+            '"' | '`' | '$' => {
+                out.push_str("\\\\");
+                out.push(c);
+            }
+            '\\' => out.push_str("\\\\\\\\"),
+            '%' => out.push_str("%%"),
+            _ => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// Inverse of `exec_quote` for the first argument of an `Exec` value.
+fn exec_program(exec: &str) -> Option<PathBuf> {
+    let rest = exec.strip_prefix('"')?;
+    let mut out = String::new();
+    let mut chars = rest.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => return Some(PathBuf::from(out)),
+            '\\' => {
+                // `\\x` in the file is an escaped x; `\\\\` is a backslash.
+                let next: String = chars.clone().take(3).collect();
+                if next.starts_with("\\\\\\") {
+                    out.push('\\');
+                    chars.nth(2);
+                } else if next.starts_with('\\') {
+                    chars.next();
+                    out.extend(chars.next());
+                } else {
+                    out.push(c);
+                }
+            }
+            '%' => {
+                if chars.clone().next() == Some('%') {
+                    chars.next();
+                }
+                out.push('%');
+            }
+            _ => out.push(c),
+        }
+    }
+    None
+}
+
+fn autostart_entry(exe: &std::path::Path) -> String {
+    format!(
+        "[Desktop Entry]\nType=Application\nName=Arcade Look\nComment=Keep Arcade Look ready in the background\nExec={} --service\nIcon=arcade-look\nTerminal=false\nX-GNOME-Autostart-enabled=true\nX-GNOME-Autostart-Delay=2\n",
+        exec_quote(exe)
+    )
+}
+
+pub fn autostart_enabled() -> bool {
+    autostart_file().exists()
+}
+
+pub fn set_autostart(enabled: bool) -> Res<()> {
+    let path = autostart_file();
+    if !enabled {
+        return match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                Err(format!("remove {}: {e}", path.display()))
+            }
+            _ => Ok(()),
+        };
+    }
+    let exe = super::launcher_path();
+    // An entry pointing into a temporary folder stops working after a reboot.
+    if ["/tmp/", "/var/tmp/", "/run/"]
+        .iter()
+        .any(|t| exe.starts_with(t))
+    {
+        return Err(format!(
+            "Arcade Look is running from a temporary folder ({}). Move it somewhere permanent, \
+            then turn on Start on login again.",
+            exe.display()
+        ));
+    }
+    write(&path, &autostart_entry(&exe), false)
+}
+
+/// If our autostart entry points at an executable that no longer exists (the app was moved,
+/// or reinstalled from a different package), point it at this one.
+pub fn refresh_autostart() {
+    let path = autostart_file();
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    if !text.contains("\nName=Arcade Look\n") {
+        return;
+    }
+    let target = text
+        .lines()
+        .find_map(|l| l.strip_prefix("Exec="))
+        .and_then(exec_program);
+    if target.is_some_and(|t| !t.exists()) {
+        crate::dbg_log!("autostart entry points to a missing executable, updating it");
+        let _ = set_autostart(true);
     }
 }
 
@@ -336,11 +501,12 @@ fn write(path: &PathBuf, content: &str, executable: bool) -> Res<()> {
 pub fn install() -> Res<String> {
     let exe = super::launcher_path();
     let exe_q = format!("\"{}\"", exe.display());
+    let exec = exec_quote(&exe);
     let f = files();
     write(
         &f.desktop,
         &format!(
-            "[Desktop Entry]\nType=Application\nName=Arcade Look\nGenericName=File Previewer\nComment=Preview any file instantly\nExec={exe_q} %U\nIcon=arcade-look\nTerminal=false\nCategories=Utility;Viewer;\nMimeType={MIME_TYPES}\nStartupNotify=true\nInitialPreference=1\n"
+            "[Desktop Entry]\nType=Application\nName=Arcade Look\nGenericName=File Previewer\nComment=Preview any file instantly\nExec={exec} %U\nIcon=arcade-look\nTerminal=false\nCategories=Utility;Viewer;\nMimeType={MIME_TYPES}\nStartupNotify=true\nInitialPreference=1\nActions=settings;\n\n[Desktop Action settings]\nName=Settings\nExec={exec} --settings\n"
         ),
         false,
     )?;
@@ -352,14 +518,14 @@ pub fn install() -> Res<String> {
     write(
         &f.dolphin,
         &format!(
-            "[Desktop Entry]\nType=Service\nMimeType=all/allfiles;inode/directory;\nActions=arcadeLook\nX-KDE-Priority=TopLevel\n\n[Desktop Action arcadeLook]\nName=Quick Look\nIcon=arcade-look\nExec={exe_q} %u\n"
+            "[Desktop Entry]\nType=Service\nMimeType=all/allfiles;inode/directory;\nActions=arcadeLook\nX-KDE-Priority=TopLevel\n\n[Desktop Action arcadeLook]\nName=Quick Look\nIcon=arcade-look\nExec={exec} %u\n"
         ),
         true,
     )?;
     write(
         &f.nemo,
         &format!(
-            "[Nemo Action]\nName=Quick Look\nComment=Preview with Arcade Look\nExec={exe_q} %F\nIcon-Name=arcade-look\nSelection=s\nExtensions=any;dir;\n"
+            "[Nemo Action]\nName=Quick Look\nComment=Preview with Arcade Look\nExec={exec} %F\nIcon-Name=arcade-look\nSelection=s\nExtensions=any;dir;\n"
         ),
         false,
     )?;
@@ -367,21 +533,58 @@ pub fn install() -> Res<String> {
         let _ = std::fs::create_dir_all(dir);
         let _ = std::fs::write(&f.icon, include_bytes!("../../icons/128x128@2x.png"));
     }
+    tauri::async_runtime::block_on(async {
+        if let Ok(conn) = zbus::Connection::session().await {
+            ensure_activatable(&conn).await;
+        }
+    });
     let _ = std::process::Command::new("update-desktop-database")
         .arg(data_home().join("applications"))
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
+    // Like on Windows: stay ready in the background (with a tray icon) from the next login.
+    let autostart = match set_autostart(true) {
+        Ok(()) => "  • Arcade Look now starts in the background when you log in (change this in Settings).\n".to_string(),
+        Err(e) => format!("  • Start on login could not be turned on: {e}\n"),
+    };
     Ok(format!(
-        "Installed:\n  • GNOME Files: press Space on any file (restart Files once: `nautilus -q`).\n    If GNOME Sushi is installed and running, Arcade Look takes over the next time it starts.\n  • Dolphin: right-click → Quick Look\n  • Nemo: right-click → Quick Look\n  • \"Open With → Arcade Look\" in any file manager\nFiles written under {}",
+        "Installed:\n  • GNOME Files: press Space on any file (restart Files once: `nautilus -q`).\n    If GNOME Sushi is installed and running, Arcade Look takes over the next time it starts.\n  • Dolphin: right-click → Quick Look\n  • Nemo: right-click → Quick Look\n  • \"Open With → Arcade Look\" in any file manager\n{autostart}Files written under {}",
         data_home().display()
     ))
 }
 
 pub fn uninstall() -> Res<String> {
     let f = files();
-    for p in [&f.desktop, &f.dbus, &f.dolphin, &f.nemo, &f.icon] {
+    for p in [
+        &f.desktop,
+        &f.dbus,
+        &f.dolphin,
+        &f.nemo,
+        &f.icon,
+        &autostart_file(),
+    ] {
         let _ = std::fs::remove_file(p);
     }
-    Ok("Removed Arcade Look file manager integration.".into())
+    Ok("Removed Arcade Look file manager integration and start on login.".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exec_quoting_round_trips() {
+        for p in [
+            "/usr/bin/arcade-look",
+            "/home/a b/Arcade \"Look\"/$x`y`/50%/c\\d",
+        ] {
+            let quoted = exec_quote(std::path::Path::new(p));
+            assert_eq!(
+                exec_program(&format!("{quoted} --service")),
+                Some(PathBuf::from(p))
+            );
+        }
+        assert_eq!(exec_quote(std::path::Path::new("/a\\b%")), r#""/a\\\\b%%""#);
+    }
 }

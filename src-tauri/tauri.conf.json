@@ -33,7 +33,15 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis",
+      "appimage",
+      "dmg"
+    ],
+    "publisher": "Arcade Look contributors",
+    "copyright": "Copyright (c) 2026 Arcade Look contributors",
+    "homepage": "https://github.com/qa-p1/arcade-look",
+    "license": "MIT",
     "category": "Utility",
     "shortDescription": "Press Space, see anything",
     "longDescription": "Arcade Look is a fast, light, cross-platform Quick Look: preview images, video, audio, PDFs, archives, code, fonts, Markdown, JSON, Office documents, 3D models and more.",
@@ -44,6 +52,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "./windows/installer-hooks.nsh",
+        "installerIcon": "icons/icon.ico"
+      }
+    },
     "linux": {
       "deb": {
         "depends": [
@@ -51,7 +66,14 @@
           "libgtk-3-0",
           "gstreamer1.0-plugins-good"
         ]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
       }
+    },
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "10.15"
     }
   }
 }

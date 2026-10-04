@@ -520,6 +520,68 @@ kbd {
 .welcome-foot { font-size: 12px; color: var(--text-3); margin-top: 4px; }
 .fatal { margin: auto; text-align: center; padding: 40px; }
 
+/* ---------------------------------------------------------------- settings */
+.settings {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(600px, 100%);
+  margin: 0 auto;
+  padding: 28px 32px 40px;
+}
+.settings h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.settings-group h3 { margin: 0; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+.settings-group .welcome-integration { justify-content: flex-start; }
+.setting-row { display: flex; align-items: center; gap: 16px; }
+label.setting-row { cursor: pointer; }
+.setting-text { flex: 1; min-width: 0; }
+.setting-title { font-size: 14px; font-weight: 500; }
+.setting-detail { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+.setting-path { font: 12px/1.5 var(--mono); color: var(--text-2); word-break: break-all; user-select: text; -webkit-user-select: text; }
+.setting-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  border-radius: 99px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s var(--ease);
+}
+.switch:checked { background: var(--accent-2); border-color: transparent; }
+.switch:checked::after { transform: translateX(16px); }
+.switch:disabled { opacity: 0.6; }
+.settings-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-3); }
+
 /* ---------------------------------------------------------------- shared: prose */
 .prose-scroll { flex: 1; overflow: auto; }
 .prose {

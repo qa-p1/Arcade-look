@@ -54,6 +54,8 @@ export interface Config {
 }
 
 export interface Bootstrap {
+  /** What to show first: the file in `pending`, the welcome or settings screen, or nothing (background start). */
+  screen: 'file' | 'welcome' | 'settings' | null;
   pending: string | null;
   platform: 'linux' | 'windows' | 'macos' | string;
   version: string;
@@ -124,6 +126,10 @@ export const api = {
   setInfoPanel: (open: boolean) => invoke<void>('set_info_panel', { open }),
   navigateExternal: (delta: number) => invoke<boolean>('navigate_external', { delta }),
   installIntegration: () => invoke<string>('install_integration'),
+  getAutostart: () => invoke<boolean>('get_autostart'),
+  setAutostart: (enabled: boolean) => invoke<boolean>('set_autostart', { enabled }),
+  integrationStatus: () => invoke<[string, boolean][]>('integration_status'),
+  setConfig: (patch: Partial<Config>) => invoke<Config>('set_config', { patch }),
   reloadPlugins: () => invoke<number>('reload_plugins'),
 };
 

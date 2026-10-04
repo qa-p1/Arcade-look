@@ -20,6 +20,7 @@ pub mod rtf;
 pub mod slides;
 pub mod table;
 pub mod text;
+pub mod tray;
 pub mod util;
 pub mod xml;
 
@@ -77,6 +78,15 @@ pub fn run() {
                 api.prevent_close();
                 app::hide(window.app_handle());
             }
+            // The window may get focus after `show` returned (it maps asynchronously): hand
+            // keyboard focus to the web view so Space/Esc/arrows work without a click.
+            #[cfg(target_os = "linux")]
+            if let WindowEvent::Focused(true) = event {
+                if let Some(w) = window.app_handle().get_webview_window(app::MAIN) {
+                    integration::linux::unpin_size(&w);
+                    app::focus_webview(&w);
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
@@ -107,15 +117,31 @@ pub fn run() {
             commands::set_info_panel,
             commands::navigate_external,
             commands::install_integration,
+            commands::get_autostart,
+            commands::set_autostart,
+            commands::integration_status,
+            commands::set_config,
             commands::reload_plugins,
         ])
         .setup(move |app| {
             dbg_log!("setup, args: {start_args:?}");
             let handle = app.handle().clone();
+            // `--quit` with nothing to quit (installers run it unconditionally): exit without
+            // starting listeners or flashing a tray icon.
+            if start_args.quit {
+                handle.exit(0);
+                return Ok(());
+            }
+            // A background utility: no Dock icon, just the menu bar item and the preview.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             // WebKitGTK streams media reliably only over HTTP (see mediaserver.rs).
             #[cfg(target_os = "linux")]
             mediaserver::start();
             integration::start(&handle);
+            integration::refresh_autostart();
+            integration::first_run_setup(&handle);
+            tray::start(&handle);
             app::start_idle_watcher(handle.clone());
             app::handle_args(&handle, &start_args, None);
             Ok(())

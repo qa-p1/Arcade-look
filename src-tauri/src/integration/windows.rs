@@ -311,6 +311,36 @@ pub fn install() -> Res<String> {
     )
 }
 
+pub fn autostart_enabled() -> bool {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("reg")
+        .args(["query", RUN_KEY, "/v", "ArcadeLook"])
+        .creation_flags(0x0800_0000)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+pub fn set_autostart(enabled: bool) -> Res<()> {
+    if !enabled {
+        if autostart_enabled() {
+            reg(&["delete", RUN_KEY, "/v", "ArcadeLook", "/f"])?;
+        }
+        return Ok(());
+    }
+    let exe = super::launcher_path();
+    reg(&[
+        "add",
+        RUN_KEY,
+        "/v",
+        "ArcadeLook",
+        "/d",
+        &format!("\"{}\" --service", exe.to_string_lossy()),
+        "/f",
+    ])
+}
+
 pub fn uninstall() -> Res<String> {
     let _ = reg(&["delete", RUN_KEY, "/v", "ArcadeLook", "/f"]);
     let _ = reg(&["delete", r"HKCU\Software\Classes\*\shell\ArcadeLook", "/f"]);

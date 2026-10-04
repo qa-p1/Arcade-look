@@ -2,7 +2,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
-import { api, errorMessage, type Bootstrap, type FileInfo } from './lib/backend';
+import { api, errorMessage, type Bootstrap, type Config, type FileInfo } from './lib/backend';
 import { append, clear, h, isEditable } from './lib/dom';
 import * as fmt from './lib/format';
 import { kindLabel } from './lib/kinds';
@@ -56,18 +56,38 @@ export class App {
       return;
     }
     setMediaBase(this.boot.mediaBase);
-    const html = document.documentElement;
-    html.dataset.platform = this.boot.platform;
-    if (this.boot.config.theme !== 'system') html.dataset.theme = this.boot.config.theme;
+    document.documentElement.dataset.platform = this.boot.platform;
+    this.applyConfig(this.boot.config);
     this.infoOpen = this.boot.infoPanel;
     this.build();
     this.bindGlobal();
 
     await listen<string | null>('open', (e) => void this.open(e.payload ?? null));
     await listen('hidden', () => this.teardown());
+    await listen('settings', () => void this.openSettings());
+    await listen<Config>('config', (e) => this.applyConfig(e.payload));
 
-    if (this.boot.pending) await this.open(this.boot.pending);
-    else if (!this.boot.service) await this.open(null);
+    const { screen, pending } = this.boot;
+    if (screen === 'settings') await this.openSettings();
+    else if (screen === 'file' && pending) await this.open(pending);
+    else if (screen === 'welcome') await this.open(null);
+  }
+
+  /** Apply settings that take effect immediately (startup, config.json edits, the settings screen). */
+  private applyConfig(config: Config) {
+    this.boot.config = config;
+    const html = document.documentElement;
+    if (config.theme === 'light' || config.theme === 'dark') html.dataset.theme = config.theme;
+    else delete html.dataset.theme;
+  }
+
+  private windowTitle = '';
+  private setTitle(title: string) {
+    document.title = title;
+    // The window title is what task bars, Alt+Tab and screen readers show.
+    if (title === this.windowTitle) return;
+    this.windowTitle = title;
+    void getCurrentWindow().setTitle(title).catch(() => {});
   }
 
   // ------------------------------------------------------------------ layout
@@ -77,7 +97,6 @@ export class App {
     const winControls = isMac
       ? null
       : h('div.win-controls',
-          this.button('minimize', 'Minimize', () => getCurrentWindow().minimize(), 'win-btn'),
           this.button('maximize', 'Maximize', () => getCurrentWindow().toggleMaximize(), 'win-btn'),
           this.button('close', 'Close (Space / Esc)', () => this.close(), 'win-btn win-close'));
 
@@ -121,13 +140,14 @@ export class App {
       this.titleName.textContent = 'Arcade Look';
       this.titleMeta.textContent = 'Press Space, see anything';
       this.actions.classList.add('hidden');
-      document.title = 'Arcade Look';
+      this.setTitle('Arcade Look');
       return;
     }
     this.actions.classList.remove('hidden');
     this.titleBadge.append(kindBadge(i.kind, i.ext, 16));
     this.titleName.textContent = i.name;
     this.titleName.title = i.path;
+    this.setTitle(`${i.name} — Arcade Look`);
     if (this.missing) {
       this.titleMeta.textContent = this.missing;
       return;
@@ -136,7 +156,6 @@ export class App {
     if (i.kind !== 'folder') parts.push(fmt.bytes(i.size));
     if (this.status) parts.push(this.status);
     this.titleMeta.textContent = parts.join('  ·  ');
-    document.title = `${i.name} — Arcade Look`;
   }
 
   private renderInfo() {
@@ -453,8 +472,131 @@ export class App {
         setup,
         h('div.welcome-foot',
           h('span', `v${this.boot.version}`), ' · ',
-          link('Settings', this.boot.configPath), ' · ',
+          h('a.link', { href: '#', onclick: (e: Event) => { e.preventDefault(); void this.openSettings(); } }, 'Settings'), ' · ',
           link('Plugins folder', this.boot.pluginsDir)),
+      ),
+    );
+  }
+
+  async openSettings() {
+    this.teardown();
+    this.current = null;
+    this.history = [];
+    this.renderTitle();
+    this.renderInfo();
+    this.titleName.textContent = 'Settings';
+    this.titleMeta.textContent = 'Arcade Look';
+    this.setTitle('Settings — Arcade Look');
+    const gen = this.gen;
+    const [autostart, integration] = await Promise.all([
+      api.getAutostart().catch(() => false),
+      api.integrationStatus().catch(() => this.boot.integration),
+    ]);
+    if (gen !== this.gen) return;
+    this.boot.integration = integration;
+    this.showSettings(autostart);
+    await this.reveal_window();
+  }
+
+  private switchRow(title: string, detail: string, checked: boolean, change: (on: boolean) => Promise<boolean>) {
+    const toggle = h('input.switch', { type: 'checkbox', checked, 'aria-label': title }) as HTMLInputElement;
+    toggle.addEventListener('change', async () => {
+      const want = toggle.checked;
+      toggle.disabled = true;
+      try {
+        toggle.checked = await change(want);
+      } catch (e) {
+        toggle.checked = !want;
+        this.toast(errorMessage(e));
+      } finally {
+        toggle.disabled = false;
+      }
+    });
+    return h('label.setting-row',
+      h('div.setting-text', h('div.setting-title', title), h('div.setting-detail', detail)),
+      toggle);
+  }
+
+  private async setConfig(patch: Partial<Config>): Promise<Config> {
+    const config = await api.setConfig(patch);
+    this.applyConfig(config);
+    return config;
+  }
+
+  private showSettings(autostart: boolean) {
+    clear(this.stage);
+    const themes: [Config['theme'], string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
+    const theme = h('div.segmented', { role: 'radiogroup', 'aria-label': 'Theme' });
+    const paintTheme = () => {
+      for (const b of theme.querySelectorAll<HTMLButtonElement>('button')) {
+        const on = b.dataset.value === this.boot.config.theme;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-checked', String(on));
+      }
+    };
+    for (const [value, label] of themes) {
+      const b = h('button.seg-btn', { type: 'button', role: 'radio', 'data-value': value }, label);
+      b.addEventListener('click', async () => {
+        await this.setConfig({ theme: value }).catch((e) => this.toast(errorMessage(e)));
+        paintTheme();
+      });
+      theme.append(b);
+    }
+    paintTheme();
+
+    const chips = () => this.boot.integration.map(([label, on]) => h(`span.chip${on ? '.on' : ''}`, on ? icon('check', 13) : null, label));
+    const integration = h('div.welcome-integration', chips());
+    const setup = h('button.btn', 'Set up file manager integration');
+    setup.addEventListener('click', async () => {
+      setup.disabled = true;
+      try {
+        this.showMessage('Integration installed', await api.installIntegration());
+      } catch (e) {
+        this.showMessage('Integration failed', errorMessage(e));
+      } finally {
+        setup.disabled = false;
+      }
+      // Setting up also turns on start on login.
+      const [status, on] = await Promise.all([api.integrationStatus().catch(() => null), api.getAutostart().catch(() => null)]);
+      if (status) {
+        this.boot.integration = status;
+        integration.replaceChildren(...chips());
+      }
+      if (on !== null) startOnLogin.querySelector('input')!.checked = on;
+    });
+    const startOnLogin = this.switchRow('Start on login',
+      'Keep Arcade Look ready in the background, with its icon in the system tray.',
+      autostart, (on) => api.setAutostart(on));
+    const openPath = (path: string) => api.openDefault(path).catch((err) => this.toast(errorMessage(err)));
+    this.stage.append(
+      h('div.settings',
+        h('h1', 'Settings'),
+        h('section.settings-group',
+          h('h3', 'General'),
+          startOnLogin,
+          h('div.setting-row',
+            h('div.setting-text', h('div.setting-title', 'Theme')),
+            theme)),
+        h('section.settings-group',
+          h('h3', 'Previews'),
+          this.switchRow('Play video and audio automatically', 'Start playback as soon as a media file opens.',
+            this.boot.config.autoplay, async (on) => (await this.setConfig({ autoplay: on })).autoplay),
+          this.switchRow('Show hidden files', 'Include hidden files when flipping through a folder with ← and →.',
+            this.boot.config.showHidden, async (on) => (await this.setConfig({ showHidden: on })).showHidden)),
+        h('section.settings-group',
+          h('h3', 'File manager'),
+          integration,
+          h('div.setting-actions', setup)),
+        h('section.settings-group',
+          h('h3', 'Advanced'),
+          h('div.setting-detail', 'More options (global shortcut, size limits, plugins) live in the config file. Changes apply the next time a preview opens; integration options apply after a restart.'),
+          h('div.setting-path', this.boot.configPath),
+          h('div.setting-actions',
+            h('button.btn', { onclick: () => void openPath(this.boot.configPath) }, 'Edit config file'),
+            h('button.btn', { onclick: () => void openPath(this.boot.pluginsDir) }, 'Open plugins folder'))),
+        h('div.settings-foot',
+          h('span', `Arcade Look v${this.boot.version}`),
+          h('button.btn', { onclick: () => void api.quit() }, 'Quit Arcade Look')),
       ),
     );
   }
@@ -544,6 +686,8 @@ export class App {
       if (k === 'Escape') (e.target as HTMLElement).blur();
       return;
     }
+    // On the settings screen, Space and Enter operate the focused switch or button.
+    if ((k === ' ' || k === 'Enter') && (e.target as Element | null)?.closest?.('.settings :is(button, input)')) return;
     if (this.helpEl && (k === 'Escape' || k === '?' || k === ' ' || k === 'Enter')) {
       e.preventDefault();
       this.closeHelp();

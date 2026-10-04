@@ -66,20 +66,54 @@ pub fn plugins_dir() -> PathBuf {
 /// Load the config, writing a commented default on first run so it is discoverable.
 pub fn load() -> Config {
     let p = config_path();
-    match std::fs::read_to_string(&p) {
-        Ok(s) => serde_json::from_str(&s).unwrap_or_else(|e| {
-            eprintln!("arcade-look: ignoring invalid {}: {e}", p.display());
-            Config::default()
-        }),
-        Err(_) => {
-            let c = Config::default();
-            if std::fs::create_dir_all(dir()).is_ok() {
-                let _ = std::fs::write(&p, serde_json::to_string_pretty(&c).unwrap_or_default());
-                let _ = std::fs::create_dir_all(plugins_dir());
-            }
-            c
+    if !p.exists() {
+        let c = Config::default();
+        if std::fs::create_dir_all(dir()).is_ok() {
+            let _ = std::fs::write(&p, serde_json::to_string_pretty(&c).unwrap_or_default());
+            let _ = std::fs::create_dir_all(plugins_dir());
         }
+        return c;
     }
+    try_load().unwrap_or_else(|e| {
+        eprintln!("arcade-look: ignoring invalid {}: {e}", p.display());
+        Config::default()
+    })
+}
+
+/// Read the config file, failing (instead of falling back to defaults) if it is unreadable.
+pub fn try_load() -> Result<Config, String> {
+    let s = std::fs::read_to_string(config_path()).map_err(|e| e.to_string())?;
+    serde_json::from_str(&s).map_err(|e| e.to_string())
+}
+
+/// Modification time of the config file, to notice edits made while we run.
+pub fn stamp() -> Option<std::time::SystemTime> {
+    std::fs::metadata(config_path())
+        .and_then(|m| m.modified())
+        .ok()
+}
+
+/// Apply `patch` (camelCase keys) to the config file and return the result. Keys we don't
+/// know, e.g. from a newer version, are kept in the file.
+pub fn update(
+    current: &Config,
+    patch: serde_json::Map<String, serde_json::Value>,
+) -> Result<Config, String> {
+    let p = config_path();
+    let mut doc = std::fs::read_to_string(&p)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .filter(|v| v.is_object())
+        .unwrap_or_else(|| serde_json::to_value(current).unwrap_or_default());
+    let obj = doc.as_object_mut().ok_or("invalid config")?;
+    for (k, v) in patch {
+        obj.insert(k, v);
+    }
+    let config: Config = serde_json::from_value(doc.clone()).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(dir()).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
+    std::fs::write(&p, text).map_err(|e| format!("write {}: {e}", p.display()))?;
+    Ok(config)
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
@@ -88,6 +122,8 @@ pub struct WindowState {
     pub width: f64,
     pub height: f64,
     pub info_panel: bool,
+    /// The first-launch setup (file manager integration, start on login) has been done.
+    pub setup_done: bool,
 }
 
 impl Default for WindowState {
@@ -96,6 +132,7 @@ impl Default for WindowState {
             width: 1040.0,
             height: 720.0,
             info_panel: false,
+            setup_done: false,
         }
     }
 }
