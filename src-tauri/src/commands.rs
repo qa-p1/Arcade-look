@@ -397,6 +397,7 @@ pub fn set_config(
     if let Ok(mut c) = state.config.write() {
         *c = config.clone();
     }
+    crate::link::refresh(&config);
     if let Ok(mut s) = state.config_stamp.lock() {
         *s = crate::config::stamp();
     }

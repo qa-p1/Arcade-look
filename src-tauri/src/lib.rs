@@ -10,6 +10,7 @@ pub mod font;
 pub mod fsx;
 pub mod imaging;
 pub mod integration;
+pub mod link;
 pub mod markdown;
 pub mod media;
 pub mod mediaserver;
@@ -29,6 +30,15 @@ use tauri::{Manager, RunEvent, WindowEvent};
 pub fn run() {
     let argv: Vec<String> = std::env::args().collect();
     let args = cli::parse(&argv);
+
+    if args.manifest {
+        integration::attach_console();
+        println!(
+            "{}",
+            link::manifest(&config::try_load().unwrap_or_default()).to_json()
+        );
+        return;
+    }
 
     if args.help || args.version || args.install || args.uninstall {
         integration::attach_console();
@@ -143,6 +153,7 @@ pub fn run() {
             integration::first_run_setup(&handle);
             tray::start(&handle);
             app::start_idle_watcher(handle.clone());
+            link::start(&handle, &handle.state::<app::AppState>().config());
             app::handle_args(&handle, &start_args, None);
             Ok(())
         });
@@ -161,6 +172,9 @@ pub fn run() {
         }
     };
     app.run(|app, event| {
+        if let RunEvent::Exit = event {
+            link::stop();
+        }
         if let RunEvent::ExitRequested {
             code: None, api, ..
         } = event

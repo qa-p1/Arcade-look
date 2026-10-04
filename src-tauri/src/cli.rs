@@ -10,6 +10,10 @@ pub struct Args {
     pub uninstall: bool,
     pub help: bool,
     pub version: bool,
+    /// Print the Arcade Link manifest and exit.
+    pub manifest: bool,
+    /// Arcade Link one-shot mode: one request on stdin, no UI.
+    pub invoke: bool,
 }
 
 pub const HELP: &str = "\
@@ -28,6 +32,7 @@ OPTIONS:
     --install-integration    Set up file manager integration for this user
     --uninstall-integration  Remove the file manager integration
     --quit                   Quit the running instance
+    --arcade-manifest        Print the Arcade Link manifest (no side effects)
     -h, --help               Show this help
     -V, --version            Show the version
 
@@ -55,6 +60,8 @@ pub fn parse<S: AsRef<str>>(argv: &[S]) -> Args {
             "--uninstall-integration" => a.uninstall = true,
             "-h" | "--help" => a.help = true,
             "-V" | "--version" => a.version = true,
+            "--arcade-manifest" => a.manifest = true,
+            "--arcade-invoke" => a.invoke = true,
             _ => {}
         }
     }

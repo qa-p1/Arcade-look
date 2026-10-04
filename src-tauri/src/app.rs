@@ -162,6 +162,7 @@ fn refresh_config(app: &AppHandle) {
     if let Ok(mut c) = state.config.write() {
         *c = config.clone();
     }
+    crate::link::refresh(&config);
     if state.frontend_ready.load(Ordering::SeqCst) {
         let _ = app.emit_to(MAIN, "config", config);
     }

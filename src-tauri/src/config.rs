@@ -26,6 +26,10 @@ pub struct Config {
     pub plugins: bool,
     /// Show hidden files when stepping through a folder with ←/→.
     pub show_hidden: bool,
+    /// "Connect with other Arcade apps" (Settings → Connected apps).
+    pub link_enabled: bool,
+    /// Arcade apps (`arcade.box`, …) whose actions are hidden in Look.
+    pub link_disabled_peers: Vec<String>,
 }
 
 impl Default for Config {
@@ -45,6 +49,8 @@ impl Default for Config {
             autoplay: true,
             plugins: true,
             show_hidden: false,
+            link_enabled: true,
+            link_disabled_peers: Vec::new(),
         }
     }
 }
