@@ -11,6 +11,7 @@ pub mod fsx;
 pub mod imaging;
 pub mod integration;
 pub mod link;
+pub mod link_consumer;
 pub mod markdown;
 pub mod media;
 pub mod mediaserver;
@@ -136,6 +137,10 @@ pub fn run() {
             commands::integration_status,
             commands::set_config,
             commands::reload_plugins,
+            link_consumer::link_available,
+            link_consumer::link_actions,
+            link_consumer::link_invoke,
+            link_consumer::link_cancel,
         ])
         .setup(move |app| {
             dbg_log!("setup, args: {start_args:?}");
@@ -158,6 +163,7 @@ pub fn run() {
             tray::start(&handle);
             app::start_idle_watcher(handle.clone());
             link::start(&handle, &handle.state::<app::AppState>().config());
+            link_consumer::start(&handle);
             app::handle_args(&handle, &start_args, None);
             Ok(())
         });

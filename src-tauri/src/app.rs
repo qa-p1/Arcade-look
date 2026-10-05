@@ -198,6 +198,7 @@ fn refresh_config(app: &AppHandle) {
         *c = config.clone();
     }
     crate::link::refresh(&config);
+    crate::link_consumer::refresh(app);
     if state.frontend_ready.load(Ordering::SeqCst) {
         let _ = app.emit_to(MAIN, "config", config);
     }

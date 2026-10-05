@@ -35,6 +35,8 @@ export interface ViewCtx {
 
 export interface Mounted {
   dispose?(): void;
+  /** Render the current PDF page to a bounded PNG for Analyze with Lens. */
+  capturePage?(): Promise<Uint8Array>;
   /** Return true if the key was handled. */
   keydown?(e: KeyboardEvent): boolean;
 }

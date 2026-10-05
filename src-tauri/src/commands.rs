@@ -392,19 +392,24 @@ pub async fn integration_status() -> Res<Vec<(String, bool)>> {
 
 /// Change settings from the settings screen; returns the new config.
 #[tauri::command]
-pub fn set_config(
-    state: State<'_, app::AppState>,
+pub async fn set_config(
+    app: AppHandle,
     patch: serde_json::Map<String, serde_json::Value>,
 ) -> Res<crate::config::Config> {
-    let config = crate::config::update(&state.config(), patch)?;
-    if let Ok(mut c) = state.config.write() {
-        *c = config.clone();
-    }
-    crate::link::refresh(&config);
-    if let Ok(mut s) = state.config_stamp.lock() {
-        *s = crate::config::stamp();
-    }
-    Ok(config)
+    blocking(move || {
+        let state = app.state::<app::AppState>();
+        let config = crate::config::update(&state.config(), patch)?;
+        if let Ok(mut c) = state.config.write() {
+            *c = config.clone();
+        }
+        crate::link::refresh(&config);
+        crate::link_consumer::refresh(&app);
+        if let Ok(mut s) = state.config_stamp.lock() {
+            *s = crate::config::stamp();
+        }
+        Ok(config)
+    })
+    .await
 }
 
 #[tauri::command]

@@ -29,6 +29,37 @@ check the real `app::open` trace; they do not claim WebKitGTK rendered a window.
 (the per-app toggles) in `config.json`. With the switch off, Look's manifest
 lists no actions and nothing listens.
 
+## Connected actions
+
+The title bar offers **A** when an enabled peer contributes actions for the
+current file. Box contributes up to three featured presets and **More in
+Arcade Box…**. Its progress chip includes Cancel, and a returned file opens
+in Look. **Send to my devices ↗** includes the file name and path as a payload
+preview and is disabled with the standard reason above 16 MiB. **Analyze with
+Lens** accepts images and the current PDF page: pdf.js renders a bounded PNG,
+Rust writes a private handoff file, and Look removes it after the action.
+**Add to Wheel** sends the current `file/<kind>` so Wheel opens its confirmed
+file-action editor. No action edits a Wheel deck or bypasses peer safety rules.
+
+Discovery uses directory notifications plus live `app.changed` subscriptions;
+opening the menu does no disk access or IPC. Discovery, capability checks,
+invocation and handoff writes run on Rust workers. Jobs have a 30-minute limit
+and cancellation closes their connection. Stopped peers use one-shot mode for
+headless actions and launch on demand for interactive actions.
+
+The strip, its CSS and glyphs are lazy chunks and are absent with no matching
+peers. The existing 3D viewer already used A for auto-rotate: it keeps A in
+standalone mode; with connected actions, use Shift+A or its toolbar. The ? sheet
+lists these keys. Missing peers and disabled connections contribute no entries;
+unavailable actions remain disabled with their reason.
+
+Build `cargo test --test link_consumer --no-run` in `src-tauri` before the
+isolated `--only look` run. The consumer tests exercise actual mock processes
+for discovery in both orders, filtering, size limits, progress, output paths,
+cancel, timeout, crashes, stopped-peer lifecycle, Private mode and secret errors.
+They also exercise live `app.changed` over a real local socket. Pixel rendering
+and PDF page rasterization are build-only until verified in a desktop webview.
+
 ## Command line
 
 ```sh

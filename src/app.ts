@@ -2,6 +2,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { invoke } from '@tauri-apps/api/core';
 import { api, errorMessage, type Bootstrap, type Config, type FileInfo } from './lib/backend';
 import { append, clear, h, isEditable } from './lib/dom';
 import * as fmt from './lib/format';
@@ -26,6 +27,8 @@ export class App {
   private infoOpen = false;
   private missing: string | null = null;
   private shown = false;
+  private peers = false;
+  private strip: import('./lib/actions-strip').ActionsStrip | null = null;
 
   private titleName = h('div.title-name');
   private titleMeta = h('div.title-meta');
@@ -66,6 +69,8 @@ export class App {
     await listen('hidden', () => this.teardown());
     await listen('settings', () => void this.openSettings());
     await listen<Config>('config', (e) => this.applyConfig(e.payload));
+    await listen<boolean>('link-changed', (e) => { this.peers = e.payload; void this.updatePeers(); });
+    void invoke<boolean>('link_available').then((available) => { this.peers = available; void this.updatePeers(); });
 
     const { screen, pending } = this.boot;
     if (screen === 'settings') await this.openSettings();
@@ -82,6 +87,15 @@ export class App {
   }
 
   private windowTitle = '';
+  private async updatePeers() {
+    const info = this.abort?.signal.aborted ? null : this.current;
+    if (this.peers && info && !this.strip) {
+      const { ActionsStrip } = await import('./lib/actions-strip');
+      this.strip ??= new ActionsStrip(this.actions, (path) => this.open(path), (message) => this.toast(message));
+    }
+    await this.strip?.update(this.peers ? info : null, this.mounted);
+  }
+
   private setTitle(title: string) {
     document.title = title;
     // The window title is what task bars, Alt+Tab and screen readers show.
@@ -221,6 +235,7 @@ export class App {
     this.trace(`inspected: ${info.kind}/${info.format}${inspectError ? ` error=${inspectError}` : ''}`);
 
     this.current = info;
+    void this.strip?.update(null, null);
     this.missing = inspectError;
     this.status = '';
     this.details = [];
@@ -256,6 +271,7 @@ export class App {
       return;
     }
     this.mounted = result.mounted;
+    void this.updatePeers();
     this.trace(`mounted with ${result.viewer}`);
     this.loading.classList.remove('on');
     await this.reveal_window();
@@ -377,6 +393,7 @@ export class App {
 
   /** Stop media and free memory: the window is hidden. */
   teardown() {
+    this.strip?.cancel();
     this.gen++;
     this.abort?.abort();
     this.mounted?.dispose?.();
@@ -384,6 +401,7 @@ export class App {
     clear(this.stage);
     this.loading.classList.remove('on');
     this.shown = false;
+    void this.strip?.update(null, null);
     this.closeHelp();
   }
 
@@ -613,10 +631,10 @@ export class App {
   private showHelp() {
     if (this.helpEl) return this.closeHelp();
     const groups: [string, [string, string][]][] = [
-      ['Everywhere', [['Space / Esc', 'Close the preview'], ['← / →', 'Previous / next file in the folder'], ['Backspace', 'Back (after opening an item)'], ['Enter', 'Open with the default app'], ['Ctrl/⌘ R', 'Show in folder'], ['Ctrl/⌘ C', 'Copy path'], ['I', 'Toggle info panel'], ['F', 'Toggle fullscreen'], ['Ctrl/⌘ Q', 'Quit Arcade Look']]],
+      ['Everywhere', [['Space / Esc', 'Close the preview'], ['← / →', 'Previous / next file in the folder'], ['Backspace', 'Back (after opening an item)'], ['Enter', 'Open with the default app'], ['Ctrl/⌘ R', 'Show in folder'], ['Ctrl/⌘ C', 'Copy path'], ['A', 'Connected actions (when available)'], ['I', 'Toggle info panel'], ['F', 'Toggle fullscreen'], ['Ctrl/⌘ Q', 'Quit Arcade Look']]],
       ['Images · PDF · Text', [['+ / −', 'Zoom in / out'], ['0', 'Fit / reset zoom'], ['1', 'Actual size'], ['R', 'Rotate image'], ['W', 'Toggle line wrap']]],
       ['Video · Audio', [['K', 'Play / pause'], ['J / L', 'Back / forward 10 s'], ['M', 'Mute'], [', / .', 'Slower / faster']]],
-      ['3D models', [['Drag', 'Orbit'], ['Scroll', 'Zoom'], ['W', 'Wireframe'], ['A', 'Auto-rotate']]],
+      ['3D models', [['Drag', 'Orbit'], ['Scroll', 'Zoom'], ['W', 'Wireframe'], ['A / Shift+A', 'Auto-rotate (Shift+A with connected actions)']]],
     ];
     this.helpEl = h('div.modal-backdrop', { onclick: () => this.closeHelp() },
       h('div.modal.help', { onclick: (e: Event) => e.stopPropagation() },
@@ -693,6 +711,14 @@ export class App {
       this.closeHelp();
       return;
     }
+    // Peer actions take A when present; model auto-rotate keeps A standalone
+    // and remains available with Shift+A and the viewer toolbar.
+    if (!mod && !e.altKey && !e.shiftKey && k.toLowerCase() === 'a' && this.strip?.toggle()) {
+      e.preventDefault();
+      return;
+    }
+    if (k === 'Escape' && this.strip?.close()) { e.preventDefault(); return; }
+    if ((k === ' ' || k === 'Enter') && (e.target as Element | null)?.closest?.('.arcade-actions button')) return;
     if (this.mounted?.keydown?.(e)) {
       e.preventDefault();
       return;

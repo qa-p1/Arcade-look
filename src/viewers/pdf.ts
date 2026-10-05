@@ -258,6 +258,29 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   }).catch(() => {});
 
   return {
+    async capturePage() {
+      if (ctx.signal.aborted) throw new Error('This PDF is no longer open.');
+      const page = await doc.getPage(currentPage() + 1);
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: Math.min(2, 4096 / Math.max(base.width, base.height)) });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.floor(vp.width));
+      canvas.height = Math.max(1, Math.floor(vp.height));
+      const rendering = page.render({ canvas, canvasContext: canvas.getContext('2d', { alpha: false })!, viewport: vp });
+      const cancel = () => rendering.cancel();
+      ctx.signal.addEventListener('abort', cancel, { once: true });
+      try {
+        await rendering.promise;
+        if (ctx.signal.aborted) throw new Error('This PDF is no longer open.');
+        const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error('This PDF page could not be rendered.')), 'image/png'));
+        if (blob.size > 16 * 1024 * 1024) throw new Error('This PDF page is too large to analyze.');
+        return new Uint8Array(await blob.arrayBuffer());
+      } finally {
+        ctx.signal.removeEventListener('abort', cancel);
+        canvas.width = canvas.height = 0;
+      }
+    },
     keydown(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
       switch (e.key) {
