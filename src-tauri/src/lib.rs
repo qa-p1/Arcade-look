@@ -141,6 +141,8 @@ pub fn run() {
             link_consumer::link_actions,
             link_consumer::link_invoke,
             link_consumer::link_cancel,
+            link_consumer::link_connected,
+            link_consumer::link_get,
         ])
         .setup(move |app| {
             dbg_log!("setup, args: {start_args:?}");

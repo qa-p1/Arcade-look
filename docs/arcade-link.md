@@ -28,6 +28,12 @@ check the real `app::open` trace; they do not claim WebKitGTK rendered a window.
 `linkEnabled` ("Connect with other Arcade apps") and `linkDisabledPeers`
 (the per-app toggles) in `config.json`. With the switch off, Look's manifest
 lists no actions and nothing listens.
+Settings includes a lazy **Connected apps** section with the master switch,
+four peer rows, Running/Installed/Not installed states and **Use with Arcade
+Look** toggles. Missing peers describe their contribution only here; Get opens
+an installed Arcade Tools manager or the canonical GitHub releases page.
+Diagnostics shows the registry location, endpoint state and last Link error.
+Changes to these connection switches apply without restarting Look.
 
 ## Connected actions
 

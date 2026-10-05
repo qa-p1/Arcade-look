@@ -51,6 +51,8 @@ export interface Config {
   autoplay: boolean;
   plugins: boolean;
   showHidden: boolean;
+  linkEnabled: boolean;
+  linkDisabledPeers: string[];
 }
 
 export interface Bootstrap {

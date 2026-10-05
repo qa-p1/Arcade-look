@@ -47,6 +47,26 @@ pub struct Offer {
     pub pdf_page: bool,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedPeer {
+    pub id: String,
+    pub name: String,
+    pub state: String,
+    pub installed: bool,
+    pub enabled: bool,
+    pub pitch: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedApps {
+    peers: Vec<ConnectedPeer>,
+    registry: String,
+    endpoint: String,
+    last_error: Option<String>,
+}
+
 pub fn me() -> PeerInfo {
     PeerInfo {
         id: ids::LOOK.into(),
@@ -153,6 +173,31 @@ impl Consumer {
                     && peer.settings.link_enabled
                     && peer.actions.iter().any(Action::on_this_platform)
             })
+    }
+
+    /// Probe on a worker when settings opens or the watcher reports a change.
+    pub fn connected_peers(&self, config: &Config) -> Vec<ConnectedPeer> {
+        let registry = self.registry.snapshot();
+        ids::APPS
+            .iter()
+            .filter(|id| **id != ids::LOOK)
+            .map(|id| {
+                let installed = registry.get(id).is_some();
+                let state = match client::app_state(&self.locations, &registry, id, &me()) {
+                    client::AppState::Running { version } => format!("Running · v{version}"),
+                    client::AppState::Installed { .. } => "Installed".into(),
+                    client::AppState::NotInstalled => "Not installed".into(),
+                };
+                ConnectedPeer {
+                    id: (*id).into(),
+                    name: arcade_link::manifest::app_name(id).into(),
+                    state,
+                    installed,
+                    enabled: !config.link_disabled_peers.iter().any(|peer| peer == id),
+                    pitch: arcade_link::manifest::app_pitch(id).into(),
+                }
+            })
+            .collect()
     }
 
     pub fn offers(&self, config: &Config, content: &Content, pdf_page: bool) -> Vec<Offer> {
@@ -579,4 +624,56 @@ pub fn link_cancel(request_id: String) {
             cancel.store(true, Ordering::SeqCst);
         }
     }
+}
+
+#[tauri::command]
+pub async fn link_connected(app: AppHandle) -> Res<ConnectedApps> {
+    blocking(move || {
+        let consumer = consumer();
+        let config = app.state::<crate::app::AppState>().config();
+        let last_error = consumer
+            .last_error
+            .lock()
+            .unwrap()
+            .clone()
+            .or_else(crate::link::last_error);
+        Ok(ConnectedApps {
+            peers: consumer.connected_peers(&config),
+            registry: consumer.locations.registry.to_string_lossy().into_owned(),
+            endpoint: if !config.link_enabled {
+                "Connections off".into()
+            } else if client::probe(&consumer.locations, ids::LOOK, &me()).is_some() {
+                "Listening".into()
+            } else {
+                "Not listening".into()
+            },
+            last_error,
+        })
+    })
+    .await
+}
+
+/// Get opens the installed manager; otherwise returns the canonical release
+/// URL for the settings view to open through Look's existing URL guard.
+#[tauri::command]
+pub async fn link_get(app_id: String) -> Res<Option<String>> {
+    blocking(move || {
+        if !ids::APPS.contains(&app_id.as_str()) || app_id == ids::LOOK {
+            return Err("Unknown Arcade app.".into());
+        }
+        let consumer = consumer();
+        let registry = consumer.registry.snapshot();
+        if let Some(manager) = registry.get(ids::TOOLS) {
+            if let Ok(mut client) = Client::connect(&consumer.locations, ids::TOOLS, &me()) {
+                if client.call(method::APP_ACTIVATE, json!({})).is_ok() {
+                    return Ok(None);
+                }
+            }
+            if client::spawn_detached(&manager.executable, &[]).is_ok() {
+                return Ok(None);
+            }
+        }
+        Ok(Some(arcade_link::manifest::releases_url(&app_id).into()))
+    })
+    .await
 }

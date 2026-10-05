@@ -123,6 +123,11 @@ fn peers_first_later_missing_disabled_and_featured_limit() {
     let content = fixture.image();
     let consumer = Consumer::new(fixture.locations());
     let config = Config::default();
+    let connected = consumer.connected_peers(&config);
+    assert_eq!(connected.len(), 4);
+    assert!(connected
+        .iter()
+        .all(|peer| !peer.installed && peer.state == "Not installed"));
     assert!(!consumer.has_peers(&config));
     assert!(consumer.offers(&config, &content, false).is_empty());
     let (tx, rx) = mpsc::channel();
@@ -148,11 +153,26 @@ fn peers_first_later_missing_disabled_and_featured_limit() {
             .len(),
         4
     );
+    assert!(consumer
+        .connected_peers(&config)
+        .iter()
+        .find(|peer| peer.id == ids::BOX)
+        .unwrap()
+        .state
+        .starts_with("Running · v"));
     let disabled = Config {
         link_disabled_peers: vec![ids::BOX.into()],
         ..config.clone()
     };
     assert!(consumer.offers(&disabled, &content, false).is_empty());
+    assert!(
+        !consumer
+            .connected_peers(&disabled)
+            .iter()
+            .find(|peer| peer.id == ids::BOX)
+            .unwrap()
+            .enabled
+    );
     let off = Config {
         link_enabled: false,
         ..config.clone()
@@ -177,6 +197,16 @@ fn peers_first_later_missing_disabled_and_featured_limit() {
         ..content
     };
     assert_eq!(consumer.offers(&config, &video, false).len(), 1); // only More
+    fixture.stop();
+    assert_eq!(
+        consumer
+            .connected_peers(&config)
+            .iter()
+            .find(|peer| peer.id == ids::BOX)
+            .unwrap()
+            .state,
+        "Installed"
+    );
     println!("missing peers: no entries; peers first/later: 3 featured + More; disabled: no IPC; wrong kind: presets hidden");
 }
 

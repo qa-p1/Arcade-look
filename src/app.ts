@@ -29,6 +29,7 @@ export class App {
   private shown = false;
   private peers = false;
   private strip: import('./lib/actions-strip').ActionsStrip | null = null;
+  private connected: import('./lib/connected-apps').ConnectedApps | null = null;
 
   private titleName = h('div.title-name');
   private titleMeta = h('div.title-meta');
@@ -69,7 +70,7 @@ export class App {
     await listen('hidden', () => this.teardown());
     await listen('settings', () => void this.openSettings());
     await listen<Config>('config', (e) => this.applyConfig(e.payload));
-    await listen<boolean>('link-changed', (e) => { this.peers = e.payload; void this.updatePeers(); });
+    await listen<boolean>('link-changed', (e) => { this.peers = e.payload; void this.updatePeers(); void this.connected?.refresh(); });
     void invoke<boolean>('link_available').then((available) => { this.peers = available; void this.updatePeers(); });
 
     const { screen, pending } = this.boot;
@@ -394,6 +395,8 @@ export class App {
   /** Stop media and free memory: the window is hidden. */
   teardown() {
     this.strip?.cancel();
+    this.connected?.dispose();
+    this.connected = null;
     this.gen++;
     this.abort?.abort();
     this.mounted?.dispose?.();
@@ -513,6 +516,10 @@ export class App {
     if (gen !== this.gen) return;
     this.boot.integration = integration;
     this.showSettings(autostart);
+    const { ConnectedApps } = await import('./lib/connected-apps');
+    if (gen !== this.gen) return;
+    this.connected = new ConnectedApps(this.stage.querySelector<HTMLElement>('#connected-apps')!,
+      () => this.boot.config, (patch) => this.setConfig(patch), (message) => this.toast(message));
     await this.reveal_window();
   }
 
@@ -612,6 +619,7 @@ export class App {
           h('div.setting-actions',
             h('button.btn', { onclick: () => void openPath(this.boot.configPath) }, 'Edit config file'),
             h('button.btn', { onclick: () => void openPath(this.boot.pluginsDir) }, 'Open plugins folder'))),
+        h('section.settings-group#connected-apps'),
         h('div.settings-foot',
           h('span', `Arcade Look v${this.boot.version}`),
           h('button.btn', { onclick: () => void api.quit() }, 'Quit Arcade Look')),
