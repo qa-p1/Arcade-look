@@ -47,6 +47,9 @@ pub struct AppState {
     pub source: Mutex<Source>,
     pub current: Mutex<Option<PathBuf>>,
     pub activation_token: Mutex<Option<String>>,
+    /// Files another Arcade app asked to preview together; ←/→ step through
+    /// them instead of the folder.
+    pub batch: Mutex<Option<Vec<PathBuf>>>,
 }
 
 impl AppState {
@@ -64,6 +67,7 @@ impl AppState {
             source: Mutex::new(Source::Local),
             current: Mutex::new(None),
             activation_token: Mutex::new(None),
+            batch: Mutex::new(None),
         }
     }
 
@@ -88,9 +92,40 @@ pub fn open(app: &AppHandle, path: Option<PathBuf>, source: Source) {
     if let Ok(mut c) = state.current.lock() {
         c.clone_from(&path);
     }
+    if let Ok(mut b) = state.batch.lock() {
+        if b.as_ref()
+            .is_some_and(|list| !path.as_ref().is_some_and(|p| list.contains(p)))
+        {
+            *b = None;
+        }
+    }
     let payload = path.as_ref().map(|p| p.to_string_lossy().to_string());
     let request = path.map_or(Request::Welcome, Request::File);
     deliver(app, request, "open", payload);
+}
+
+/// Preview several files as one batch (from another Arcade app): ←/→ step
+/// through them in this order.
+pub fn open_batch(app: &AppHandle, paths: Vec<PathBuf>) {
+    let first = paths.first().cloned();
+    if let Ok(mut b) = app.state::<AppState>().batch.lock() {
+        *b = (paths.len() > 1).then_some(paths);
+    }
+    open(app, first, Source::Local);
+}
+
+/// The next file in the current batch, if `path` belongs to one.
+pub fn batch_neighbor(
+    app: &AppHandle,
+    path: &std::path::Path,
+    delta: i64,
+) -> Option<Option<String>> {
+    let state = app.state::<AppState>();
+    let batch = state.batch.lock().ok()?;
+    let list = batch.as_ref()?;
+    let i = list.iter().position(|p| p == path)? as i64;
+    let j = (i + delta).rem_euclid(list.len() as i64) as usize;
+    Some(Some(list[j].to_string_lossy().to_string()))
 }
 
 /// Show the settings screen (tray icon, `--settings`, welcome screen link).

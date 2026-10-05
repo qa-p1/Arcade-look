@@ -31,6 +31,10 @@ pub fn run() {
     let argv: Vec<String> = std::env::args().collect();
     let args = cli::parse(&argv);
 
+    if args.invoke {
+        std::process::exit(link::serve_oneshot());
+    }
+
     if args.manifest {
         integration::attach_console();
         println!(

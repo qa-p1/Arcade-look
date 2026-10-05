@@ -226,7 +226,10 @@ pub async fn dir_size(path: String) -> Res<crate::fsx::DirSize> {
 }
 
 #[tauri::command]
-pub async fn neighbor(path: String, delta: i64) -> Res<Option<String>> {
+pub async fn neighbor(app: AppHandle, path: String, delta: i64) -> Res<Option<String>> {
+    if let Some(next) = app::batch_neighbor(&app, &path_arg(&path)?, delta) {
+        return Ok(next);
+    }
     blocking(move || crate::fsx::neighbor(&path_arg(&path)?, delta)).await
 }
 

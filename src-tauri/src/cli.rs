@@ -33,6 +33,7 @@ OPTIONS:
     --uninstall-integration  Remove the file manager integration
     --quit                   Quit the running instance
     --arcade-manifest        Print the Arcade Link manifest (no side effects)
+    --arcade-invoke          Run one Arcade Link request from stdin, without any UI
     -h, --help               Show this help
     -V, --version            Show the version
 
