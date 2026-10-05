@@ -13,6 +13,15 @@ exactly the same when no other Arcade app is installed.
 | `look.preview_selection` | — | — | Previews what is selected in Windows Explorer or macOS Finder. Not offered on Linux: GNOME Files can't be asked for its selection (it calls Look over the previewer D-Bus interface instead). |
 
 Look's sandbox is unchanged: previews never execute content, whoever asked.
+`structured/file-info` follows SPEC §5.4, including its optional metadata fields.
+
+## Server verification
+
+Run `python3 ../Arcade-link/tools/e2e.py --only look` from this repository.
+The generated fixtures check resident and one-shot image dimensions and folder
+inspection, single and batch previews, encoded `file://` URLs, rejected remote
+URLs, and the absence of `look.preview_selection` on Linux. Preview assertions
+check the real `app::open` trace; they do not claim WebKitGTK rendered a window.
 
 ## Settings
 

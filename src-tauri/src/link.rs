@@ -61,6 +61,9 @@ pub fn actions() -> Vec<Action> {
         .interactive(true)
         .platforms(&["windows", "macos"]),
     ]
+    .into_iter()
+    .filter(Action::on_this_platform)
+    .collect()
 }
 
 /// The Link file kind for one of Look's kinds.
@@ -339,10 +342,7 @@ mod tests {
     #[test]
     fn selection_preview_is_hidden_where_it_cannot_work() {
         let a = actions();
-        let sel = a.iter().find(|a| a.id == "look.preview_selection").unwrap();
-        assert_eq!(
-            sel.on_this_platform(),
-            cfg!(any(windows, target_os = "macos"))
-        );
+        let sel = a.iter().find(|a| a.id == "look.preview_selection");
+        assert_eq!(sel.is_some(), cfg!(any(windows, target_os = "macos")));
     }
 }
