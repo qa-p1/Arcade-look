@@ -23,13 +23,29 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: arcade-look
+    env:
+      CARGO_BUILD_JOBS: 3
+      ARCADE_HOME: ${{ runner.temp }}/arcade-look-registry
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: arcade-look
+
+      - name: Check out the pinned Arcade Link source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.ARCADE_LINK_REPOSITORY || 'qa-p1/Arcade-link' }}
+          ref: ${{ vars.ARCADE_LINK_REF || '1ae6ffbf7c75076772723f763a3d2da030207379' }}
+          path: Arcade-link
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: arcade-look/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -37,7 +53,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: arcade-look/src-tauri
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -52,15 +68,15 @@ jobs:
 
       - name: Check formatting
         if: runner.os == 'Linux'
-        working-directory: src-tauri
+        working-directory: arcade-look/src-tauri
         run: cargo fmt --check
 
       - name: Clippy
-        working-directory: src-tauri
+        working-directory: arcade-look/src-tauri
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Tests
-        working-directory: src-tauri
+        working-directory: arcade-look/src-tauri
         run: cargo test
 
   installers:

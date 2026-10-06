@@ -34,13 +34,29 @@ jobs:
             args: --target universal-apple-darwin --bundles dmg
             files: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: arcade-look
+    env:
+      CARGO_BUILD_JOBS: 3
+      ARCADE_HOME: ${{ runner.temp }}/arcade-look-registry
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: arcade-look
+
+      - name: Check out the pinned Arcade Link source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.ARCADE_LINK_REPOSITORY || 'qa-p1/Arcade-link' }}
+          ref: ${{ vars.ARCADE_LINK_REF || '1ae6ffbf7c75076772723f763a3d2da030207379' }}
+          path: Arcade-link
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: arcade-look/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -48,7 +64,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: arcade-look/src-tauri
           key: bundle
 
       - name: Install Linux dependencies
@@ -70,7 +86,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.files }}
+          path: arcade-look/${{ matrix.files }}
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
