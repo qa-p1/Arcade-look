@@ -1,6 +1,7 @@
 // Loaded only after the backend discovers peer entries.
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { h } from './dom';
+import { bytes } from './format';
 import { arcadeGlyph } from './arcade-glyphs';
 import { errorMessage, type FileInfo } from './backend';
 import tokens from './arcade-tokens.json';
@@ -74,11 +75,12 @@ export class ActionsStrip {
     for (const offer of this.offers) {
       const reason = offer.reason;
       const title = offer.title + (offer.outbound ? ' ↗' : '');
-      const payload = offer.pdfPage ? `Current page of ${info?.name}` : `${info?.name} · ${info?.path}`;
+      const payload = `${info?.name} · ${bytes(info?.size)}`;
+      const hint = reason ?? (offer.outbound ? payload : offer.pdfPage ? 'Current page' : null);
       const button = h('button.arcade-offer', { type: 'button', role: 'menuitem', disabled: !!reason || this.pending,
-        title: reason ?? payload, 'aria-label': title },
+        title: reason ?? (offer.pdfPage ? `Current page of ${info?.name}` : info?.path), 'aria-label': title },
         arcadeGlyph(offer.app), h('span', h('span.arcade-offer-title', title),
-          h('small', reason ?? (offer.outbound ? `Send ${payload}` : payload))));
+          hint ? h('small', hint) : null));
       button.addEventListener('click', () => void this.run(offer));
       this.menu.append(button);
     }

@@ -34,6 +34,7 @@ export class ConnectedApps {
       const config = this.config();
       const master = this.toggle('Connect with other Arcade apps', config.linkEnabled, false,
         async (on) => { await this.save({ linkEnabled: on }); });
+      master.classList.add('arcade-master');
       this.rows.replaceChildren(h('h3', 'Connected apps'), master,
         ...snapshot.peers.map((peer) => {
           const get = h('button.btn', { type: 'button' }, 'Get');
@@ -45,12 +46,12 @@ export class ConnectedApps {
             } catch (e) { this.toast(errorMessage(e)); }
             finally { get.disabled = false; }
           });
-          const use = this.toggle('Use with Arcade Look', peer.enabled, !config.linkEnabled || !peer.installed,
+          const use = peer.installed ? this.toggle('Use with Arcade Look', peer.enabled, !config.linkEnabled,
             async (on) => {
               const disabled = this.config().linkDisabledPeers.filter((id) => id !== peer.id);
               if (!on) disabled.push(peer.id);
               await this.save({ linkDisabledPeers: disabled });
-            }, `Use ${peer.name} with Arcade Look`);
+            }, `Use ${peer.name} with Arcade Look`) : null;
           return h('div.arcade-peer', arcadeGlyph(peer.id),
             h('div.arcade-peer-text', h('strong', peer.name), h('small', peer.state),
               !peer.installed ? h('p', peer.pitch) : null),

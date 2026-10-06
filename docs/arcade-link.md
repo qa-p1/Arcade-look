@@ -32,10 +32,11 @@ Look's sandbox is unchanged: previews never execute content, whoever asked.
 ## Server verification
 
 Run `python3 ../Arcade-link/tools/e2e.py --only look` from this repository.
-The generated fixtures check resident and one-shot image dimensions and folder
-inspection, single and batch previews, encoded `file://` URLs, rejected remote
-URLs, and the absence of `look.preview_selection` on Linux. Preview assertions
-check the real `app::open` trace; they do not claim WebKitGTK rendered a window.
+The generated fixtures check resident and one-shot inspection, batch/file-URL
+previews, startup mode, and Linux’s unavailable selection resolver. Native
+webview checks render images and PDFs under isolated Xvfb, exercise Connected
+apps and shortcut warnings, and run real Box video/PDF jobs and saved pipelines.
+The real Clipboard action is checked before and after video compression.
 
 ## Settings
 
@@ -44,7 +45,8 @@ check the real `app::open` trace; they do not claim WebKitGTK rendered a window.
 lists no actions and nothing listens.
 Settings includes a lazy **Connected apps** section with the master switch,
 four peer rows, Running/Installed/Not installed states and **Use with Arcade
-Look** toggles. Missing peers describe their contribution only here; Get opens
+Look** toggles for installed peers. Missing peers get a short description and
+Get, without a toggle; Get opens
 `tools.install` with `options.app` in an available Arcade Tools manager, or
 the canonical GitHub releases page.
 Diagnostics shows the registry location, endpoint state and last Link error.
@@ -55,7 +57,7 @@ Changes to these connection switches apply without restarting Look.
 The title bar offers **A** when an enabled peer contributes actions for the
 current file. Box contributes up to three featured presets and **More in
 Arcade Box…**. Its progress chip includes Cancel, and a returned file opens
-in Look. **Send to my devices ↗** includes the file name and path as a payload
+in Look. **Send to my devices ↗** includes the file name and size as a payload
 preview and is disabled with the standard reason above 16 MiB. **Analyze with
 Lens** accepts images and the current PDF page: pdf.js renders a bounded PNG,
 Rust writes a private handoff file, and Look removes it after the action.
@@ -82,8 +84,9 @@ cancel, timeout, crashes, stopped-peer lifecycle, Private mode and secret errors
 They also exercise live `app.changed` over a real local socket. Saved Box
 pipelines are fetched on workers when Box’s manifest changes, then cached.
 The strip lists matching input types and skips interactive-first pipelines;
-opening it never queries Box. Pipeline invocation passes `options.pipeline`. Pixel rendering
-and PDF page rasterization are build-only until verified in a desktop webview.
+opening it never queries Box. Pipeline invocation passes `options.pipeline`.
+Images, video, PDF rendering and page rasterization are verified in the native
+Linux X11 webview under isolated Xvfb.
 
 ## Command line
 
@@ -96,7 +99,7 @@ arcade-look --arcade-invoke       # one Link request on stdin (look.inspect), no
 
 | | Linux X11 | Linux Wayland | Windows | macOS |
 |---|---|---|---|---|
-| `look.preview`, `look.inspect` | tested (the request reaches the previewer; the headless Xvfb test machine can't render WebKitGTK windows) | build only | build only | build only |
+| `look.preview`, `look.inspect` | tested with native Xvfb rendering | build only | build only | build only |
 | `look.preview_selection` | not offered | not offered | build only | build only |
 
 ## Isolated UI tests
@@ -115,3 +118,13 @@ production builds contain no control listener. The `custom-protocol` feature
 embeds the built frontend; bare `cargo build --release` still targets Vite’s
 development URL and cannot render without that server. `tools/e2e_checks/look.py`
 uses this to assert UI state before taking screenshots.
+
+## CI dependency
+
+Check and installer jobs check out Look and a pinned Arcade Link revision as
+siblings, matching the relative Cargo dependency. The source defaults to
+`qa-p1/Arcade-link` at `1ae6ffbf7c75076772723f763a3d2da030207379`; the owner must publish that source/ref before
+CI can fetch it, or configure `ARCADE_LINK_REPOSITORY` and `ARCADE_LINK_REF`
+repository variables. Windows and macOS run in the existing CI matrix; they
+were not executed on this Linux machine. Before publishing Look, replace the
+local path dependency with the tagged Link dependency described in the plan.

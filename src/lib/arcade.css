@@ -22,6 +22,7 @@
 .arcade-peer-text small, .arcade-peer-text p { color:var(--arcade-muted); font-size:12px; }
 .arcade-peer-text p { margin:5px 0 0; }
 .arcade-peer-controls { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:10px; }
+.arcade-master { justify-content:space-between; }
 .arcade-peer .setting-row { gap:12px; padding:0; border:0; font-size:12px; }
 .arcade-diagnostics { padding-top:12px; border-top:1px solid var(--arcade-border); font-size:12px; }
 .arcade-diagnostics summary { cursor:pointer; }
