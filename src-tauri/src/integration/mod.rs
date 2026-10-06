@@ -117,6 +117,17 @@ pub fn file_manager_selection() -> Option<(PathBuf, Source)> {
     None
 }
 
+/// All selected files for Link's resolveOnly mode. Runs on the Link worker.
+/// GNOME Files provides previews to Look but exposes no selection resolver.
+pub fn file_manager_selections() -> Vec<PathBuf> {
+    #[cfg(windows)]
+    return windows::foreground_selections();
+    #[cfg(target_os = "macos")]
+    return macos::finder_selections();
+    #[allow(unreachable_code)]
+    Vec::new()
+}
+
 /// Called for ←/→ in the UI. Returns true if the file manager will drive navigation.
 pub fn navigate(_app: &AppHandle, source: Source, delta: i64) -> bool {
     #[cfg(target_os = "linux")]

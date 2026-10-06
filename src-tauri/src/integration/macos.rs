@@ -8,20 +8,29 @@ use std::process::Command;
 const SCRIPT: &str = r#"tell application "Finder"
   set sel to selection
   if sel is {} then return ""
-  return POSIX path of (item 1 of sel as alias)
+  set paths to ""
+  repeat with entry in sel
+    set paths to paths & (POSIX path of (entry as alias)) & (ASCII character 0)
+  end repeat
+  return paths
 end tell"#;
 
 pub fn finder_selection() -> Option<PathBuf> {
-    let out = Command::new("osascript")
-        .arg("-e")
-        .arg(SCRIPT)
-        .output()
-        .ok()?;
+    finder_selections().into_iter().next()
+}
+
+pub fn finder_selections() -> Vec<PathBuf> {
+    let out = Command::new("osascript").arg("-e").arg(SCRIPT).output();
+    let Ok(out) = out else { return Vec::new() };
     if !out.status.success() {
-        return None;
+        return Vec::new();
     }
-    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    (!s.is_empty()).then(|| PathBuf::from(s))
+    String::from_utf8_lossy(&out.stdout)
+        .trim_end_matches('\n')
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .collect()
 }
 
 pub fn status() -> Vec<(String, bool)> {

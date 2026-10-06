@@ -161,6 +161,10 @@ fn variant_i4(v: i32) -> VARIANT {
 
 /// Selected item in the Explorer window `fg` (or the desktop).
 fn selection_of(fg: HWND) -> Option<PathBuf> {
+    selections_of(fg)?.into_iter().next()
+}
+
+fn selections_of(fg: HWND) -> Option<Vec<PathBuf>> {
     unsafe {
         let windows: IShellWindows = CoCreateInstance(&ShellWindows, None, CLSCTX_ALL).ok()?;
         let class = class_of(fg);
@@ -173,7 +177,7 @@ fn selection_of(fg: HWND) -> Option<PathBuf> {
                 .ok()?;
             let sp: IServiceProvider = disp.cast().ok()?;
             let browser: IShellBrowser = sp.QueryService(&SID_STopLevelBrowser).ok()?;
-            return first_selected(&browser);
+            return selected_files(&browser);
         }
         // Windows 11 tabs: the first ShellTabWindowClass child is the active tab.
         let tab_class: Vec<u16> = "ShellTabWindowClass\0".encode_utf16().collect();
@@ -204,7 +208,7 @@ fn selection_of(fg: HWND) -> Option<PathBuf> {
                     }
                 }
             }
-            if let Some(p) = first_selected(&browser) {
+            if let Some(p) = selected_files(&browser) {
                 return Some(p);
             }
         }
@@ -212,24 +216,31 @@ fn selection_of(fg: HWND) -> Option<PathBuf> {
     }
 }
 
-unsafe fn first_selected(browser: &IShellBrowser) -> Option<PathBuf> {
+unsafe fn selected_files(browser: &IShellBrowser) -> Option<Vec<PathBuf>> {
     unsafe {
         let view = browser.QueryActiveShellView().ok()?;
         let fv: IFolderView = view.cast().ok()?;
         let items: IShellItemArray = fv.Items(SVGIO_SELECTION).ok()?;
-        if items.GetCount().ok()? == 0 {
-            return None;
+        let mut paths = Vec::new();
+        for index in 0..items.GetCount().ok()? {
+            let item = items.GetItemAt(index).ok()?;
+            let name = item.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
+            let path = name.to_string().ok();
+            CoTaskMemFree(Some(name.0 as *const _));
+            if let Some(path) = path {
+                paths.push(PathBuf::from(path));
+            }
         }
-        let item = items.GetItemAt(0).ok()?;
-        let name = item.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
-        let s = name.to_string().ok();
-        CoTaskMemFree(Some(name.0 as *const _));
-        s.map(PathBuf::from)
+        (!paths.is_empty()).then_some(paths)
     }
 }
 
 /// Used by the global shortcut.
 pub fn foreground_selection() -> Option<PathBuf> {
+    foreground_selections().into_iter().next()
+}
+
+pub fn foreground_selections() -> Vec<PathBuf> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let fg = GetForegroundWindow();
@@ -238,9 +249,9 @@ pub fn foreground_selection() -> Option<PathBuf> {
             class.as_str(),
             "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW"
         ) {
-            return None;
+            return Vec::new();
         }
-        selection_of(fg)
+        selections_of(fg).unwrap_or_default()
     }
 }
 

@@ -17,7 +17,7 @@ use arcade_link::{
     ids, Action, Content, InvokeRequest, InvokeResult, LinkError, Locations, Manifest, Presence,
 };
 use serde_json::{json, Value};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::config::Config;
 use crate::detect::Kind;
@@ -57,6 +57,7 @@ pub fn actions() -> Vec<Action> {
             "Preview the file manager's selection",
             "preview",
         )
+        .produces(&["file/*[]"])
         .effects(&["opens-ui"])
         .interactive(true)
         .platforms(&["windows", "macos"]),
@@ -183,6 +184,24 @@ fn on_main(app: &AppHandle, f: impl FnOnce(&AppHandle) + Send + 'static) -> Resu
 struct LookHandler {
     /// `None` in one-shot mode (no window).
     app: Option<AppHandle>,
+    background: bool,
+}
+
+fn resolved_selection(paths: Vec<PathBuf>) -> Result<InvokeResult, LinkError> {
+    if paths.is_empty() {
+        return Err(LinkError::unavailable(
+            "Nothing is selected in the file manager.",
+        ));
+    }
+    let outputs = paths
+        .iter()
+        .map(|path| crate::link_consumer::file_content(&path.to_string_lossy()))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(InvokeResult {
+        message: Some(format!("{} files selected", outputs.len())),
+        outputs,
+        data: None,
+    })
 }
 
 impl LookHandler {
@@ -197,6 +216,9 @@ impl LookHandler {
 }
 
 impl Handler for LookHandler {
+    fn status(&self) -> Value {
+        json!({"mode": if self.background { "background" } else { "foreground" }})
+    }
     fn describe(&self) -> Vec<Action> {
         actions()
     }
@@ -229,6 +251,10 @@ impl Handler for LookHandler {
                 }))
             }
             "look.preview_selection" => {
+                if request.options.get("resolveOnly").and_then(Value::as_bool) == Some(true) {
+                    return resolved_selection(crate::integration::file_manager_selections())
+                        .map(Reply::Done);
+                }
                 let app = self.app()?;
                 match crate::integration::file_manager_selection() {
                     Some((path, source)) => {
@@ -240,7 +266,7 @@ impl Handler for LookHandler {
                         )))
                     }
                     None => Err(LinkError::unavailable(
-                        "no file is selected in the file manager",
+                        "Nothing is selected in the file manager.",
                     )),
                 }
             }
@@ -263,7 +289,10 @@ impl Handler for LookHandler {
 
 /// `--arcade-invoke`: serves one request from stdin without any window.
 pub fn serve_oneshot() -> i32 {
-    arcade_link::oneshot::serve(&LookHandler { app: None })
+    arcade_link::oneshot::serve(&LookHandler {
+        app: None,
+        background: false,
+    })
 }
 
 static PRESENCE: OnceLock<Mutex<Option<Arc<Presence>>>> = OnceLock::new();
@@ -277,6 +306,12 @@ pub fn start(app: &AppHandle, config: &Config) {
     let m = manifest(config);
     let handler = Arc::new(LookHandler {
         app: Some(app.clone()),
+        // Capture the startup mode once; showing a preview or a second
+        // instance's --background must not change how Tools relaunches us.
+        background: app
+            .state::<crate::app::AppState>()
+            .service
+            .load(std::sync::atomic::Ordering::SeqCst),
     });
     let _ = std::thread::Builder::new()
         .name("look-link".into())
@@ -352,5 +387,50 @@ mod tests {
         let a = actions();
         let sel = a.iter().find(|a| a.id == "look.preview_selection");
         assert_eq!(sel.is_some(), cfg!(any(windows, target_os = "macos")));
+        if let Some(selection) = sel {
+            assert_eq!(selection.produces, ["file/*[]"]);
+        }
+    }
+
+    #[test]
+    fn status_preserves_the_startup_mode() {
+        for (background, mode) in [(true, "background"), (false, "foreground")] {
+            assert_eq!(
+                LookHandler {
+                    app: None,
+                    background
+                }
+                .status()["mode"],
+                mode
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_selection_returns_typed_paths_without_a_window() {
+        let root = std::env::temp_dir().join(format!("look-selection-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let image = root.join("selected.png");
+        image::RgbImage::new(2, 2).save(&image).unwrap();
+        let text = root.join("selected.txt");
+        std::fs::write(&text, "selected file").unwrap();
+        let result = resolved_selection(vec![image.clone(), text]).unwrap();
+        assert_eq!(result.message.as_deref(), Some("2 files selected"));
+        assert_eq!(
+            result
+                .outputs
+                .iter()
+                .map(|o| o.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["file/image", "file/text"]
+        );
+        assert_eq!(result.outputs[0].path.as_deref(), image.to_str());
+        let error = resolved_selection(Vec::new()).unwrap_err();
+        assert_eq!(error.code, arcade_link::ErrorCode::Unavailable);
+        assert_eq!(
+            error.reason.as_deref(),
+            Some("Nothing is selected in the file manager.")
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

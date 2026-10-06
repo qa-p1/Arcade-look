@@ -10,7 +10,21 @@ exactly the same when no other Arcade app is installed.
 |---|---|---|---|
 | `look.preview` | `file/*`, `file/*[]`, `folder/reference`, `text/url` (`file://` only) | — | Opens the preview. A batch of files is navigable with ←/→ in the order given. |
 | `look.inspect` | `file/*`, `folder/reference` | `structured/file-info` | Headless: Look's own detection (`kind`, `format`, `mime`, Link `type`, `size`, `modified`) plus `width`/`height` for images, `durationMs` for audio and video, `tags` for audio and `family` for fonts, within Look's read budgets. Also served one-shot (`arcade-look --arcade-invoke`). |
-| `look.preview_selection` | — | — | Previews what is selected in Windows Explorer or macOS Finder. Not offered on Linux: GNOME Files can't be asked for its selection (it calls Look over the previewer D-Bus interface instead). |
+| `look.preview_selection` | — | `file/*[]` in resolve-only mode | Previews what is selected in Windows Explorer or macOS Finder. Not offered on Linux: GNOME Files can't be asked for its selection (it calls Look over the previewer D-Bus interface instead). |
+
+`look.preview_selection` accepts `options.resolveOnly: true`: it returns all
+selected paths as individual typed outputs using Look’s detection, with the
+message `N files selected`, and opens no preview. An empty selection returns
+`unavailable` with the reason `Nothing is selected in the file manager.`
+Windows uses Explorer’s selected Shell items; macOS uses Finder’s selection.
+Linux keeps this action hidden: GNOME Files can request a preview but provides
+no API for Look to resolve its selection on demand. Wheel hides file-selection
+inputs on Linux for this reason. Windows/macOS resolver execution is not run
+on this Linux machine.
+
+`app.status.status.mode` records how this instance started (`background` for
+`--background`/`--service`, otherwise `foreground`). Opening a preview or
+settings later does not change it, so Arcade Tools can preserve the mode.
 
 Look's sandbox is unchanged: previews never execute content, whoever asked.
 `structured/file-info` follows SPEC §5.4, including its optional metadata fields.
