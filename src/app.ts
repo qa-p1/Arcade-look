@@ -4,7 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { invoke } from '@tauri-apps/api/core';
 import { api, errorMessage, type Bootstrap, type Config, type FileInfo } from './lib/backend';
-import { append, clear, h, isEditable } from './lib/dom';
+import { clear, h, isEditable } from './lib/dom';
 import * as fmt from './lib/format';
 import { kindLabel } from './lib/kinds';
 import { setMediaBase } from './lib/urls';
@@ -89,9 +89,11 @@ export class App {
 
   private windowTitle = '';
   private async updatePeers() {
+    const gen = this.gen;
     const info = this.abort?.signal.aborted ? null : this.current;
     if (this.peers && info && !this.strip) {
       const { ActionsStrip } = await import('./lib/actions-strip');
+      if (gen !== this.gen || !this.peers) return;
       this.strip ??= new ActionsStrip(this.actions, (path) => this.open(path), (message) => this.toast(message));
     }
     await this.strip?.update(this.peers ? info : null, this.mounted);
@@ -173,38 +175,21 @@ export class App {
     this.titleMeta.textContent = parts.join('  ·  ');
   }
 
-  private renderInfo() {
+  private async renderInfo() {
     clear(this.info);
-    const i = this.current;
-    if (!i || !this.infoOpen) return;
-    const row = (k: string, v: string | null | undefined, cls = '') =>
-      v ? h('div.info-row', h('div.info-key', k), h(`div.info-val${cls ? `.${cls}` : ''}`, v)) : null;
-    const general = [
-      row('Kind', kindLabel(i)),
-      i.kind !== 'folder' ? row('Size', fmt.bytes(i.size, true)) : null,
-      row('Created', i.created ? fmt.date(i.created) : null),
-      row('Modified', fmt.date(i.modified)),
-      row('Where', i.dir, 'mono'),
-      row('Type', i.mime, 'mono'),
-      i.mode !== null ? row('Permissions', fmt.permissions(i.mode), 'mono') : null,
-      i.symlink !== null ? row('Link to', i.symlink, 'mono') : null,
-      i.readonly ? row('Access', 'Read-only') : null,
-      i.hidden ? row('Visibility', 'Hidden') : null,
-      i.plugin ? row('Plugin', i.plugin.name) : null,
-    ];
-    append(this.info, [
-      h('div.info-head', kindBadge(i.kind, i.ext, 22), h('div.info-name', i.name)),
-      h('section.info-section', h('h3', 'General'), general),
-      this.details.length
-        ? h('section.info-section', h('h3', 'Details'), this.details.map(([k, v]) => row(k, v)))
-        : null,
-    ]);
+    const info = this.current;
+    if (!info || !this.infoOpen) return;
+    const { renderInfo } = await import('./lib/info-panel');
+    if (info !== this.current || !this.infoOpen) return;
+    renderInfo(this.info, info, this.details);
   }
 
   // ------------------------------------------------------------------ navigation
 
   async open(path: string | null, opts: { drill?: boolean; back?: boolean } = {}) {
     const gen = ++this.gen;
+    this.connected?.dispose();
+    this.connected = null;
     this.abort?.abort();
     const ac = new AbortController();
     this.abort = ac;
@@ -215,7 +200,7 @@ export class App {
       this.current = null;
       this.renderTitle();
       this.renderInfo();
-      this.showWelcome();
+      await this.showWelcome();
       await this.reveal_window();
       return;
     }
@@ -229,6 +214,7 @@ export class App {
     try {
       info = await api.inspect(path);
     } catch (e) {
+      const { missingInfo } = await import('./lib/info-panel');
       info = missingInfo(path);
       inspectError = errorMessage(e);
     }
@@ -459,44 +445,12 @@ export class App {
 
   // ------------------------------------------------------------------ welcome & help
 
-  private showWelcome() {
-    clear(this.stage);
-    const integration = h('div.welcome-integration',
-      this.boot.integration.map(([label, on]) => h(`span.chip${on ? '.on' : ''}`, on ? icon('check', 13) : null, label)),
-    );
-    const setup = h('button.btn.primary', 'Set up file manager integration');
-    setup.addEventListener('click', async () => {
-      setup.disabled = true;
-      try {
-        const msg = await api.installIntegration();
-        this.showMessage('Integration installed', msg);
-      } catch (e) {
-        this.showMessage('Integration failed', errorMessage(e));
-      } finally {
-        setup.disabled = false;
-      }
-    });
-    const keys: [string, string][] = [
-      ['Space / Esc', 'Close'], ['← →', 'Previous / next file'], ['Enter', 'Open with default app'],
-      ['I', 'Info panel'], ['F', 'Fullscreen'], ['+ − 0', 'Zoom'], ['?', 'All shortcuts'], ['Ctrl Q', 'Quit'],
-    ];
-    const link = (label: string, path: string) =>
-      h('a.link', { href: '#', onclick: (e: Event) => { e.preventDefault(); api.openDefault(path).catch((err) => this.toast(errorMessage(err))); } }, label);
-    this.stage.append(
-      h('div.welcome',
-        h('div.welcome-logo', icon('eye', 44)),
-        h('h1', 'Arcade Look'),
-        h('p.welcome-tag', 'Select a file, press Space, see it instantly.'),
-        h('div.dropzone', icon('open', 20), h('span', 'Drop any file or folder here')),
-        h('div.keys', keys.map(([k, v]) => h('div.key-row', h('kbd', k), h('span', v)))),
-        integration,
-        setup,
-        h('div.welcome-foot',
-          h('span', `v${this.boot.version}`), ' · ',
-          h('a.link', { href: '#', onclick: (e: Event) => { e.preventDefault(); void this.openSettings(); } }, 'Settings'), ' · ',
-          link('Plugins folder', this.boot.pluginsDir)),
-      ),
-    );
+  private async showWelcome() {
+    const gen = this.gen;
+    const { showWelcome } = await import('./lib/welcome');
+    if (gen !== this.gen) return;
+    showWelcome(this.stage, this.boot, (title, body) => this.showMessage(title, body),
+      (message) => this.toast(message), () => { void this.openSettings(); });
   }
 
   async openSettings() {
@@ -515,8 +469,10 @@ export class App {
     ]);
     if (gen !== this.gen) return;
     this.boot.integration = integration;
-    this.showSettings(autostart);
-    const { ConnectedApps } = await import('./lib/connected-apps');
+    const [{ showSettings }, { ConnectedApps }] = await Promise.all([import('./lib/settings'), import('./lib/connected-apps')]);
+    if (gen !== this.gen) return;
+    showSettings(this.stage, this.boot, autostart, (patch) => this.setConfig(patch),
+      (message) => this.toast(message), (title, body) => this.showMessage(title, body));
     if (gen !== this.gen) return;
     this.connected = new ConnectedApps(this.stage.querySelector<HTMLElement>('#connected-apps')!,
       () => this.boot.config, (patch) => this.setConfig(patch), (message) => this.toast(message),
@@ -524,108 +480,10 @@ export class App {
     await this.reveal_window();
   }
 
-  private switchRow(title: string, detail: string, checked: boolean, change: (on: boolean) => Promise<boolean>) {
-    const toggle = h('input.switch', { type: 'checkbox', checked, 'aria-label': title }) as HTMLInputElement;
-    toggle.addEventListener('change', async () => {
-      const want = toggle.checked;
-      toggle.disabled = true;
-      try {
-        toggle.checked = await change(want);
-      } catch (e) {
-        toggle.checked = !want;
-        this.toast(errorMessage(e));
-      } finally {
-        toggle.disabled = false;
-      }
-    });
-    return h('label.setting-row',
-      h('div.setting-text', h('div.setting-title', title), h('div.setting-detail', detail)),
-      toggle);
-  }
-
   private async setConfig(patch: Partial<Config>): Promise<Config> {
     const config = await api.setConfig(patch);
     this.applyConfig(config);
     return config;
-  }
-
-  private showSettings(autostart: boolean) {
-    clear(this.stage);
-    const themes: [Config['theme'], string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
-    const theme = h('div.segmented', { role: 'radiogroup', 'aria-label': 'Theme' });
-    const paintTheme = () => {
-      for (const b of theme.querySelectorAll<HTMLButtonElement>('button')) {
-        const on = b.dataset.value === this.boot.config.theme;
-        b.classList.toggle('active', on);
-        b.setAttribute('aria-checked', String(on));
-      }
-    };
-    for (const [value, label] of themes) {
-      const b = h('button.seg-btn', { type: 'button', role: 'radio', 'data-value': value }, label);
-      b.addEventListener('click', async () => {
-        await this.setConfig({ theme: value }).catch((e) => this.toast(errorMessage(e)));
-        paintTheme();
-      });
-      theme.append(b);
-    }
-    paintTheme();
-
-    const chips = () => this.boot.integration.map(([label, on]) => h(`span.chip${on ? '.on' : ''}`, on ? icon('check', 13) : null, label));
-    const integration = h('div.welcome-integration', chips());
-    const setup = h('button.btn', 'Set up file manager integration');
-    setup.addEventListener('click', async () => {
-      setup.disabled = true;
-      try {
-        this.showMessage('Integration installed', await api.installIntegration());
-      } catch (e) {
-        this.showMessage('Integration failed', errorMessage(e));
-      } finally {
-        setup.disabled = false;
-      }
-      // Setting up also turns on start on login.
-      const [status, on] = await Promise.all([api.integrationStatus().catch(() => null), api.getAutostart().catch(() => null)]);
-      if (status) {
-        this.boot.integration = status;
-        integration.replaceChildren(...chips());
-      }
-      if (on !== null) startOnLogin.querySelector('input')!.checked = on;
-    });
-    const startOnLogin = this.switchRow('Start on login',
-      'Keep Arcade Look ready in the background, with its icon in the system tray.',
-      autostart, (on) => api.setAutostart(on));
-    const openPath = (path: string) => api.openDefault(path).catch((err) => this.toast(errorMessage(err)));
-    this.stage.append(
-      h('div.settings',
-        h('h1', 'Settings'),
-        h('section.settings-group',
-          h('h3', 'General'),
-          startOnLogin,
-          h('div.setting-row',
-            h('div.setting-text', h('div.setting-title', 'Theme')),
-            theme)),
-        h('section.settings-group',
-          h('h3', 'Previews'),
-          this.switchRow('Play video and audio automatically', 'Start playback as soon as a media file opens.',
-            this.boot.config.autoplay, async (on) => (await this.setConfig({ autoplay: on })).autoplay),
-          this.switchRow('Show hidden files', 'Include hidden files when flipping through a folder with ← and →.',
-            this.boot.config.showHidden, async (on) => (await this.setConfig({ showHidden: on })).showHidden)),
-        h('section.settings-group',
-          h('h3', 'File manager'),
-          integration,
-          h('div.setting-actions', setup)),
-        h('section.settings-group',
-          h('h3', 'Advanced'),
-          h('div.setting-detail', 'More options (size limits, plugins) live in the config file. Changes apply the next time a preview opens; integration options apply after a restart.'),
-          h('div.setting-path', this.boot.configPath),
-          h('div.setting-actions',
-            h('button.btn', { onclick: () => void openPath(this.boot.configPath) }, 'Edit config file'),
-            h('button.btn', { onclick: () => void openPath(this.boot.pluginsDir) }, 'Open plugins folder'))),
-        h('section.settings-group#connected-apps'),
-        h('div.settings-foot',
-          h('span', `Arcade Look v${this.boot.version}`),
-          h('button.btn', { onclick: () => void api.quit() }, 'Quit Arcade Look')),
-      ),
-    );
   }
 
   private showMessage(title: string, body: string) {
@@ -637,19 +495,12 @@ export class App {
     this.root.append(this.helpEl);
   }
 
-  private showHelp() {
+  private async showHelp() {
     if (this.helpEl) return this.closeHelp();
-    const groups: [string, [string, string][]][] = [
-      ['Everywhere', [['Space / Esc', 'Close the preview'], ['← / →', 'Previous / next file in the folder'], ['Backspace', 'Back (after opening an item)'], ['Enter', 'Open with the default app'], ['Ctrl/⌘ R', 'Show in folder'], ['Ctrl/⌘ C', 'Copy path'], ['A', 'Connected actions (when available)'], ['I', 'Toggle info panel'], ['F', 'Toggle fullscreen'], ['Ctrl/⌘ Q', 'Quit Arcade Look']]],
-      ['Images · PDF · Text', [['+ / −', 'Zoom in / out'], ['0', 'Fit / reset zoom'], ['1', 'Actual size'], ['R', 'Rotate image'], ['W', 'Toggle line wrap']]],
-      ['Video · Audio', [['K', 'Play / pause'], ['J / L', 'Back / forward 10 s'], ['M', 'Mute'], [', / .', 'Slower / faster']]],
-      ['3D models', [['Drag', 'Orbit'], ['Scroll', 'Zoom'], ['W', 'Wireframe'], ['A / Shift+A', 'Auto-rotate (Shift+A with connected actions)']]],
-    ];
-    this.helpEl = h('div.modal-backdrop', { onclick: () => this.closeHelp() },
-      h('div.modal.help', { onclick: (e: Event) => e.stopPropagation() },
-        h('h2', icon('keyboard', 20), 'Keyboard shortcuts'),
-        h('div.help-grid', groups.map(([g, rows]) => h('section', h('h3', g), rows.map(([k, v]) => h('div.key-row', h('kbd', k), h('span', v))))))));
-    this.root.append(this.helpEl);
+    const gen = this.gen;
+    const { showHelp } = await import('./lib/welcome');
+    if (gen !== this.gen || this.helpEl) return;
+    this.helpEl = showHelp(this.root, () => this.closeHelp());
   }
 
   private closeHelp() {
@@ -788,13 +639,4 @@ export class App {
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
-}
-
-function missingInfo(path: string): FileInfo {
-  const name = path.split(/[\\/]/).pop() || path;
-  return {
-    path, name, dir: null, ext: '', size: 0, modified: null, created: null, accessed: null,
-    readonly: false, hidden: false, symlink: null, mode: null, kind: 'binary', format: '',
-    lang: null, mime: 'application/octet-stream', plugin: null, fallbackPlugin: null,
-  };
 }

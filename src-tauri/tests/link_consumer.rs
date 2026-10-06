@@ -314,13 +314,10 @@ fn clipboard_size_unavailable_private_and_secret_guards() {
     }
     fixture.start(json!([{"id":"clipboard.add","title":"Send","accepts":["file/*[]"],"available":false,"reason":"No devices are paired"}]), false);
     let consumer = Consumer::new(fixture.locations());
-    assert_eq!(
-        consumer.offers(&Config::default(), &fixture.image(), false)[0]
-            .reason
-            .as_deref(),
-        Some("Arcade Clipboard can't do this yet: No devices are paired.")
-    );
-    println!("16 MiB limit disables before IPC; unavailable has reason; owner rejects Private/secret requests verbatim");
+    assert!(consumer
+        .offers(&Config::default(), &fixture.image(), false)
+        .is_empty());
+    println!("16 MiB limit disables before IPC; unavailable hidden; owner rejects Private/secret requests verbatim");
 }
 
 #[test]
@@ -501,15 +498,109 @@ fn app_changed_refreshes_live_availability_without_manifest_rewrite() {
         let _ = rx.recv_timeout(Duration::from_millis(10));
         consumer
             .offers(&Config::default(), &input, false)
-            .first()
-            .is_some_and(|o| o.reason.is_some())
+            .is_empty()
     });
     let pdf = Content {
         kind: "file/pdf".into(),
         ..input
     };
     assert!(consumer.offers(&Config::default(), &pdf, false).is_empty());
-    assert!(consumer.offers(&Config::default(), &pdf, true)[0].pdf_page);
+    assert!(consumer.offers(&Config::default(), &pdf, true).is_empty());
+    actions.lock().unwrap()[0].available = true;
+    presence.update(Manifest::new(ids::LENS, "1", cli().to_str().unwrap()));
+    wait(|| {
+        consumer
+            .offers(&Config::default(), &pdf, true)
+            .first()
+            .is_some_and(|o| o.pdf_page)
+    });
     presence.stop();
     println!("app.changed -> live describe; PDF Lens action appears only with a page renderer");
+}
+
+#[test]
+#[ignore = "real peers: run with the isolated ecosystem runner"]
+fn saved_pipelines_are_cached_filtered_and_invoked_by_id() {
+    let mut fixture = Fixture::new(ids::BOX);
+    let pipelines = json!([
+        {"id":"web","name":"Web image","version":1,"accepts":["file/image"],"effects":["writes-files"],"interactive":false},
+        {"id":"capture","name":"Capture first","version":1,"accepts":["file/image"],"effects":["opens-ui"],"interactive":true},
+        {"id":"video","name":"Video","version":1,"accepts":["file/video"],"effects":[],"interactive":false}
+    ]);
+    fixture.start(json!([
+        {"id":"box.pipelines","title":"Pipelines","produces":["structured/pipelines"],"mock":{"result":{"outputs":[{"type":"structured/pipelines","data":pipelines}]}}},
+        {"id":"box.pipeline.run","title":"Run","accepts":["file/*"],"effects":["writes-files"]}
+    ]), false);
+    let consumer = Consumer::new(fixture.locations());
+    assert!(consumer.watch(|| {}));
+    let content = fixture.image();
+    let config = Config::default();
+    wait(|| consumer.offers(&config, &content, false).len() == 1);
+    let offer = consumer.offers(&config, &content, false).remove(0);
+    assert_eq!(offer.title, "▶ Web image");
+    assert_eq!(offer.pipeline.as_deref(), Some("web"));
+    let calls = || std::fs::read_to_string(fixture.root.join("calls.jsonl")).unwrap();
+    let before = calls();
+    for _ in 0..50 {
+        assert_eq!(consumer.offers(&config, &content, false).len(), 1);
+    }
+    assert_eq!(
+        calls(),
+        before,
+        "opening the strip must never query pipelines"
+    );
+    let off = Config {
+        link_disabled_peers: vec![ids::BOX.into()],
+        ..config.clone()
+    };
+    assert!(consumer.offers(&off, &content, false).is_empty());
+    consumer
+        .invoke_with_pipeline(
+            &config,
+            (ids::BOX, "box.pipeline.run", Some("web")),
+            content.clone(),
+            &mut |_| {},
+            &AtomicBool::new(false),
+            Duration::from_secs(2),
+        )
+        .unwrap();
+    let call: Value = serde_json::from_str(calls().lines().last().unwrap()).unwrap();
+    assert_eq!(call["options"]["pipeline"], "web");
+    for id in ["capture", "video", "deleted"] {
+        assert_eq!(
+            consumer
+                .invoke_with_pipeline(
+                    &config,
+                    (ids::BOX, "box.pipeline.run", Some(id)),
+                    content.clone(),
+                    &mut |_| {},
+                    &AtomicBool::new(false),
+                    Duration::from_secs(2)
+                )
+                .unwrap_err()
+                .code,
+            ErrorCode::Unavailable
+        );
+    }
+    println!("saved pipelines cached ahead of open; matching noninteractive entry only; options.pipeline preserved");
+}
+
+#[test]
+#[ignore = "real peers: run with the isolated ecosystem runner"]
+fn get_hands_the_selected_app_to_tools_or_returns_releases() {
+    let mut fixture = Fixture::new(ids::TOOLS);
+    let consumer = Consumer::new(fixture.locations());
+    assert_eq!(
+        consumer.get(ids::BOX).unwrap().as_deref(),
+        Some(arcade_link::manifest::releases_url(ids::BOX))
+    );
+    fixture.start(json!([{ "id":"tools.install", "title":"Install", "interactive":true, "effects":["opens-ui"] }]), false);
+    consumer.registry.refresh();
+    assert_eq!(consumer.get(ids::BOX).unwrap(), None);
+    let calls = std::fs::read_to_string(fixture.root.join("calls.jsonl")).unwrap();
+    let call: Value = serde_json::from_str(calls.lines().last().unwrap()).unwrap();
+    assert_eq!(call["action"], "tools.install");
+    assert_eq!(call["options"]["app"], ids::BOX);
+    assert_eq!(call["context"]["interactive"], true);
+    println!("Get passes options.app to tools.install; missing manager returns the canonical releases page");
 }

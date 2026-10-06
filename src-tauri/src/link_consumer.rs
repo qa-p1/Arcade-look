@@ -15,7 +15,7 @@ use arcade_link::{
     ids, Action, Content, ErrorCode, Handoff, InvokeRequest, InvokeResult, JobProgress, LinkError,
     Locations, Manifest, PeerInfo, SharedRegistry,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{ipc::Channel, AppHandle, Emitter, Manager};
 
@@ -27,6 +27,21 @@ const JOB_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 type Change = Arc<dyn Fn() + Send + Sync>;
 type LiveActions = HashMap<String, (String, Vec<Action>)>;
 
+#[derive(Clone, Deserialize)]
+struct Pipeline {
+    id: String,
+    name: String,
+    accepts: Vec<String>,
+    effects: Vec<String>,
+    interactive: bool,
+}
+
+#[derive(Default)]
+struct PipelineCache {
+    manifest: Option<Manifest>,
+    entries: Vec<Pipeline>,
+}
+
 pub struct Consumer {
     pub registry: SharedRegistry,
     pub locations: Locations,
@@ -34,6 +49,7 @@ pub struct Consumer {
     subscriptions: Mutex<HashMap<String, String>>,
     jobs: Mutex<HashMap<String, Arc<AtomicBool>>>,
     last_error: Mutex<Option<String>>,
+    pipelines: Mutex<PipelineCache>,
 }
 
 #[derive(Clone, Serialize)]
@@ -45,6 +61,7 @@ pub struct Offer {
     pub reason: Option<String>,
     pub outbound: bool,
     pub pdf_page: bool,
+    pub pipeline: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -84,6 +101,7 @@ impl Consumer {
             subscriptions: Mutex::new(HashMap::new()),
             jobs: Mutex::new(HashMap::new()),
             last_error: Mutex::new(None),
+            pipelines: Mutex::new(PipelineCache::default()),
         })
     }
 
@@ -94,10 +112,12 @@ impl Consumer {
         let watching = self.registry.watch(move |_| {
             if let Some(consumer) = consumer.upgrade() {
                 consumer.subscribe_live(notify.clone());
+                consumer.refresh_pipelines(notify.clone());
                 notify();
             }
         });
         self.subscribe_live(changed.clone());
+        self.refresh_pipelines(changed.clone());
         changed();
         watching
     }
@@ -133,6 +153,7 @@ impl Consumer {
                                     .lock()
                                     .unwrap()
                                     .insert(id.clone(), (token.clone(), actions));
+                                consumer.refresh_pipelines(notify.clone());
                                 notify();
                             }
                             if client.next_notification(None).is_err() {
@@ -166,12 +187,78 @@ impl Consumer {
         peers
     }
 
+    // Called by registry/live notifications, never by opening the strip.
+    fn refresh_pipelines(self: &Arc<Self>, changed: Change) {
+        let peer = self.peers().into_iter().find(|peer| {
+            peer.id == ids::BOX
+                && peer.settings.link_enabled
+                && peer
+                    .action("box.pipelines")
+                    .is_some_and(|a| a.available && a.on_this_platform())
+        });
+        {
+            let mut cache = self.pipelines.lock().unwrap();
+            if cache.manifest == peer {
+                return;
+            }
+            cache.manifest = peer.clone();
+            cache.entries.clear();
+        }
+        let Some(peer) = peer else { return };
+        let consumer = self.clone();
+        std::thread::spawn(move || {
+            let request = InvokeRequest::new("box.pipelines", ids::LOOK);
+            let result = match Client::connect(&consumer.locations, ids::BOX, &me()) {
+                Ok(mut client) => invoke_connected(
+                    &mut client,
+                    &request,
+                    &mut |_| {},
+                    &AtomicBool::new(false),
+                    Duration::from_secs(5),
+                ),
+                Err(_) if peer.launch.invoke.is_some() => oneshot(
+                    &peer,
+                    &request,
+                    &mut |_| {},
+                    &AtomicBool::new(false),
+                    Duration::from_secs(5),
+                ),
+                Err(error) => Err(error),
+            };
+            let entries = result.and_then(|result| {
+                let data = result
+                    .outputs
+                    .into_iter()
+                    .find(|output| output.kind == "structured/pipelines")
+                    .and_then(|output| output.data)
+                    .ok_or_else(|| LinkError::internal("Box returned no pipeline list"))?;
+                serde_json::from_value::<Vec<Pipeline>>(data)
+                    .map_err(|e| LinkError::internal(e.to_string()))
+            });
+            let mut cache = consumer.pipelines.lock().unwrap();
+            if cache.manifest.as_ref() != Some(&peer) {
+                return; // a newer manifest already owns the cache
+            }
+            match entries {
+                Ok(entries) => cache.entries = entries,
+                Err(error) => {
+                    *consumer.last_error.lock().unwrap() = Some(error.user_message("Arcade Box"))
+                }
+            }
+            drop(cache);
+            changed();
+        });
+    }
+
     pub fn has_peers(&self, config: &Config) -> bool {
         config.link_enabled
             && self.peers().iter().any(|peer| {
                 !config.link_disabled_peers.contains(&peer.id)
                     && peer.settings.link_enabled
-                    && peer.actions.iter().any(Action::on_this_platform)
+                    && peer
+                        .actions
+                        .iter()
+                        .any(|a| a.available && a.on_this_platform())
             })
     }
 
@@ -215,16 +302,32 @@ impl Consumer {
                 continue;
             }
             let mut featured = 0;
-            for action in &peer.actions {
+            let mut actions: Vec<_> = peer.actions.iter().collect();
+            if peer.id == ids::BOX {
+                actions.sort_by_key(|a| featured_rank(&a.id));
+            }
+            for action in actions {
                 let page = peer.id == ids::LENS && content.kind == "file/pdf" && pdf_page;
                 let mut input = content.clone();
                 if page {
                     input.kind = "file/image".into();
                     input.size = None; // checked again against the actual PNG at invoke time
                 }
-                if !action.on_this_platform() || !accepts_content(&action.accepts, &input) {
+                if !action.available
+                    || !action.on_this_platform()
+                    || !accepts_content(&action.accepts, &input)
+                {
                     continue;
                 }
+                let reason = match availability(&peer, action, &input) {
+                    Ok(()) => None,
+                    Err(error)
+                        if peer.id == ids::CLIPBOARD && error.code == ErrorCode::TooLarge =>
+                    {
+                        Some(error.user_message(&peer.name))
+                    }
+                    Err(_) => continue,
+                };
                 let title = match (peer.id.as_str(), action.id.as_str()) {
                     (ids::BOX, "box.open") => "More in Arcade Box…",
                     (ids::BOX, _)
@@ -246,15 +349,39 @@ impl Consumer {
                     app: peer.id.clone(),
                     action: action.id.clone(),
                     title: title.into(),
-                    reason: availability(&peer, action, &input)
-                        .err()
-                        .map(|e| e.user_message(&peer.name)),
+                    reason,
                     outbound: action.has_effect("sends-to-device")
                         || action.has_effect("uploads-content")
                         || action.has_effect("network")
                         || action.privacy != "local",
                     pdf_page: page,
+                    pipeline: None,
                 });
+            }
+            if peer.id == ids::BOX
+                && peer
+                    .action("box.pipeline.run")
+                    .is_some_and(|action| action.offer_for(content))
+            {
+                for pipeline in &self.pipelines.lock().unwrap().entries {
+                    if pipeline.interactive || !accepts_content(&pipeline.accepts, content) {
+                        continue;
+                    }
+                    offers.push(Offer {
+                        app: ids::BOX.into(),
+                        action: "box.pipeline.run".into(),
+                        title: format!("▶ {}", pipeline.name),
+                        reason: None,
+                        outbound: pipeline.effects.iter().any(|effect| {
+                            matches!(
+                                effect.as_str(),
+                                "sends-to-device" | "uploads-content" | "network"
+                            )
+                        }),
+                        pdf_page: false,
+                        pipeline: Some(pipeline.id.clone()),
+                    });
+                }
             }
         }
         offers
@@ -269,7 +396,26 @@ impl Consumer {
         cancel: &AtomicBool,
         timeout: Duration,
     ) -> Result<InvokeResult, LinkError> {
-        let (app_id, action_id) = target;
+        self.invoke_with_pipeline(
+            config,
+            (target.0, target.1, None),
+            content,
+            progress,
+            cancel,
+            timeout,
+        )
+    }
+
+    pub fn invoke_with_pipeline(
+        &self,
+        config: &Config,
+        target: (&str, &str, Option<&str>),
+        content: Content,
+        progress: &mut dyn FnMut(&JobProgress),
+        cancel: &AtomicBool,
+        timeout: Duration,
+    ) -> Result<InvokeResult, LinkError> {
+        let (app_id, action_id, pipeline) = target;
         let peer = self
             .peers()
             .into_iter()
@@ -283,6 +429,20 @@ impl Consumer {
             .ok_or_else(|| LinkError::unavailable("action no longer offered"))?;
         availability(&peer, action, &content)?;
         let mut req = InvokeRequest::new(action_id, ids::LOOK).input(content);
+        if let Some(id) = pipeline {
+            if app_id != ids::BOX || action_id != "box.pipeline.run" {
+                return Err(LinkError::unsupported("pipeline selection is only for Box"));
+            }
+            let cache = self.pipelines.lock().unwrap();
+            if !cache.entries.iter().any(|p| {
+                p.id == id && !p.interactive && accepts_content(&p.accepts, &req.inputs[0])
+            }) {
+                return Err(LinkError::unavailable("pipeline no longer offered"));
+            }
+            req.options = json!({"pipeline": id});
+        } else if action_id == "box.pipeline.run" {
+            return Err(LinkError::unsupported("Choose a saved pipeline"));
+        }
         req.version = Some(action.version);
         req.context.interactive = true;
         let mut client = match Client::connect(&self.locations, app_id, &me()) {
@@ -303,6 +463,54 @@ impl Consumer {
             return Err(LinkError::cancelled());
         }
         invoke_connected(&mut client, &req, progress, cancel, timeout)
+    }
+
+    pub fn get(&self, app_id: &str) -> Result<Option<String>, LinkError> {
+        if !ids::APPS.contains(&app_id) || app_id == ids::LOOK {
+            return Err(LinkError::unsupported("Unknown Arcade app"));
+        }
+        let registry = self.registry.snapshot();
+        if let Some(manager) = registry
+            .get(ids::TOOLS)
+            .filter(|manager| manager.settings.link_enabled)
+        {
+            if let Some(action) = manager
+                .action("tools.install")
+                .filter(|a| a.available && a.on_this_platform())
+            {
+                let mut client = match Client::connect(&self.locations, ids::TOOLS, &me()) {
+                    Ok(client) => client,
+                    Err(_) => client::launch_and_connect(&self.locations, manager, &me())?,
+                };
+                let mut request = InvokeRequest::new("tools.install", ids::LOOK);
+                request.version = Some(action.version);
+                request.options = json!({"app": app_id});
+                request.context.interactive = true;
+                invoke_connected(
+                    &mut client,
+                    &request,
+                    &mut |_| {},
+                    &AtomicBool::new(false),
+                    Duration::from_secs(5),
+                )?;
+                return Ok(None);
+            }
+        }
+        Ok(Some(arcade_link::manifest::releases_url(app_id).into()))
+    }
+}
+
+fn featured_rank(id: &str) -> usize {
+    match id {
+        "box:arcade.image.convert#webp"
+        | "box:arcade.video.compress#share-25mb"
+        | "box:arcade.pdf.compress#email" => 0,
+        "box:arcade.image.background-remove#default"
+        | "box:arcade.video.extract-audio#mp3"
+        | "box:arcade.pdf.ocr#default" => 1,
+        "box:arcade.image.upscale#2x" | "box:arcade.video.compress#half-size" => 2,
+        "box.open" => usize::MAX,
+        _ => 3,
     }
 }
 
@@ -555,6 +763,7 @@ pub async fn link_actions(app: AppHandle, path: String, pdf_page: bool) -> Res<V
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri's typed IPC boundary.
 pub async fn link_invoke(
     app: AppHandle,
     app_id: String,
@@ -562,6 +771,7 @@ pub async fn link_invoke(
     path: String,
     request_id: String,
     pdf_png: Option<Vec<u8>>,
+    pipeline: Option<String>,
     progress: Channel<JobProgress>,
 ) -> Res<InvokeResult> {
     blocking(move || {
@@ -599,9 +809,9 @@ pub async fn link_invoke(
                 handoff = Some(h);
             }
             let result = consumer
-                .invoke(
+                .invoke_with_pipeline(
                     &config,
-                    (&app_id, &action_id),
+                    (&app_id, &action_id, pipeline.as_deref()),
                     content,
                     &mut |p| {
                         let _ = progress.send(p.clone());
@@ -663,22 +873,9 @@ pub async fn link_connected(app: AppHandle) -> Res<ConnectedApps> {
 #[tauri::command]
 pub async fn link_get(app_id: String) -> Res<Option<String>> {
     blocking(move || {
-        if !ids::APPS.contains(&app_id.as_str()) || app_id == ids::LOOK {
-            return Err("Unknown Arcade app.".into());
-        }
-        let consumer = consumer();
-        let registry = consumer.registry.snapshot();
-        if let Some(manager) = registry.get(ids::TOOLS) {
-            if let Ok(mut client) = Client::connect(&consumer.locations, ids::TOOLS, &me()) {
-                if client.call(method::APP_ACTIVATE, json!({})).is_ok() {
-                    return Ok(None);
-                }
-            }
-            if client::spawn_detached(&manager.executable, &[]).is_ok() {
-                return Ok(None);
-            }
-        }
-        Ok(Some(arcade_link::manifest::releases_url(&app_id).into()))
+        consumer()
+            .get(&app_id)
+            .map_err(|error| error.user_message("Arcade Tools"))
     })
     .await
 }

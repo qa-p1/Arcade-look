@@ -226,6 +226,9 @@ pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .resizable(true)
         .focused(true)
         .center()
+        .on_page_load(|_, payload| {
+            crate::dbg_log!("page load {:?}: {}", payload.event(), payload.url());
+        })
         .background_color(if dark {
             tauri::window::Color(24, 24, 27, 255)
         } else {

@@ -10,6 +10,7 @@ import './arcade.css';
 interface Offer {
   app: string; action: string; title: string; reason: string | null;
   outbound: boolean; pdfPage: boolean;
+  pipeline: string | null;
 }
 interface Progress { fraction?: number; message: string }
 interface Result { outputs: { type: string; path?: string; paths?: string[] }[]; message?: string }
@@ -50,11 +51,14 @@ export class ActionsStrip {
 
   async update(info: FileInfo | null, viewer: Mounted | null) {
     const generation = ++this.generation;
+    const changedFile = this.info?.path !== info?.path;
     this.info = info;
     this.viewer = viewer;
-    this.close();
-    this.offers = [];
-    this.render();
+    if (changedFile || !info) {
+      this.close();
+      this.offers = [];
+      this.render();
+    }
     if (!info) return;
     try {
       const offers = await invoke<Offer[]>('link_actions', { path: info.path, pdfPage: !!viewer?.capturePage });
@@ -141,7 +145,7 @@ export class ActionsStrip {
       }
       if (cancelled) return;
       const result = await invoke<Result>('link_invoke', { appId: offer.app, actionId: offer.action,
-        path: info.path, requestId, pdfPng, progress });
+        path: info.path, requestId, pdfPng, pipeline: offer.pipeline, progress });
       const output = result.outputs.find((o) => o.type.startsWith('file/') || o.type === 'folder/reference');
       const path = output?.path ?? output?.paths?.[0];
       if (offer.app === 'arcade.box' && path) await this.open(path);

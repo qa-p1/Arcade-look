@@ -31,7 +31,8 @@ lists no actions and nothing listens.
 Settings includes a lazy **Connected apps** section with the master switch,
 four peer rows, Running/Installed/Not installed states and **Use with Arcade
 Look** toggles. Missing peers describe their contribution only here; Get opens
-an installed Arcade Tools manager or the canonical GitHub releases page.
+`tools.install` with `options.app` in an available Arcade Tools manager, or
+the canonical GitHub releases page.
 Diagnostics shows the registry location, endpoint state and last Link error.
 Changes to these connection switches apply without restarting Look.
 
@@ -57,13 +58,17 @@ The strip, its CSS and glyphs are lazy chunks and are absent with no matching
 peers. The existing 3D viewer already used A for auto-rotate: it keeps A in
 standalone mode; with connected actions, use Shift+A or its toolbar. The ? sheet
 lists these keys. Missing peers and disabled connections contribute no entries;
-unavailable actions remain disabled with their reason.
+unavailable actions are hidden. Clipboard’s size limit keeps its available
+Send action visible but disabled with the standard reason.
 
 Build `cargo test --test link_consumer --no-run` in `src-tauri` before the
 isolated `--only look` run. The consumer tests exercise actual mock processes
 for discovery in both orders, filtering, size limits, progress, output paths,
 cancel, timeout, crashes, stopped-peer lifecycle, Private mode and secret errors.
-They also exercise live `app.changed` over a real local socket. Pixel rendering
+They also exercise live `app.changed` over a real local socket. Saved Box
+pipelines are fetched on workers when Box’s manifest changes, then cached.
+The strip lists matching input types and skips interactive-first pipelines;
+opening it never queries Box. Pipeline invocation passes `options.pipeline`. Pixel rendering
 and PDF page rasterization are build-only until verified in a desktop webview.
 
 ## Command line
@@ -89,8 +94,10 @@ startup still reveals the preview after painting. Never set this in a login
 profile or desktop configuration.
 
 For native-webview assertions, build `CARGO_BUILD_JOBS=3 cargo build --release
---features e2e` in `src-tauri`. The `e2e` feature adds a private control socket
+--features e2e,custom-protocol` in `src-tauri`. The `e2e` feature adds a private control socket
 only when the isolated runner supplies `ALOOK_E2E_CONTROL` beneath its temporary
 root and `ALOOK_DEBUG=1`. It evaluates test scripts in the actual webview;
-production builds contain no control listener. `tools/e2e_checks/look.py`
+production builds contain no control listener. The `custom-protocol` feature
+embeds the built frontend; bare `cargo build --release` still targets Vite’s
+development URL and cannot render without that server. `tools/e2e_checks/look.py`
 uses this to assert UI state before taking screenshots.
