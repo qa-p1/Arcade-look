@@ -23,6 +23,18 @@ It's built to be light: a Rust core on the OS's own web engine (no bundled Chrom
 - **Keyboard-first.** `Space`/`Esc` to close, `←`/`→` to flip through the folder, `Enter` to open, `I` for info. Press `?` for everything.
 - **Extensible.** Wrap any CLI tool as a previewer with a 6-line `plugin.json`, or write a JavaScript renderer. See [docs/PLUGINS.md](docs/PLUGINS.md).
 
+## Works with other Arcade apps
+
+Open the actions strip with `A` to transform a file in Arcade Box, run a saved
+Box pipeline, send it to your devices with Arcade Clipboard, analyze an image
+or the current PDF page with Arcade Lens, or add a file action to Arcade Wheel.
+Box results open directly in Look. Actions appear when the installed peer is
+enabled and supports the file; the strip stays absent when no peer contributes.
+
+Settings → Connected apps controls these connections and shows diagnostics.
+Look also exposes preview, headless inspection, and Explorer/Finder selection
+resolution to other apps. See [the actions and platform notes](docs/arcade-link.md).
+
 ## What it previews
 
 | | Formats | Notes |
@@ -48,7 +60,7 @@ More screenshots: [video](docs/screenshots/video.webp) · [image](docs/screensho
 
 ## Install
 
-Download the installer for your platform from the [latest release](../../releases/latest), or [build from source](#build-from-source). The [nightly pre-release](../../releases/tag/nightly) always has the newest build of `main`.
+Download the installer for your platform from the [latest release](../../releases/latest), or [build from source](#build-from-source). The [nightly pre-release](../../releases/tag/nightly) always has the newest build of `main`. Stable and nightly downloads include `arcade-release.json` and `SHA256SUMS.txt` for Arcade Tools and manual verification.
 
 | Platform | Download | Install |
 |---|---|---|
@@ -80,6 +92,8 @@ You can always preview from a terminal: `arcade-look path/to/file`, or drop a fi
 | `Enter` / `Ctrl+O` | Open with the default app |
 | `Ctrl+R` | Show in folder |
 | `Ctrl+C` | Copy path (when no text is selected) |
+| `A` | Actions strip (when connected actions are available) |
+| `Shift+A` | 3D auto-rotate while the strip is available (`A` otherwise) |
 | `I` | Info panel |
 | `F` | Fullscreen |
 | `+` `−` `0` `1` | Zoom in / out / fit / actual size |
@@ -99,7 +113,7 @@ Settings live in `config.json` in your config folder: `~/.config/arcade-look/` o
 {
   "theme": "system",            // "system" | "light" | "dark"
   "idleMinutes": 10,            // release memory after the window has been hidden this long (0 = never)
-  "globalShortcut": "Ctrl+Alt+Space", // "" disables (default on Linux)
+  "globalShortcut": "Ctrl+Alt+Shift+Space", // Windows default; macOS Ctrl+Alt+Space; Linux ""
   "explorerSpace": true,        // Windows: Space in File Explorer
   "nautilusPreviewer": true,    // Linux: Space in GNOME Files
   "textLimitMb": 4,             // text previews read at most this much

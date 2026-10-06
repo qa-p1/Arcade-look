@@ -99,6 +99,7 @@ jobs:
         env:
           VERSION: ${{ steps.plan.outputs.version }}
           LABEL: ${{ steps.plan.outputs.label }}
+          TAG: ${{ steps.plan.outputs.tag }}
         run: |
           # Outside the checkout, which has its own assets/ folder.
           cd "$RUNNER_TEMP"
@@ -116,7 +117,11 @@ jobs:
             ls -l built
             exit 1
           fi
-          (cd release && sha256sum -- * > ../SHA256SUMS.txt) && mv SHA256SUMS.txt release/
+          channel=stable
+          if [ "$TAG" = nightly ]; then channel=nightly; fi
+          python3 "$GITHUB_WORKSPACE/scripts/arcade-release.py" \
+            --id arcade.look --version "$VERSION" --channel "$channel" \
+            --notes "https://github.com/$GH_REPO/releases/tag/$TAG" "$RUNNER_TEMP/release"
           ls -l release
           cat release/SHA256SUMS.txt
 
