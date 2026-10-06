@@ -217,7 +217,12 @@ pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             ws.height.clamp(300.0, 4000.0),
         )
         .min_inner_size(420.0, 300.0)
-        .visible(false)
+        // Test-only: WebKitGTK needs a mapped window to boot under Xvfb
+        // without a window manager. Production still reveals after painting.
+        .visible(
+            std::env::var("ARCADE_E2E_INNER").as_deref() == Ok("1")
+                && std::env::var("ALOOK_E2E_MAP_EARLY").as_deref() == Ok("1"),
+        )
         .resizable(true)
         .focused(true)
         .center()
@@ -301,6 +306,7 @@ pub fn focus_webview(w: &WebviewWindow) {
 }
 
 pub fn hide(app: &AppHandle) {
+    crate::integration::set_shortcut_recording(false);
     crate::dbg_log!("hide");
     let state = app.state::<AppState>();
     if let Some(w) = app.get_webview_window(MAIN) {

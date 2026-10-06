@@ -70,6 +70,7 @@ export interface Bootstrap {
   /** Linux: loopback HTTP base for <video>/<audio> (WebKitGTK can't stream custom schemes). */
   mediaBase: string | null;
   integration: [string, boolean][];
+  shortcutSupported: boolean;
 }
 
 export interface TextData { text: string; encoding: string; truncated: boolean; size: number; lines: number }

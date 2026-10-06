@@ -76,6 +76,10 @@ windows = { version = "0.62", features = [
 
 [dev-dependencies]
 
+[features]
+# Native webview automation, compiled only into isolated test binaries.
+e2e = []
+
 [profile.release]
 codegen-units = 1
 lto = true

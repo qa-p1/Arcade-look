@@ -519,7 +519,8 @@ export class App {
     const { ConnectedApps } = await import('./lib/connected-apps');
     if (gen !== this.gen) return;
     this.connected = new ConnectedApps(this.stage.querySelector<HTMLElement>('#connected-apps')!,
-      () => this.boot.config, (patch) => this.setConfig(patch), (message) => this.toast(message));
+      () => this.boot.config, (patch) => this.setConfig(patch), (message) => this.toast(message),
+      this.boot.shortcutSupported, (config) => this.applyConfig(config));
     await this.reveal_window();
   }
 
@@ -614,7 +615,7 @@ export class App {
           h('div.setting-actions', setup)),
         h('section.settings-group',
           h('h3', 'Advanced'),
-          h('div.setting-detail', 'More options (global shortcut, size limits, plugins) live in the config file. Changes apply the next time a preview opens; integration options apply after a restart.'),
+          h('div.setting-detail', 'More options (size limits, plugins) live in the config file. Changes apply the next time a preview opens; integration options apply after a restart.'),
           h('div.setting-path', this.boot.configPath),
           h('div.setting-actions',
             h('button.btn', { onclick: () => void openPath(this.boot.configPath) }, 'Edit config file'),

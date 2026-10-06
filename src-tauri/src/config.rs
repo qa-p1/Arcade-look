@@ -37,11 +37,7 @@ impl Default for Config {
         Self {
             theme: "system".into(),
             idle_minutes: 10,
-            global_shortcut: if cfg!(target_os = "linux") {
-                String::new()
-            } else {
-                "Ctrl+Alt+Space".into()
-            },
+            global_shortcut: default_shortcut(std::env::consts::OS).into(),
             explorer_space: true,
             nautilus_previewer: true,
             text_limit_mb: 4,
@@ -51,6 +47,34 @@ impl Default for Config {
             show_hidden: false,
             link_enabled: true,
             link_disabled_peers: Vec::new(),
+        }
+    }
+}
+
+fn default_shortcut(platform: &str) -> &'static str {
+    match platform {
+        "windows" => "Ctrl+Alt+Shift+Space",
+        "linux" => "",
+        _ => "Ctrl+Alt+Space",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_avoid_box_on_new_windows_installs_only() {
+        assert_eq!(default_shortcut("windows"), "Ctrl+Alt+Shift+Space");
+        assert_eq!(default_shortcut("linux"), "");
+        assert_eq!(default_shortcut("macos"), "Ctrl+Alt+Space");
+        for saved in ["Ctrl+Alt+Space", "Super+Shift+P", ""] {
+            let config: Config =
+                serde_json::from_value(serde_json::json!({"globalShortcut": saved})).unwrap();
+            assert_eq!(config.global_shortcut, saved);
+            let roundtrip: Config =
+                serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq!(roundtrip.global_shortcut, saved);
         }
     }
 }

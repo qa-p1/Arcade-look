@@ -200,6 +200,11 @@ impl Consumer {
             .collect()
     }
 
+    pub fn shortcut_owner(&self, accelerator: &str) -> Option<String> {
+        self.registry
+            .with(|registry| registry.shortcut_owner(ids::LOOK, accelerator))
+    }
+
     pub fn offers(&self, config: &Config, content: &Content, pdf_page: bool) -> Vec<Offer> {
         if !config.link_enabled {
             return Vec::new();
@@ -675,5 +680,33 @@ pub async fn link_get(app_id: String) -> Res<Option<String>> {
         }
         Ok(Some(arcade_link::manifest::releases_url(&app_id).into()))
     })
+    .await
+}
+
+#[tauri::command]
+pub async fn link_shortcut_owner(accelerator: String) -> Res<Option<String>> {
+    blocking(move || Ok(consumer().shortcut_owner(&accelerator))).await
+}
+
+#[tauri::command]
+pub fn link_shortcut_recording(recording: bool) {
+    crate::integration::set_shortcut_recording(recording);
+}
+
+#[tauri::command]
+pub async fn link_save_shortcut(app: AppHandle, accelerator: String) -> Res<Config> {
+    let accelerator = blocking(move || {
+        if !accelerator.is_empty() {
+            accelerator
+                .parse::<tauri_plugin_global_shortcut::Shortcut>()
+                .map_err(|_| "This shortcut is not supported.".to_string())?;
+        }
+        Ok(accelerator)
+    })
+    .await?;
+    crate::commands::set_config(
+        app,
+        serde_json::Map::from_iter([("globalShortcut".into(), json!(accelerator))]),
+    )
     .await
 }

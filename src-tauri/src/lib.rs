@@ -26,6 +26,9 @@ pub mod tray;
 pub mod util;
 pub mod xml;
 
+#[cfg(all(feature = "e2e", unix))]
+mod e2e;
+
 use tauri::{Manager, RunEvent, WindowEvent};
 
 pub fn run() {
@@ -143,6 +146,9 @@ pub fn run() {
             link_consumer::link_cancel,
             link_consumer::link_connected,
             link_consumer::link_get,
+            link_consumer::link_shortcut_owner,
+            link_consumer::link_shortcut_recording,
+            link_consumer::link_save_shortcut,
         ])
         .setup(move |app| {
             dbg_log!("setup, args: {start_args:?}");
@@ -166,6 +172,8 @@ pub fn run() {
             app::start_idle_watcher(handle.clone());
             link::start(&handle, &handle.state::<app::AppState>().config());
             link_consumer::start(&handle);
+            #[cfg(all(feature = "e2e", unix))]
+            e2e::start(&handle);
             app::handle_args(&handle, &start_args, None);
             Ok(())
         });

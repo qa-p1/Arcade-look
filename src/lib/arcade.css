@@ -27,3 +27,6 @@
 .arcade-diagnostics summary { cursor:pointer; }
 .arcade-diagnostics dt { margin-top:10px; color:var(--arcade-muted); }
 .arcade-diagnostics dd { margin:4px 0; overflow-wrap:anywhere; }
+.arcade-shortcut { margin-top:22px; padding-top:16px; border-top:1px solid var(--arcade-border); }
+.arcade-shortcut input { max-width:100%; min-width:200px; padding:8px; border:1px solid var(--arcade-border); border-radius:8px; background:var(--arcade-raised); color:inherit; }
+.arcade-shortcut > p[role="status"] { min-height:1em; color:var(--arcade-muted); font-size:12px; }

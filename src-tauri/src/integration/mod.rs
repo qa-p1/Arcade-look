@@ -21,6 +21,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager};
 
 static SHORTCUT_ACTIVE: AtomicBool = AtomicBool::new(false);
+static SHORTCUT_RECORDING: AtomicBool = AtomicBool::new(false);
+
+pub fn set_shortcut_recording(recording: bool) {
+    SHORTCUT_RECORDING.store(recording, Ordering::SeqCst);
+}
+
+pub fn shortcut_supported() -> bool {
+    !cfg!(target_os = "linux") || std::env::var_os("DISPLAY").is_some()
+}
 
 pub fn shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     use tauri_plugin_global_shortcut::{Builder, ShortcutState};
@@ -72,6 +81,9 @@ pub fn has_listeners() -> bool {
 }
 
 fn on_global_shortcut(app: &AppHandle) {
+    if SHORTCUT_RECORDING.load(Ordering::SeqCst) {
+        return;
+    }
     let state = app.state::<AppState>();
     match file_manager_selection() {
         Some((path, source)) => {

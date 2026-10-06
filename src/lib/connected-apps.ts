@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { h } from './dom';
 import { arcadeGlyph } from './arcade-glyphs';
 import { api, errorMessage, type Config } from './backend';
+import { ShortcutRecorder } from './shortcut-recorder';
 import './arcade.css';
 
 interface Peer { id: string; name: string; state: string; installed: boolean; enabled: boolean; pitch: string }
@@ -11,9 +12,17 @@ interface Snapshot { peers: Peer[]; registry: string; endpoint: string; lastErro
 export class ConnectedApps {
   private generation = 0;
   private saving = false;
+  private rows = h('div');
+  private shortcut: ShortcutRecorder | null = null;
   constructor(private host: HTMLElement, private config: () => Config,
-    private save: (patch: Partial<Config>) => Promise<Config>, private toast: (message: string) => void) {
+    private save: (patch: Partial<Config>) => Promise<Config>, private toast: (message: string) => void,
+    shortcutSupported: boolean, changed: (config: Config) => void) {
     this.host.classList.add('arcade-surface');
+    this.host.append(this.rows);
+    if (shortcutSupported) {
+      this.shortcut = new ShortcutRecorder(config, changed, toast);
+      this.host.append(this.shortcut.element);
+    }
     void this.refresh();
   }
 
@@ -25,7 +34,7 @@ export class ConnectedApps {
       const config = this.config();
       const master = this.toggle('Connect with other Arcade apps', config.linkEnabled, false,
         async (on) => { await this.save({ linkEnabled: on }); });
-      this.host.replaceChildren(h('h3', 'Connected apps'), master,
+      this.rows.replaceChildren(h('h3', 'Connected apps'), master,
         ...snapshot.peers.map((peer) => {
           const get = h('button.btn', { type: 'button' }, 'Get');
           get.addEventListener('click', async () => {
@@ -51,6 +60,7 @@ export class ConnectedApps {
           h('dl', h('dt', 'Registry'), h('dd', snapshot.registry),
             h('dt', 'Endpoint'), h('dd', snapshot.endpoint),
             h('dt', 'Last error'), h('dd', snapshot.lastError ?? 'None'))));
+      this.shortcut?.refresh();
     } catch (e) { if (generation === this.generation) this.toast(errorMessage(e)); }
   }
 
@@ -60,7 +70,7 @@ export class ConnectedApps {
       const want = input.checked;
       if (this.saving) { input.checked = checked; return; }
       this.saving = true;
-      for (const toggle of this.host.querySelectorAll<HTMLInputElement>('input')) toggle.disabled = true;
+      for (const toggle of this.rows.querySelectorAll<HTMLInputElement>('input')) toggle.disabled = true;
       try { await change(want); }
       catch (e) { input.checked = !want; this.toast(errorMessage(e)); }
       finally { this.saving = false; await this.refresh(); }
@@ -68,5 +78,5 @@ export class ConnectedApps {
     return h('label.setting-row', h('span', title), input);
   }
 
-  dispose() { this.generation++; this.host.replaceChildren(); }
+  dispose() { this.generation++; this.shortcut?.dispose(); this.host.replaceChildren(); }
 }

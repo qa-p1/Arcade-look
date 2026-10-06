@@ -79,3 +79,18 @@ arcade-look --arcade-invoke       # one Link request on stdin (look.inspect), no
 |---|---|---|---|---|
 | `look.preview`, `look.inspect` | tested (the request reaches the previewer; the headless Xvfb test machine can't render WebKitGTK windows) | build only | build only | build only |
 | `look.preview_selection` | not offered | not offered | build only | build only |
+
+## Isolated UI tests
+
+`ALOOK_E2E_MAP_EARLY=1` is a test-only switch, honored only inside the
+ecosystem runner (`ARCADE_E2E_INNER=1`). It maps the window before the page
+loads so WebKitGTK can boot under Xvfb without a window manager. Normal
+startup still reveals the preview after painting. Never set this in a login
+profile or desktop configuration.
+
+For native-webview assertions, build `CARGO_BUILD_JOBS=3 cargo build --release
+--features e2e` in `src-tauri`. The `e2e` feature adds a private control socket
+only when the isolated runner supplies `ALOOK_E2E_CONTROL` beneath its temporary
+root and `ALOOK_DEBUG=1`. It evaluates test scripts in the actual webview;
+production builds contain no control listener. `tools/e2e_checks/look.py`
+uses this to assert UI state before taking screenshots.

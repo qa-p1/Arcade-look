@@ -289,6 +289,7 @@ pub struct Bootstrap {
     debug: bool,
     media_base: Option<String>,
     integration: Vec<(String, bool)>,
+    shortcut_supported: bool,
 }
 
 #[tauri::command]
@@ -320,6 +321,7 @@ pub fn bootstrap(state: State<'_, app::AppState>) -> Bootstrap {
         debug: crate::util::debug_enabled(),
         media_base: crate::mediaserver::base(),
         integration: crate::integration::status(),
+        shortcut_supported: crate::integration::shortcut_supported(),
     }
 }
 
