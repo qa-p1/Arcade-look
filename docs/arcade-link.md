@@ -31,7 +31,10 @@ Look's sandbox is unchanged: previews never execute content, whoever asked.
 
 ## Server verification
 
-Run `python3 ../Arcade-link/tools/e2e.py --only look` from this repository.
+Build with `python3 scripts/verify-link.py --build-e2e`, then run
+`python3 ../Arcade-link/tools/e2e.py run -- python3 scripts/verify-e2e.py`
+from this repository. This adapter runs the shared Look checks against the
+separate test binary and consumer-test executables.
 The generated fixtures check resident and one-shot inspection, batch/file-URL
 previews, startup mode, and Linux’s unavailable selection resolver. Native
 webview checks render images and PDFs under isolated Xvfb, exercise Connected
@@ -77,8 +80,8 @@ lists these keys. Missing peers and disabled connections contribute no entries;
 unavailable actions are hidden. Clipboard’s size limit keeps its available
 Send action visible but disabled with the standard reason.
 
-Build `cargo test --test link_consumer --no-run` in `src-tauri` before the
-isolated `--only look` run. The consumer tests exercise actual mock processes
+All test artifacts live in `src-tauri/target/link-tests`.
+The consumer tests exercise actual mock processes
 for discovery in both orders, filtering, size limits, progress, output paths,
 cancel, timeout, crashes, stopped-peer lifecycle, Private mode and secret errors.
 They also exercise live `app.changed` over a real local socket. Saved Box
@@ -110,14 +113,31 @@ loads so WebKitGTK can boot under Xvfb without a window manager. Normal
 startup still reveals the preview after painting. Never set this in a login
 profile or desktop configuration.
 
-For native-webview assertions, build `CARGO_BUILD_JOBS=3 cargo build --release
---features e2e,custom-protocol` in `src-tauri`. The `e2e` feature adds a private control socket
-only when the isolated runner supplies `ALOOK_E2E_CONTROL` beneath its temporary
-root and `ALOOK_DEBUG=1`. It evaluates test scripts in the actual webview;
-production builds contain no control listener. The `custom-protocol` feature
-embeds the built frontend; bare `cargo build --release` still targets Vite’s
-development URL and cannot render without that server. `tools/e2e_checks/look.py`
-uses this to assert UI state before taking screenshots.
+For native-webview assertions, run `python3 scripts/verify-link.py --build-e2e`
+from the repository root. It sets `CARGO_TARGET_DIR` to
+`src-tauri/target/link-tests`, checks the frontend and Rust with an empty
+`ARCADE_HOME`, then invokes `npx tauri build --debug --no-bundle --features e2e`.
+Tauri embeds the frontend in the test binary. The normal `target/debug/arcade-look`
+may be used by start on login and must always come from
+`npx tauri build --debug --no-bundle`, without test features.
+
+The `e2e` feature adds a private control socket only when the isolated runner
+supplies `ALOOK_E2E_CONTROL` beneath its temporary root and `ALOOK_DEBUG=1`.
+It evaluates test scripts in the actual webview; production builds contain no
+control listener. `scripts/verify-e2e.py` selects these test artifacts without
+editing the shared runner's legacy paths. Use `--only failure` with the adapter
+to run the shared failure-injection checks against the same binary.
+
+Check the normal debug binary itself through the second-instance channel:
+
+```sh
+python3 ../Arcade-link/tools/e2e.py run -- python3 scripts/verify-rendering.py
+python3 ../Arcade-link/tools/e2e.py run -- python3 scripts/verify-rendering.py --peers
+```
+
+Both checks open an image, PDF, text file, folder and settings, with screenshots
+of the rendered content. They use the normal binary without the native test
+socket, and terminate only processes started by their isolated session.
 
 ## CI dependency
 

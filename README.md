@@ -160,9 +160,13 @@ CI (`.github/workflows`) checks every pull request, and packages every push to `
 Checks:
 
 ```sh
-npm run typecheck && npm run build
-cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+python3 scripts/verify-link.py
 ```
+
+Checks use `src-tauri/target/link-tests` and an empty temporary `ARCADE_HOME`.
+Use `python3 scripts/verify-link.py --build-e2e` to also build the native test
+driver there. Keep the normal debug binary ready to run with its embedded
+frontend: `npx tauri build --debug --no-bundle`.
 
 `npm run fixtures` writes a sample of every supported format to `fixtures/` for manual testing. Set `ALOOK_DEBUG=1` to print lifecycle, protocol and UI diagnostics to stderr.
 
