@@ -71,6 +71,7 @@ pub fn run() {
         return;
     }
 
+    tray::wait_for_predecessor();
     std::thread::spawn(util::clean_temp);
     let config = config::load();
     let plugins = plugins::load_all(config.plugins);

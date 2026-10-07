@@ -68,7 +68,7 @@ Download the installer for your platform from the [latest release](../../release
 | **Linux** (x86_64) | `Arcade-Look_<version>_amd64.AppImage` | `chmod +x` it, keep it somewhere permanent (e.g. `~/Applications`) and run it once. |
 | **macOS 10.15+** (Apple Silicon and Intel) | `Arcade-Look_<version>_universal.dmg` | Drag it to Applications and open it from there. |
 
-The first run sets everything up: file manager integration, and **start on login** so Arcade Look waits in the background with an icon in the system tray (click it for Settings, right-click for the menu). Turn start on login off in Settings. The builds aren't code-signed yet, so the first time Windows SmartScreen needs **More info → Run anyway** and macOS needs **right-click → Open**.
+The first run sets everything up: file manager integration, and **start on login** so Arcade Look waits in the background with an icon in the system tray (click it for Settings; right-click for **Open Look**, **Open Settings**, **Restart Arcade Look** and **Quit Arcade Look**, the same menu every Arcade app has). Turn start on login off in Settings. The builds aren't code-signed yet, so the first time Windows SmartScreen needs **More info → Run anyway** and macOS needs **right-click → Open**.
 
 | Platform | How you preview |
 |---|---|
