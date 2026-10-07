@@ -32,9 +32,8 @@ Look's sandbox is unchanged: previews never execute content, whoever asked.
 ## Server verification
 
 Build with `python3 scripts/verify-link.py --build-e2e`, then run
-`python3 ../Arcade-link/tools/e2e.py run -- python3 scripts/verify-e2e.py`
-from this repository. This adapter runs the shared Look checks against the
-separate test binary and consumer-test executables.
+`python3 ../Arcade-link/tools/e2e.py --only look` from this repository.
+The shared runner uses the separate test binary and consumer-test executables.
 The generated fixtures check resident and one-shot inspection, batch/file-URL
 previews, startup mode, and Linux’s unavailable selection resolver. Native
 webview checks render images and PDFs under isolated Xvfb, exercise Connected
@@ -124,9 +123,9 @@ may be used by start on login and must always come from
 The `e2e` feature adds a private control socket only when the isolated runner
 supplies `ALOOK_E2E_CONTROL` beneath its temporary root and `ALOOK_DEBUG=1`.
 It evaluates test scripts in the actual webview; production builds contain no
-control listener. `scripts/verify-e2e.py` selects these test artifacts without
-editing the shared runner's legacy paths. Use `--only failure` with the adapter
-to run the shared failure-injection checks against the same binary.
+control listener. The shared runner selects these test artifacts.
+Run `python3 ../Arcade-link/tools/e2e.py --only failure` after the Look group
+to check peer crashes, cancellation, busy quit, corrupt manifests and restart.
 
 Check the normal debug binary itself through the second-instance channel:
 
