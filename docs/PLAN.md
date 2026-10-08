@@ -1,5 +1,9 @@
 # Arcade Look — Build Plan
 
+> Historical product blueprint. Unmeasured size/performance statements are
+> design targets. For implemented behavior and verification, read the
+> [README](../README.md) and [current status](STATUS.md).
+
 > A universal, cross-platform Quick Look. Select a file, press **Space**, see it instantly.
 > Images, video, audio, PDFs, archives, code, fonts, Markdown, JSON, Office docs, 3D models, notebooks — and anything else through plugins.
 

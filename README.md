@@ -60,7 +60,7 @@ More screenshots: [video](docs/screenshots/video.webp) · [image](docs/screensho
 
 ## Install
 
-Download the installer for your platform from the [latest release](../../releases/latest), or [build from source](#build-from-source). The [nightly pre-release](../../releases/tag/nightly) always has the newest build of `main`. Stable and nightly downloads include `arcade-release.json` and `SHA256SUMS.txt` for Arcade Tools and manual verification.
+Download the installer for your platform from the [latest release](https://github.com/qa-p1/Arcade-look/releases/latest), or [build from source](#build-from-source). The [nightly pre-release](https://github.com/qa-p1/Arcade-look/releases/tag/nightly) always has the newest build of `main`. Stable and nightly downloads include `arcade-release.json` and `SHA256SUMS.txt` for Arcade Tools and manual verification.
 
 | Platform | Download | Install |
 |---|---|---|
@@ -124,7 +124,7 @@ Settings live in `config.json` in your config folder: `~/.config/arcade-look/` o
 }
 ```
 
-**Memory.** After you close a preview, the window stays warm so the next one is instant. Once it has been hidden for `idleMinutes`, the web view is released. The process then exits, unless it's needed in the background (start on login, the tray icon, the Windows Explorer hook or a global shortcut), in which case only a few MB stay resident.
+**Memory.** After you close a preview, the window stays warm so the next one is instant. Once it has been hidden for `idleMinutes`, the web view is released. The process then exits, unless it's needed in the background (start on login, the tray icon, the Windows Explorer hook or a global shortcut), in which case the background process stays resident. The final ecosystem benchmark measured about 74.5 MiB for Look at its three-second idle sample; it did not measure the post-timeout state separately.
 
 ## Plugins
 

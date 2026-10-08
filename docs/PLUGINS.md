@@ -15,7 +15,7 @@ plugins/
     └── index.js        (script plugins only)
 ```
 
-Plugins are loaded at startup. Restart Arcade Look (`arcade-look --quit`) after adding or editing one. Run with `ALOOK_DEBUG=1` to see manifest errors and plugin failures.
+Plugins are loaded at startup. Restart Arcade Look from its tray menu after adding or editing one, or run `arcade-look --quit` and then launch it again. Run with `ALOOK_DEBUG=1` to see manifest errors and plugin failures.
 
 ## Manifest (`plugin.json`)
 
