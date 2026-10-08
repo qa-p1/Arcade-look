@@ -142,8 +142,8 @@ socket, and terminate only processes started by their isolated session.
 
 Check and installer jobs check out Look and a pinned Arcade Link revision as
 siblings, matching the relative Cargo dependency. The source defaults to
-`qa-p1/Arcade-link` at `1ae6ffbf7c75076772723f763a3d2da030207379`; the owner must publish that source/ref before
-CI can fetch it, or configure `ARCADE_LINK_REPOSITORY` and `ARCADE_LINK_REF`
-repository variables. Windows and macOS run in the existing CI matrix; they
-were not executed on this Linux machine. Before publishing Look, replace the
+`qa-p1/Arcade-link` at `5e1b916b62beae60997ffe5fb2e9b31ac70b3f5e`; the
+`ARCADE_LINK_REPOSITORY` and `ARCADE_LINK_REF` repository variables override
+it. Windows and macOS are compiled and unit-tested in the CI matrix; they
+were not run interactively. Before publishing Look, replace the
 local path dependency with the tagged Link dependency described in the plan.
