@@ -424,6 +424,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["file/image", "file/text"]
         );
+        // Paths come back canonical (macOS: /var is /private/var).
+        let image = image.canonicalize().unwrap();
         assert_eq!(result.outputs[0].path.as_deref(), image.to_str());
         let error = resolved_selection(Vec::new()).unwrap_err();
         assert_eq!(error.code, arcade_link::ErrorCode::Unavailable);
