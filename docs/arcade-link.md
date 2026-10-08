@@ -101,8 +101,8 @@ arcade-look --arcade-invoke       # one Link request on stdin (look.inspect), no
 
 | | Linux X11 | Linux Wayland | Windows | macOS |
 |---|---|---|---|---|
-| `look.preview`, `look.inspect` | tested with native Xvfb rendering | build only | build only | build only |
-| `look.preview_selection` | not offered | not offered | build only | build only |
+| `look.preview`, `look.inspect` | tested with native Xvfb rendering | used daily on Hyprland; not in the isolated runner | CI-built and tested; not run interactively | CI-built and tested; not run interactively |
+| `look.preview_selection` | not offered | not offered | CI-built; not run interactively | CI-built; not run interactively |
 
 ## Isolated UI tests
 

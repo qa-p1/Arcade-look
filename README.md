@@ -188,9 +188,9 @@ The full design rationale is in [docs/PLAN.md](docs/PLAN.md).
 ## Known limits
 
 - Video and audio codecs are whatever the OS web engine supports: WebView2 on Windows, AVFoundation on macOS, GStreamer on Linux (install `gstreamer1.0-libav` for H.264/AAC). Unsupported media falls back to the info card; the ffmpeg example plugin can transcode it.
-- Legacy binary `.doc`/`.ppt` need the LibreOffice plugin. (`.xls` works natively.)
+- Legacy binary `.doc`/`.ppt` need a plugin, such as the optional LibreOffice example; Look doesn't require or install LibreOffice. (`.xls` works natively.)
 - Wayland doesn't allow global shortcuts or reading another app's selection, so on Linux, Space works through GNOME Files' previewer protocol, and other file managers use *Open With* or custom actions.
-- The Windows Explorer hook and macOS Finder integration are compiled and linted in CI on their platforms; the Linux path was exercised end to end during development.
+- The Windows Explorer hook and macOS Finder integration are built, linted and unit-tested in CI on their platforms but have not been run interactively. The Linux path is exercised end to end, including Arcade Link's isolated cross-app runner. Current status: [docs/STATUS.md](docs/STATUS.md).
 
 ## License
 

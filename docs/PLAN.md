@@ -93,7 +93,7 @@ This document is the blueprint: what is being built, why each technical choice w
 
 | Thing | Budget |
 |---|---|
-| Text read | first 2 MB (then a notice + hex view) |
+| Text read | first 4 MB by default (`textLimitMb`), then a notice + hex view |
 | Syntax highlighting | ≤ 512 KB, otherwise plain monospace |
 | JSON tree | ≤ 8 MB parsed |
 | CSV / sheets | first 10 000 rows × 256 columns |
@@ -123,7 +123,7 @@ Security: previews of untrusted content never execute it. HTML runs in a `sandbo
 - `src-tauri/` Rust core, `src/` web UI, `packaging/` desktop integration files, `examples/plugins/`.
 - Rust unit tests for every parser, with fixtures generated in tests (zip, tar, docx, xlsx, …).
 - An end-to-end smoke run of the real app under Xvfb that screenshots each viewer.
-- GitHub Actions: CI (fmt, clippy, tests, typecheck, build) on Linux/macOS/Windows, and a tag-triggered release workflow producing `.msi`/`.exe`, `.dmg`, `.deb`/`.rpm`/`.AppImage`.
+- GitHub Actions: CI (fmt, clippy, tests, typecheck, build) on Linux/macOS/Windows; `build.yml` packages an NSIS setup `.exe`, an AppImage and a universal `.dmg` for every push to `main`, and `release.yml` publishes them (a new `v<version>`, or the rolling `nightly`) with `arcade-release.json` and `SHA256SUMS.txt`.
 
 ## 9. Decisions made during the build
 
@@ -135,6 +135,10 @@ Security: previews of untrusted content never execute it. HTML runs in a `sandbo
 ## 10. Honest limits
 
 - Codec support for video/audio is whatever the OS webview supports (e.g. MKV/HEVC varies). Unsupported media falls back to the info card; a command plugin with ffmpeg can transcode.
-- Legacy binary Office (`.doc`/`.ppt`) needs a plugin (LibreOffice). `.xls` works natively.
+- Legacy binary Office (`.doc`/`.ppt`) needs a plugin (for example the optional LibreOffice one); Look never requires it. `.xls` works natively.
 - Wayland does not allow global shortcuts or reading another app's selection, so on Linux the Space integration works through GNOME Files' previewer protocol; other file managers use "Open With" or custom actions.
-- The Windows Explorer hook and macOS Finder integration are compiled and type-checked in CI, but were written without access to those OSes during development.
+- The Windows Explorer hook and macOS Finder integration are built, linted and unit-tested in CI, but were written without access to those OSes and have not been run interactively.
+
+## 11. Arcade Link
+
+Look joins the other Arcade apps through Arcade Link (`v0.1.0`): it exposes `look.preview`, `look.inspect` and, on Windows and macOS, `look.preview_selection`, and shows peer actions in its `A` strip. See [arcade-link.md](arcade-link.md) and the verified state in [STATUS.md](STATUS.md).
