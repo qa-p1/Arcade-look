@@ -28,11 +28,15 @@ jobs:
         working-directory: arcade-look
     env:
       CARGO_BUILD_JOBS: 3
-      ARCADE_HOME: ${{ runner.temp }}/arcade-look-registry
     steps:
       - uses: actions/checkout@v4
         with:
           path: arcade-look
+
+      # The runner context isn't available in job-level env.
+      - name: Keep Arcade registry writes in the runner's temp directory
+        shell: bash
+        run: echo "ARCADE_HOME=$RUNNER_TEMP/arcade-look-registry" >> "$GITHUB_ENV"
 
       - name: Check out the pinned Arcade Link source
         uses: actions/checkout@v4
