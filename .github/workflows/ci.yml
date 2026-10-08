@@ -38,12 +38,6 @@ jobs:
         shell: bash
         run: echo "ARCADE_HOME=$RUNNER_TEMP/arcade-look-registry" >> "$GITHUB_ENV"
 
-      - name: Check out the pinned Arcade Link source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.ARCADE_LINK_REPOSITORY || 'qa-p1/Arcade-link' }}
-          ref: ${{ vars.ARCADE_LINK_REF || '5e1b916b62beae60997ffe5fb2e9b31ac70b3f5e' }}
-          path: Arcade-link
 
       - uses: actions/setup-node@v4
         with:
