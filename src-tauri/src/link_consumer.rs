@@ -343,6 +343,7 @@ impl Consumer {
                         "Analyze with Lens"
                     }
                     (ids::WHEEL, "wheel.add_action") => "Add to Wheel",
+                    (ids::SHELF, "shelf.add") => "Add to Shelf",
                     _ => continue,
                 };
                 offers.push(Offer {

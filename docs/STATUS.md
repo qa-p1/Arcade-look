@@ -13,8 +13,9 @@ other documents describe how it works.
   release of the web view; the standard tray menu.
 - Arcade Link: `look.preview`, `look.inspect` (also one-shot) and, on Windows
   and macOS, `look.preview_selection`; the `A` actions strip with Box presets
-  and pipelines, Send to my devices, Analyze with Lens and Add to Wheel; the
-  Connected apps section.
+  and pipelines, Send to my devices, Analyze with Lens, Add to Wheel and Add
+  to Shelf; the Connected apps section (Box, Lens, Wheel, Clipboard, Shelf,
+  Find).
 
 ## Verification
 

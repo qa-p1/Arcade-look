@@ -6,7 +6,9 @@
     "arcade.look": "#3B82F6",
     "arcade.wheel": "#F59E0B",
     "arcade.clipboard": "#EC4899",
-    "arcade.tools": "#64748B"
+    "arcade.tools": "#64748B",
+    "arcade.shelf": "#94A8FF",
+    "arcade.find": "#22C55E"
   },
   "neutral": {
     "dark": { "surface": "#14171C", "raised": "#1C2027", "border": "#2A2F38", "text": "#E7EAF0", "muted": "#9AA3B2" },
