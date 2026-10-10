@@ -1,6 +1,6 @@
 [package]
 name = "arcade-look"
-version = "0.1.0"
+version = "0.1.1"
 description = "Universal Quick Look: select a file, press Space, see it instantly"
 authors = ["Arcade Look contributors"]
 license = "MIT"
@@ -47,7 +47,7 @@ imagesize = "0.15"
 # against a local checkout instead, add to .cargo/config.toml (not committed):
 #   [patch."https://github.com/qa-p1/Arcade-Link"]
 #   arcade-link = { path = "<path to>/Arcade-link/crates/arcade-link" }
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.1.0", features = ["watch"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.2.0", features = ["watch"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.4"

@@ -1,8 +1,8 @@
 # Arcade Link
 
-Arcade Look works with the other Arcade apps (Box, Lens, Wheel, Clipboard)
-through [Arcade Link](https://github.com/qa-p1/Arcade-link). Look works
-exactly the same when no other Arcade app is installed.
+Arcade Look works with the other Arcade apps (Box, Lens, Wheel, Clipboard,
+Shelf, Find) through [Arcade Link](https://github.com/qa-p1/Arcade-link).
+Look works exactly the same when no other Arcade app is installed.
 
 ## What Look exposes
 
@@ -46,8 +46,9 @@ The real Clipboard action is checked before and after video compression.
 (the per-app toggles) in `config.json`. With the switch off, Look's manifest
 lists no actions and nothing listens.
 Settings includes a lazy **Connected apps** section with the master switch,
-four peer rows, Running/Installed/Not installed states and **Use with Arcade
-Look** toggles for installed peers. Missing peers get a short description and
+six peer rows (Box, Lens, Wheel, Clipboard, Shelf, Find),
+Running/Installed/Not installed states and **Use with Arcade Look** toggles
+for installed peers. Missing peers get a short description and
 Get, without a toggle; Get opens
 `tools.install` with `options.app` in an available Arcade Tools manager, or
 the canonical GitHub releases page.
@@ -65,6 +66,9 @@ Lens** accepts images and the current PDF page: pdf.js renders a bounded PNG,
 Rust writes a private handoff file, and Look removes it after the action.
 **Add to Wheel** sends the current `file/<kind>` so Wheel opens its confirmed
 file-action editor. No action edits a Wheel deck or bypasses peer safety rules.
+**Add to Shelf** sends the current file to Arcade Shelf's active shelf (the
+file stays where it is; Shelf keeps a reference). Find is listed in Connected
+apps but contributes no entry: the strip offers only the actions named above.
 
 Discovery uses directory notifications plus live `app.changed` subscriptions;
 opening the menu does no disk access or IPC. Discovery, capability checks,
@@ -141,7 +145,7 @@ socket, and terminate only processes started by their isolated session.
 ## CI dependency
 
 Look takes Arcade Link as a git dependency pinned to a release tag
-(`qa-p1/Arcade-Link`, `v0.1.0`, in `src-tauri/Cargo.toml`), so CI needs no
+(`qa-p1/Arcade-Link`, `v0.2.0`, in `src-tauri/Cargo.toml`), so CI needs no
 second checkout. To build against a local Link checkout, use the `[patch]`
 override described next to the dependency. Windows and macOS are compiled
 and unit-tested in the CI matrix; they were not run interactively.

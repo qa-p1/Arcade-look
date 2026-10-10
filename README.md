@@ -27,7 +27,8 @@ It's built to be light: a Rust core on the OS's own web engine (no bundled Chrom
 
 Open the actions strip with `A` to transform a file in Arcade Box, run a saved
 Box pipeline, send it to your devices with Arcade Clipboard, analyze an image
-or the current PDF page with Arcade Lens, or add a file action to Arcade Wheel.
+or the current PDF page with Arcade Lens, add a file action to Arcade Wheel, or
+keep the file on Arcade Shelf.
 Box results open directly in Look. Actions appear when the installed peer is
 enabled and supports the file; the strip stays absent when no peer contributes.
 

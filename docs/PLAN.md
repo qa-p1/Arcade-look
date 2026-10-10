@@ -145,4 +145,4 @@ Security: previews of untrusted content never execute it. HTML runs in a `sandbo
 
 ## 11. Arcade Link
 
-Look joins the other Arcade apps through Arcade Link (`v0.1.0`): it exposes `look.preview`, `look.inspect` and, on Windows and macOS, `look.preview_selection`, and shows peer actions in its `A` strip. See [arcade-link.md](arcade-link.md) and the verified state in [STATUS.md](STATUS.md).
+Look joins the other Arcade apps through Arcade Link (`v0.2.0`): it exposes `look.preview`, `look.inspect` and, on Windows and macOS, `look.preview_selection`, and shows peer actions in its `A` strip. See [arcade-link.md](arcade-link.md) and the verified state in [STATUS.md](STATUS.md).

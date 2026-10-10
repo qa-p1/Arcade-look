@@ -124,7 +124,7 @@ fn peers_first_later_missing_disabled_and_featured_limit() {
     let consumer = Consumer::new(fixture.locations());
     let config = Config::default();
     let connected = consumer.connected_peers(&config);
-    assert_eq!(connected.len(), 4);
+    assert_eq!(connected.len(), 6);
     assert!(connected
         .iter()
         .all(|peer| !peer.installed && peer.state == "Not installed"));
@@ -409,6 +409,44 @@ fn wheel_gets_current_file_and_lens_handoffs_are_private_and_removed() {
     assert_eq!(call["inputs"][0]["type"], "file/image");
     assert_eq!(call["context"]["source"], ids::LOOK);
     assert_eq!(call["context"]["interactive"], true);
+    fixture.stop();
+    fixture.app = ids::SHELF.into();
+    fixture.start(
+        json!([{"id":"shelf.add","title":"Add to Shelf","accepts":["file/*","text/plain"],"effects":["persists"]},
+               {"id":"shelf.show","title":"Show Shelf","accepts":[]}]),
+        false,
+    );
+    let consumer = Consumer::new(fixture.locations());
+    let image = fixture.image();
+    wait(|| {
+        consumer
+            .offers(&Config::default(), &image, false)
+            .iter()
+            .filter(|offer| offer.app == ids::SHELF)
+            .map(|offer| (offer.action.as_str(), offer.title.as_str()))
+            .eq([("shelf.add", "Add to Shelf")])
+    });
+    consumer
+        .invoke(
+            &Config::default(),
+            (ids::SHELF, "shelf.add"),
+            image.clone(),
+            &mut |_| {},
+            &AtomicBool::new(false),
+            Duration::from_secs(2),
+        )
+        .unwrap();
+    let call: Value = serde_json::from_str(
+        std::fs::read_to_string(fixture.root.join("calls.jsonl"))
+            .unwrap()
+            .lines()
+            .last()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(call["action"], "shelf.add");
+    assert_eq!(call["inputs"][0]["type"], "file/image");
+    assert_eq!(call["inputs"][0]["path"], image.path.as_deref().unwrap());
     fixture.stop();
     fixture.app = ids::LENS.into();
     fixture.start(json!([{"id":"lens.analyze","title":"Analyze","accepts":["file/image"],"interactive":true}]), false);
