@@ -190,6 +190,8 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 .title-fill { flex: 1; height: 100%; min-width: 12px; }
+.title-navigation { display: flex; flex: none; gap: 2px; }
+.title-navigation .icon-btn:disabled { opacity: .35; pointer-events: none; }
 .title-actions { display: flex; gap: 2px; }
 .icon-btn, .win-btn, .tb-btn {
   border: 0;

@@ -22,6 +22,7 @@ export class App {
   private abort: AbortController | null = null;
   private gen = 0;
   private history: string[] = [];
+  private future: string[] = [];
   private status = '';
   private details: [string, string][] = [];
   private infoOpen = false;
@@ -34,6 +35,9 @@ export class App {
   private titleName = h('div.title-name');
   private titleMeta = h('div.title-meta');
   private titleBadge = h('div.title-badge');
+  private backButton = this.button('left', 'Back (Backspace / Alt+Left)', () => void this.back());
+  private forwardButton = this.button('right', 'Forward (Alt+Right)', () => void this.forward());
+  private navigation = h('div.title-navigation.hidden', this.backButton, this.forwardButton);
   private actions = h('div.title-actions');
   private stage = h('main.stage');
   private info = h('aside.info-panel');
@@ -122,6 +126,7 @@ export class App {
     this.titleMeta.setAttribute('data-tauri-drag-region', '');
     const bar = h('header.titlebar', { 'data-tauri-drag-region': true },
       isMac ? h('div.traffic-spacer', { 'data-tauri-drag-region': true }) : null,
+      this.navigation,
       this.titleBadge,
       titleText,
       h('div.title-fill', { 'data-tauri-drag-region': true }),
@@ -152,6 +157,9 @@ export class App {
 
   private renderTitle() {
     const i = this.current;
+    this.navigation.classList.toggle('hidden', !i);
+    this.backButton.disabled = !i || !(this.history.length || (i.dir && i.dir !== i.path));
+    this.forwardButton.disabled = !i || !this.future.length;
     clear(this.titleBadge);
     if (!i) {
       this.titleName.textContent = 'Arcade Look';
@@ -186,7 +194,7 @@ export class App {
 
   // ------------------------------------------------------------------ navigation
 
-  async open(path: string | null, opts: { drill?: boolean; back?: boolean } = {}) {
+  async open(path: string | null, opts: { drill?: boolean; traversal?: 'back' | 'forward' } = {}) {
     const gen = ++this.gen;
     this.connected?.dispose();
     this.connected = null;
@@ -205,8 +213,6 @@ export class App {
       return;
     }
     this.trace(`open ${path}`);
-    if (opts.drill && this.current) this.history.push(this.current.path);
-    else if (!opts.back) this.history = [];
 
     const loadingTimer = window.setTimeout(() => this.loading.classList.add('on'), 120);
     let info: FileInfo;
@@ -221,6 +227,21 @@ export class App {
     if (gen !== this.gen) return clearTimeout(loadingTimer);
     this.trace(`inspected: ${info.kind}/${info.format}${inspectError ? ` error=${inspectError}` : ''}`);
 
+    // Commit history only for the request that actually becomes the current preview.
+    if (opts.traversal === 'back') {
+      this.history.pop();
+      if (this.current) this.future.push(this.current.path);
+    } else if (opts.traversal === 'forward') {
+      this.future.pop();
+      if (this.current) this.history.push(this.current.path);
+    } else {
+      if (opts.drill && this.current) {
+        if (this.current.path !== info.path) this.history.push(this.current.path);
+      } else {
+        this.history = [];
+      }
+      this.future = [];
+    }
     this.current = info;
     void this.strip?.update(null, null);
     this.missing = inspectError;
@@ -359,7 +380,7 @@ export class App {
     try {
       if (await api.navigateExternal(delta)) return;
       const next = await api.neighbor(this.current.path, delta);
-      if (next) await this.open(next, { back: false });
+      if (next) await this.open(next);
       else this.bump(delta);
     } catch (e) {
       this.toast(errorMessage(e));
@@ -374,8 +395,15 @@ export class App {
   }
 
   async back() {
-    const prev = this.history.pop();
-    if (prev) await this.open(prev, { back: true });
+    if (!this.current) return;
+    const prev = this.history[this.history.length - 1] ?? this.current.dir;
+    if (prev && prev !== this.current.path) await this.open(prev, { traversal: 'back' });
+  }
+
+  async forward() {
+    if (!this.current) return;
+    const next = this.future[this.future.length - 1];
+    if (next) await this.open(next, { traversal: 'forward' });
   }
 
   /** Stop media and free memory: the window is hidden. */
@@ -385,6 +413,10 @@ export class App {
     this.connected = null;
     this.gen++;
     this.abort?.abort();
+    this.history = [];
+    this.future = [];
+    this.backButton.disabled = true;
+    this.forwardButton.disabled = true;
     this.mounted?.dispose?.();
     this.mounted = null;
     clear(this.stage);
@@ -456,7 +488,6 @@ export class App {
   async openSettings() {
     this.teardown();
     this.current = null;
-    this.history = [];
     this.renderTitle();
     this.renderInfo();
     this.titleName.textContent = 'Settings';
@@ -512,6 +543,17 @@ export class App {
 
   private bindGlobal() {
     window.addEventListener('keydown', (e) => this.onKey(e));
+    // Gaming-mouse thumb buttons are browser Back/Forward (buttons 3 and 4).
+    // Cancel every phase so the webview stays on the app; navigate once on release.
+    const onThumbButton = (e: MouseEvent) => {
+      if (e.button !== 3 && e.button !== 4) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === 'mouseup') void (e.button === 3 ? this.back() : this.forward());
+    };
+    window.addEventListener('mousedown', onThumbButton, true);
+    window.addEventListener('mouseup', onThumbButton, true);
+    window.addEventListener('auxclick', onThumbButton, true);
     // The webview must never navigate away (links are handled by viewers).
     document.addEventListener('click', (e) => {
       const a = (e.target as Element | null)?.closest?.('a');
@@ -579,6 +621,11 @@ export class App {
     }
     if (k === 'Escape' && this.strip?.close()) { e.preventDefault(); return; }
     if ((k === ' ' || k === 'Enter') && (e.target as Element | null)?.closest?.('.arcade-actions button')) return;
+    if (!mod && e.altKey && (k === 'ArrowLeft' || k === 'ArrowRight')) {
+      e.preventDefault();
+      void (k === 'ArrowLeft' ? this.back() : this.forward());
+      return;
+    }
     if (this.mounted?.keydown?.(e)) {
       e.preventDefault();
       return;
@@ -599,10 +646,7 @@ export class App {
         break;
       case 'ArrowLeft':
       case 'ArrowRight':
-        if (e.altKey && k === 'ArrowLeft') {
-          e.preventDefault();
-          void this.back();
-        } else if (plain) {
+        if (plain) {
           e.preventDefault();
           void this.navigate(k === 'ArrowLeft' ? -1 : 1);
         }
