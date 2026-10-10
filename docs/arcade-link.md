@@ -88,7 +88,9 @@ The consumer tests exercise actual mock processes
 for discovery in both orders, filtering, size limits, progress, output paths,
 cancel, timeout, crashes, stopped-peer lifecycle, Private mode and secret errors.
 They also exercise live `app.changed` over a real local socket. Saved Box
-pipelines are fetched on workers when Box’s manifest changes, then cached.
+pipelines are fetched on workers when Box’s manifest changes, then cached. A
+fetch that fails is retried on the next registry or live change: Link writes
+Box’s manifest before Box listens, so the first fetch can miss it.
 The strip lists matching input types and skips interactive-first pipelines;
 opening it never queries Box. Pipeline invocation passes `options.pipeline`.
 Images, video, PDF rendering and page rasterization are verified in the native

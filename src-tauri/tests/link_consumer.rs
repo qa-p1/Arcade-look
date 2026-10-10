@@ -6,10 +6,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use arcade_link::server::{Handler, InvokeContext, Reply};
+use arcade_link::server::{Handler, InvokeContext, Reply, Server, ServerConfig};
 use arcade_link::{
     ids, Action, Content, ErrorCode, InvokeRequest, InvokeResult, LinkError, Locations, Manifest,
-    Presence,
+    PeerInfo, Presence,
 };
 use arcade_look_lib::config::Config;
 use arcade_look_lib::link_consumer::{file_content, me, page_content, Consumer};
@@ -509,12 +509,20 @@ fn app_changed_refreshes_live_availability_without_manifest_rewrite() {
     .accepts(&["file/image"])]));
     let mut manifest = Manifest::new(ids::LENS, "1", cli().to_str().unwrap());
     manifest.actions = actions.lock().unwrap().clone();
-    let presence = Presence::start(
-        fixture.locations(),
-        manifest.clone(),
+    // A bare Server, so app.changed is sent without touching the manifest
+    // (Presence::update notifies only when the manifest changes).
+    arcade_link::manifest::write_manifest(&fixture.locations(), &manifest).unwrap();
+    let server = Server::start(
+        ServerConfig {
+            app: PeerInfo {
+                id: ids::LENS.into(),
+                version: "1".into(),
+            },
+            locations: fixture.locations(),
+        },
         Arc::new(Dynamic(actions.clone())),
-    );
-    assert!(presence.last_error().is_none());
+    )
+    .unwrap();
     let consumer = Consumer::new(fixture.locations());
     let (tx, rx) = mpsc::channel();
     assert!(consumer.watch(move || {
@@ -531,7 +539,7 @@ fn app_changed_refreshes_live_availability_without_manifest_rewrite() {
     // A direct server notification exercises describe, independent of disk discovery.
     actions.lock().unwrap()[0].available = false;
     actions.lock().unwrap()[0].reason = Some("Recognition is disabled".into());
-    presence.update(manifest);
+    server.notify_changed();
     wait(|| {
         let _ = rx.recv_timeout(Duration::from_millis(10));
         consumer
@@ -545,14 +553,14 @@ fn app_changed_refreshes_live_availability_without_manifest_rewrite() {
     assert!(consumer.offers(&Config::default(), &pdf, false).is_empty());
     assert!(consumer.offers(&Config::default(), &pdf, true).is_empty());
     actions.lock().unwrap()[0].available = true;
-    presence.update(Manifest::new(ids::LENS, "1", cli().to_str().unwrap()));
+    server.notify_changed();
     wait(|| {
         consumer
             .offers(&Config::default(), &pdf, true)
             .first()
             .is_some_and(|o| o.pdf_page)
     });
-    presence.stop();
+    drop(server);
     println!("app.changed -> live describe; PDF Lens action appears only with a page renderer");
 }
 
@@ -621,6 +629,55 @@ fn saved_pipelines_are_cached_filtered_and_invoked_by_id() {
         );
     }
     println!("saved pipelines cached ahead of open; matching noninteractive entry only; options.pipeline preserved");
+}
+
+struct Pipelines(Vec<Action>);
+impl Handler for Pipelines {
+    fn describe(&self) -> Vec<Action> {
+        self.0.clone()
+    }
+    fn invoke(&self, _: InvokeRequest, _: &InvokeContext) -> Result<Reply, LinkError> {
+        let pipelines = json!([{"id":"web","name":"Web image","version":1,"accepts":["file/image"],"effects":["writes-files"],"interactive":false}]);
+        Ok(Reply::Done(
+            serde_json::from_value(
+                json!({"outputs":[{"type":"structured/pipelines","data":pipelines}]}),
+            )
+            .unwrap(),
+        ))
+    }
+}
+#[test]
+#[ignore = "real peers: run with the isolated ecosystem runner"]
+fn pipelines_load_when_box_listens_after_its_manifest_appears() {
+    let fixture = Fixture::new(ids::BOX);
+    let mut manifest = Manifest::new(ids::BOX, "1", cli().to_str().unwrap());
+    manifest.actions = vec![
+        Action::new("box.pipelines", "Pipelines", "list").produces(&["structured/pipelines"]),
+        Action::new("box.pipeline.run", "Run", "run").accepts(&["file/*"]),
+    ];
+    // Presence writes the manifest, then listens; Look can see the manifest
+    // in between. Reproduce that gap deterministically.
+    arcade_link::manifest::write_manifest(&fixture.locations(), &manifest).unwrap();
+    let consumer = Consumer::new(fixture.locations());
+    assert!(consumer.watch(|| {}));
+    let content = fixture.image();
+    let config = Config::default();
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(consumer.offers(&config, &content, false).is_empty());
+    let presence = Presence::start(
+        fixture.locations(),
+        manifest.clone(),
+        Arc::new(Pipelines(manifest.actions.clone())),
+    );
+    assert!(presence.last_error().is_none());
+    wait(|| {
+        consumer
+            .offers(&config, &content, false)
+            .first()
+            .is_some_and(|o| o.title == "▶ Web image")
+    });
+    presence.stop();
+    println!("a pipeline fetch that ran before Box listened is retried once its endpoint appears");
 }
 
 #[test]
