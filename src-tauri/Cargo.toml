@@ -1,6 +1,6 @@
 [package]
 name = "arcade-look"
-version = "0.1.1"
+version = "0.1.2"
 description = "Universal Quick Look: select a file, press Space, see it instantly"
 authors = ["Arcade Look contributors"]
 license = "MIT"

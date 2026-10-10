@@ -242,6 +242,10 @@ impl Consumer {
             match entries {
                 Ok(entries) => cache.entries = entries,
                 Err(error) => {
+                    // Link writes the manifest before the endpoint, so a fetch
+                    // can run before Box listens: let the next notification
+                    // (the endpoint appearing) try again.
+                    cache.manifest = None;
                     *consumer.last_error.lock().unwrap() = Some(error.user_message("Arcade Box"))
                 }
             }
