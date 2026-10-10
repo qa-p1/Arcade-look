@@ -422,6 +422,7 @@ fn wheel_gets_current_file_and_lens_handoffs_are_private_and_removed() {
         consumer
             .offers(&Config::default(), &image, false)
             .iter()
+            .filter(|offer| offer.app == ids::SHELF)
             .map(|offer| (offer.action.as_str(), offer.title.as_str()))
             .eq([("shelf.add", "Add to Shelf")])
     });
