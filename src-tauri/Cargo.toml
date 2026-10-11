@@ -43,9 +43,8 @@ lofty = "0.25"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico", "tiff", "tga", "dds", "hdr", "exr", "qoi", "pnm", "ff"] }
 kamadak-exif = "0.6"
 imagesize = "0.15"
-# Arcade Link (the shared protocol and install/tray runtime). The orchestrator
-# pins this branch to v0.3.0 once the shared Qt port is ready.
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", branch = "arcade/tools-hub", features = ["install", "trayhost"] }
+# Arcade Link (the shared protocol and install/tray runtime).
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.3.0", features = ["install", "trayhost"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.4"

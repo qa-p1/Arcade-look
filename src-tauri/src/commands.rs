@@ -399,17 +399,9 @@ pub async fn set_config(
     patch: serde_json::Map<String, serde_json::Value>,
 ) -> Res<crate::config::Config> {
     blocking(move || {
-        let state = app.state::<app::AppState>();
-        let config = crate::config::update(&state.config(), patch)?;
-        if let Ok(mut c) = state.config.write() {
-            *c = config.clone();
-        }
-        crate::link::refresh(&config);
-        crate::link_consumer::refresh(&app);
-        if let Ok(mut s) = state.config_stamp.lock() {
-            *s = crate::config::stamp();
-        }
-        Ok(config)
+        crate::link::update_config(&app, patch)
+            .map(|(config, _)| config)
+            .map_err(|error| error.user_message("Arcade Look"))
     })
     .await
 }

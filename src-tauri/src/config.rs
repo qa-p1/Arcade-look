@@ -139,10 +139,23 @@ pub fn update(
     for (k, v) in patch {
         obj.insert(k, v);
     }
+    if let Some(shortcut) = obj.get("globalShortcut").and_then(serde_json::Value::as_str) {
+        if shortcut.is_empty() {
+            obj.insert("globalShortcut".into(), serde_json::Value::String(String::new()));
+        } else {
+            let canonical = arcade_link::accelerator::normalize(shortcut)
+                .map_err(|e| format!("invalid global shortcut: {e}"))?;
+            obj.insert(
+                "globalShortcut".into(),
+                serde_json::Value::String(canonical),
+            );
+        }
+    }
     let config: Config = serde_json::from_value(doc.clone()).map_err(|e| e.to_string())?;
     std::fs::create_dir_all(dir()).map_err(|e| e.to_string())?;
     let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
-    std::fs::write(&p, text).map_err(|e| format!("write {}: {e}", p.display()))?;
+    arcade_link::paths::write_atomic(&p, text.as_bytes(), true)
+        .map_err(|e| format!("write {}: {e}", p.display()))?;
     Ok(config)
 }
 

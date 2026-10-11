@@ -16,12 +16,16 @@ pub mod windows;
 
 use crate::app::{self, AppState, Source};
 use crate::util::Res;
+use arcade_link::app::{ShortcutSetResult, ShortcutVia};
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 static SHORTCUT_ACTIVE: AtomicBool = AtomicBool::new(false);
 static SHORTCUT_RECORDING: AtomicBool = AtomicBool::new(false);
+static ACTIVE_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn set_shortcut_recording(recording: bool) {
     SHORTCUT_RECORDING.store(recording, Ordering::SeqCst);
@@ -55,7 +59,11 @@ pub fn start(app: &AppHandle) {
     {
         use tauri_plugin_global_shortcut::GlobalShortcutExt;
         match app.global_shortcut().register(shortcut) {
-            Ok(()) => SHORTCUT_ACTIVE.store(true, Ordering::SeqCst),
+            Ok(()) => {
+                SHORTCUT_ACTIVE.store(true, Ordering::SeqCst);
+                *ACTIVE_SHORTCUT.lock().unwrap_or_else(|e| e.into_inner()) =
+                    Some(shortcut.to_string());
+            }
             Err(e) => {
                 eprintln!("arcade-look: could not register global shortcut {shortcut:?}: {e}")
             }
@@ -69,6 +77,67 @@ pub fn start(app: &AppHandle) {
     if cfg.explorer_space {
         windows::start_hook(app.clone());
     }
+}
+
+/// Replace the global shortcut live. Link callers run on a worker; the
+/// global-shortcut plugin marshals native registration to the UI thread.
+pub fn set_live_shortcut(app: &AppHandle, input: &str) -> Result<ShortcutSetResult, arcade_link::LinkError> {
+    let accelerator = if input.is_empty() {
+        String::new()
+    } else {
+        arcade_link::accelerator::normalize(input)
+            .map_err(|e| arcade_link::LinkError::denied(&e.to_string()))?
+    };
+    if !accelerator.is_empty() && !shortcut_supported() {
+        return Ok(ShortcutSetResult {
+            applied: false,
+            via: ShortcutVia::Manual,
+            hint: Some("Bind `arcade-look --toggle` in Settings → Keyboard".into()),
+        });
+    }
+    let manager = app
+        .try_state::<tauri_plugin_global_shortcut::GlobalShortcut<tauri::Wry>>()
+        .ok_or_else(|| arcade_link::LinkError::unavailable("native shortcuts are unavailable"))?;
+    let old = ACTIVE_SHORTCUT
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if old.as_deref() == Some(accelerator.as_str()) {
+        return Ok(ShortcutSetResult {
+            applied: true,
+            via: ShortcutVia::Native,
+            hint: None,
+        });
+    }
+    if !accelerator.is_empty() {
+        let parsed = tauri_plugin_global_shortcut::Shortcut::from_str(&accelerator)
+            .map_err(|e| arcade_link::LinkError::denied(&e.to_string()))?;
+        manager
+            .register(parsed)
+            .map_err(|e| arcade_link::LinkError::unavailable(e.to_string()))?;
+    }
+    if let Some(old) = old {
+        if let Err(error) = manager.unregister(old.as_str()) {
+            if !accelerator.is_empty() {
+                let _ = manager.unregister(accelerator.as_str());
+            }
+            return Err(arcade_link::LinkError::unavailable(error.to_string()));
+        }
+    }
+    *ACTIVE_SHORTCUT.lock().unwrap_or_else(|e| e.into_inner()) =
+        (!accelerator.is_empty()).then_some(accelerator);
+    SHORTCUT_ACTIVE.store(
+        ACTIVE_SHORTCUT
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some(),
+        Ordering::SeqCst,
+    );
+    Ok(ShortcutSetResult {
+        applied: true,
+        via: ShortcutVia::Native,
+        hint: None,
+    })
 }
 
 /// True when something must keep running in the background to catch the next Space press.
@@ -219,6 +288,11 @@ pub fn first_run_setup(app: &AppHandle) {
     }
     let app = app.clone();
     std::thread::spawn(move || {
+        // A copy with a receipt was set up by its installer (the AppImage
+        // self-installer or the macOS move); a bare AppImage asks first.
+        if crate::installer::has_receipt() || std::env::var_os("APPIMAGE").is_some() {
+            return;
+        }
         let state = app.state::<AppState>();
         if state
             .window_state
