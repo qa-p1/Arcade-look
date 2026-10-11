@@ -38,9 +38,9 @@
       "appimage",
       "dmg"
     ],
-    "publisher": "Arcade Look contributors",
+    "publisher": "qa-p1",
     "copyright": "Copyright (c) 2026 Arcade Look contributors",
-    "homepage": "https://github.com/qa-p1/arcade-look",
+    "homepage": "https://github.com/qa-p1/Arcade-catalog",
     "license": "MIT",
     "category": "Utility",
     "shortDescription": "Press Space, see anything",
@@ -56,6 +56,7 @@
       "nsis": {
         "installMode": "currentUser",
         "installerHooks": "./windows/installer-hooks.nsh",
+        "template": "./windows/installer.nsi",
         "installerIcon": "icons/icon.ico"
       }
     },

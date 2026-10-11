@@ -49,8 +49,8 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "arcade-link"
-version = "0.2.0"
-source = "git+https://github.com/qa-p1/Arcade-Link?tag=v0.2.0#bedee71dd98475810fd43a7da23d45316389b4e5"
+version = "0.3.0"
+source = "git+https://github.com/qa-p1/Arcade-Link?branch=arcade%2Ftools-hub#e90a860d3337171ffc1a7d2197700a3de63edbd0"
 dependencies = [
  "getrandom 0.4.3",
  "interprocess",
@@ -778,7 +778,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.6",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -4399,7 +4399,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

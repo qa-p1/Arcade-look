@@ -1,4 +1,10 @@
-arcade-release.py is copied unchanged from Arcade-link tools/arcade-release.py
-Source: https://github.com/qa-p1/Arcade-link
-Commit: 539fa91
-Standard-library release metadata helper; NSIS uses /S by default.
+89e8561134fbde1a15fd0fbc7aba675d2f0092a0d84bee4048bef4732bed6287  src-tauri/windows/arcade.nsh
+e66ddb7411cffd67ef04d7e736db5c319e1ae5084f5daaa592218f21f0d4bb59  src-tauri/windows/arcade-integration.ps1
+8f360855419930730c486d0978acaecf7a8179cc063465c9f8324878dcf6c2fd  scripts/arcade-release.py
+3b5d2981ab87fdf07437daa294dce825d59b63580430e9ffa2b58e87d5d72cf0  scripts/validate_shortcuts.py
+68e8ed4c5adae97895b215813f5a528b53f2b720bb428112e94ab35489269a1a  spec/shortcuts.schema.json
+b3f4fffd8929a6a9449947b303b9e07171de8a5820d576f2d47b002944a00624  spec/arcade-release.schema.json
+67d0d5a86e8d9f953c2cf779136c790bdd62d7983fa12d36a65c446e12b246ec  spec/vectors/accelerators.json
+b41f521172ce2b55037c698d41079e2be953795402343fb753688de4a2e16f33  src-tauri/windows/installer.nsi
+9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d  src-tauri/windows/LICENSE-TAURI-MIT
+0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594  src-tauri/windows/LICENSE-TAURI-APACHE-2.0
