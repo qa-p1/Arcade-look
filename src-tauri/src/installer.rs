@@ -399,6 +399,7 @@ pub fn launch_args(args: &[String]) -> Vec<std::ffi::OsString> {
     result
 }
 
+#[cfg(target_os = "linux")]
 fn remove_file(path: &Path) -> io::Result<()> {
     match fs::remove_file(path) {
         Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
