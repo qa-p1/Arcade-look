@@ -56,7 +56,9 @@ jobs:
           cache: npm
           cache-dependency-path: arcade-look/package-lock.json
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      # Installers build with stable, as on main: 1.88 with LTO drops
+      # encoding_rs statics at link time. The Check job keeps the 1.88 MSRV.
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 

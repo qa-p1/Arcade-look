@@ -822,15 +822,17 @@ Section Uninstall
   ${AndIf} $ArcadeExitCode == 0
     !insertmacro DeleteAppUserModelId
 
-    ; Remove start menu shortcut
-    !insertmacro MUI_STARTMENU_GETFOLDER Application $AppStartMenuFolder
-    !insertmacro IsShortcutTarget "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
-    Pop $0
-    ${If} $0 = 1
-      !insertmacro UnpinShortcut "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
-      Delete "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
-      RMDir "$SMPROGRAMS\$AppStartMenuFolder"
-    ${EndIf}
+    ; Remove a legacy start menu folder shortcut. This template has no
+    ; MUI start menu page, so the folder is the configured default.
+    !if "${STARTMENUFOLDER}" != ""
+      !insertmacro IsShortcutTarget "$SMPROGRAMS\${STARTMENUFOLDER}\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+      Pop $0
+      ${If} $0 = 1
+        !insertmacro UnpinShortcut "$SMPROGRAMS\${STARTMENUFOLDER}\${PRODUCTNAME}.lnk"
+        Delete "$SMPROGRAMS\${STARTMENUFOLDER}\${PRODUCTNAME}.lnk"
+        RMDir "$SMPROGRAMS\${STARTMENUFOLDER}"
+      ${EndIf}
+    !endif
     !insertmacro IsShortcutTarget "$SMPROGRAMS\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
     Pop $0
     ${If} $0 = 1
