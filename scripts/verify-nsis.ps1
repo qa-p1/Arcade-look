@@ -41,6 +41,7 @@ try {
     Assert (Test-Path -LiteralPath $receipt.integration.desktopEntry) 'Missing Start menu entry.'
     Assert (Test-Path -LiteralPath $receipt.integration.autostart) 'Missing selected login entry.'
     Assert (-not $receipt.integration.desktopShortcut) 'Unchecked desktop task wrote an entry.'
+    Assert (-not (Get-Process -Name $CliName -ErrorAction SilentlyContinue)) 'Silent install launched the app.'
     Assert (Test-Path -LiteralPath $receipt.integration.cli) 'Missing CLI shim.'
     Assert ((Split-Path -Leaf $receipt.integration.cli) -eq ($CliName + '.cmd')) 'Wrong CLI shim name.'
     Assert ((Get-Content -LiteralPath $receipt.integration.cli -Raw) -match '%\*') 'CLI shim does not forward arguments.'

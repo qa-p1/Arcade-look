@@ -21,7 +21,7 @@
   !insertmacro ArcadeInstall
   ; Keep Look's Explorer integration, while the shared Startup task is the
   ; single optional start-at-login entry (it starts the same background mode).
-  ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --install-integration' $ArcadeExitCode
+  ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --install-integration --silent' $ArcadeExitCode
   ${If} $ArcadeExitCode != 0
     SetErrorLevel $ArcadeExitCode
     Abort "Arcade Look integration setup failed."
