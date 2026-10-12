@@ -365,7 +365,7 @@ pub fn install_copy(
         ));
         let staged = macos::move_to_applications(environment, &source, Some(&stage))?;
         if target.exists() {
-            if !detection.receipt.as_ref().is_some_and(|r| r.path == target) {
+            if detection.receipt.as_ref().is_none_or(|r| r.path != target) {
                 return Err(io::Error::other(
                     "Applications already contains an Arcade Look bundle without its receipt",
                 ));
