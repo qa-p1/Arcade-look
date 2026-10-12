@@ -8,7 +8,7 @@ since: 0.1.2
 
 Arcade Look opens a fast preview for a file or folder without launching a full editor. It runs on Windows, macOS and Linux and can preview images, media, documents, code, archives, fonts, 3D models and more.
 
-![Arcade Look previewing Markdown, code, audio, PDF, archives and 3D files](../hero.webp)
+![Arcade Look previewing the getting-started guide as a Markdown document](images/preview.png)
 
 ## What Look is best at
 
