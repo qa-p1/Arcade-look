@@ -46,6 +46,20 @@ c0b052a5165ab43390d4cd4f19c05e1a9f9e6ff65e5a64c978087c91331c6c68  src-tauri/wind
 2b2a8b699dc1e6c81c02bb9ad9be1ddf2f8a5447541eb1dfe886056aa5dc4fd6  src-tauri/windows/arcade-integration.ps1
 fe152028ff674fdacdef4aed8970bb0a7afeb2dd67d2a3af075d7d95683bf96b  src-tauri/windows/arcade.iss
 1f548b420bc08b479d6c65801a208aa67dc80fef851b5e2a49696d307562831e  src-tauri/windows/arcade.nsh
+b41f521172ce2b55037c698d41079e2be953795402343fb753688de4a2e16f33  src-tauri/windows/installer.nsi
+9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d  src-tauri/windows/LICENSE-TAURI-MIT
+0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594  src-tauri/windows/LICENSE-TAURI-APACHE-2.0
 ```
 
-The custom NSIS template on the packaging branch retains Tauri’s MIT and Apache-2.0 licenses; its Arcade adaptations are local code.
+## Tauri NSIS template
+
+`src-tauri/windows/installer.nsi` is adapted from Tauri `tauri-cli-v2.12.1`
+(original template SHA-256
+`dabed59013b1d78b879a1a85bc7f2eed2993b33a9a90cdabe5946de3d3950597`; the local
+patched hash is above). License: MIT OR Apache-2.0, with the upstream texts in
+`LICENSE-TAURI-MIT` and `LICENSE-TAURI-APACHE-2.0`. It keeps Tauri's installer,
+hooks, payload and upgrade flow, and changes the install folder to
+`%LOCALAPPDATA%\\Programs\\Arcade Look`, uses Arcade's stable Apps & Features
+key, includes the shared task page, and guards Tauri's legacy cleanup with the
+shared receipt ownership result. Review it against the pinned upstream source
+when Tauri is upgraded.

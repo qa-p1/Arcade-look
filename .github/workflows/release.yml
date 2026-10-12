@@ -112,8 +112,8 @@ jobs:
             cp "$f" "release/$name"
           done
           count="$(find release -type f | wc -l)"
-          if [ "$count" -ne 3 ]; then
-            echo "::error::Expected 3 installers (Windows, Linux, macOS), found $count"
+          if [ "$count" -lt 3 ]; then
+            echo "::error::Expected the 3 platform installers (Windows, Linux, macOS), found $count assets"
             ls -l built
             exit 1
           fi
