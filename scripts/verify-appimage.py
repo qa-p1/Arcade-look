@@ -32,7 +32,9 @@ def main():
         (root / "run").chmod(0o700)
         env["APPIMAGE_EXTRACT_AND_RUN"] = "1"
         env["ARCADE_NO_INSTALL_PROMPT"] = "1"
-        env["PATH"] = str(root / "home/.local/bin") + os.pathsep + env.get("PATH", "")
+        # ARCADE_HOME redirects Link's Applications, integration and CLI roots.
+        install_home = Path(env["ARCADE_HOME"])
+        env["PATH"] = str(install_home / ".local/bin") + os.pathsep + env.get("PATH", "")
         download = root / "Downloaded.AppImage"
         shutil.copy2(image, download)
         download.chmod(0o755)
@@ -53,7 +55,7 @@ def main():
         assert receipt["schema"] == 1 and receipt["id"] == app_id, receipt
         assert receipt["method"] == "appimage" and receipt["managedBy"] == "self", receipt
         assert receipt["version"] == version and receipt["channel"] == "stable", receipt
-        installed = root / "home/Applications/Arcade" / filename
+        installed = install_home / "Applications/Arcade" / filename
         assert Path(receipt["path"]) == installed and os.access(installed, os.X_OK), receipt
         assert installed.read_bytes() == image.read_bytes(), "Installed package differs from the download"
         integration = receipt["integration"]
@@ -65,7 +67,7 @@ def main():
         assert icons, "No installed icons"
         for path in entries:
             assert path.is_relative_to(root) and path.exists(), path
-        assert cli == root / "home/.local/bin" / cli_name and cli.is_symlink(), cli
+        assert cli == install_home / ".local/bin" / cli_name and cli.is_symlink(), cli
         assert cli.resolve() == installed, cli
         assert f"X-Arcade-Id={app_id}" in desktop.read_text(encoding="utf-8"), desktop
         assert f"X-Arcade-Id={app_id}" in autostart.read_text(encoding="utf-8"), autostart

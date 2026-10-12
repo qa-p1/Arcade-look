@@ -25,7 +25,7 @@ source="$mount/$name.app"
 [[ -x "$source/Contents/MacOS/$executable" ]]
 plutil -lint "$source/Contents/Info.plist"
 "$source/Contents/MacOS/$executable" --install --silent --no-launch
-installed="$HOME/Applications/$name.app"
+installed="$ARCADE_HOME/Applications/$name.app"
 [[ -x "$installed/Contents/MacOS/$executable" ]]
 cmp "$source/Contents/MacOS/$executable" "$installed/Contents/MacOS/$executable"
 python3 - "$ARCADE_HOME/installs/$id.json" "$installed" <<'PY'
