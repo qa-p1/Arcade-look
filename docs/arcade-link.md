@@ -96,6 +96,34 @@ opening it never queries Box. Pipeline invocation passes `options.pipeline`.
 Images, video, PDF rendering and page rasterization are verified in the native
 Linux X11 webview under isolated Xvfb.
 
+## Arcade Tools hub (Link v0.3.0)
+
+Look advertises `app.settings`, `app.restart`, `app.menu`, `app.menu.invoke`,
+`app.shortcuts.set`, `app.settings.export` and `app.settings.import` in
+`describe.methods`. Older clients that don't know them see the same v1
+actions as before.
+
+| Method | What Look does |
+|---|---|
+| `app.settings` | Opens Look's Settings window on the UI thread. |
+| `app.restart` | `busy` while a Link request is still being served, unless the mode is `force`. Otherwise Look restarts through the same path as its tray's Restart. |
+| `app.menu` / `app.menu.invoke` | Look has no extras beyond the standard Open, Settings, Restart and Quit, so the list is empty and any `app.menu.invoke` answers `unavailable`. |
+| `app.shortcuts.set` | Only `preview-selection`. An empty accelerator clears it. A shortcut another Arcade app already owns is `denied`. Otherwise Look applies it live through the same settings path as its Settings window and rewrites its manifest. |
+| `app.settings.export` | One private `file/any` handoff with a schema-1 allowlist: theme, idle minutes, global shortcut, text and highlight limits, autoplay and show hidden files. |
+| `app.settings.import` | Exactly one settings file (a regular file, at most 1 MiB). Look validates it, backs up the current settings, applies them live and reports `restartRequired: false`. |
+
+**Tray hosting.** Look's `TrayHostWatcher` connects to Arcade Tools when Tools
+runs with tray hosting on. While Tools hosts it, Look's own icon stays built but
+hidden; it comes back at once when Tools quits, crashes or turns hosting off,
+and after a 5 s grace period when Tools announces a restart. At startup Look
+waits at most 300 ms for Tools' answer before showing its icon. `app.status`
+reports `tray` as `own`, `hosted` or `none`. With "Connect with other Arcade
+apps" off, Look always shows its own icon.
+
+**Manifest additions.** The manifest carries `docs.version` and `install` (the
+receipt method, or `dev` for source builds). Look writes no log files, so it
+has no `logs` entry, and it has no `menu` extras to cache.
+
 ## Command line
 
 ```sh
