@@ -12,13 +12,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use arcade_link::manifest::{ManifestAdditions, ManifestDocument};
 use arcade_link::server::{Handler, InvokeContext, Reply};
 use arcade_link::{
-    ids, Action, Content, InvokeRequest, InvokeResult, LinkError, Locations, Manifest,
-    ManifestDocument, ManifestAdditions, Presence,
+    ids, Action, Content, InvokeRequest, InvokeResult, LinkError, Locations, Manifest, Presence,
 };
 use serde_json::{json, Map, Value};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::config::Config;
 use crate::detect::Kind;
@@ -32,9 +32,7 @@ pub fn manifest(config: &Config) -> ManifestDocument {
     );
     m.launch.background = vec!["--background".into()];
     m.launch.invoke = Some(vec![arcade_link::oneshot::FLAG.into()]);
-    if let Ok(shortcut) = arcade_link::accelerator::normalize(&config.global_shortcut)
-        && !shortcut.is_empty()
-    {
+    if let Ok(shortcut) = arcade_link::accelerator::normalize(&config.global_shortcut) {
         m.shortcuts.push(arcade_link::manifest::Shortcut {
             id: "preview-selection".into(),
             accelerator: shortcut,
@@ -329,7 +327,9 @@ impl Handler for LookHandler {
     }
 
     fn menu_invoke(&self, id: &str) -> Result<(), LinkError> {
-        Err(LinkError::unavailable(format!("Arcade Look has no menu item {id}")))
+        Err(LinkError::unavailable(format!(
+            "Arcade Look has no menu item {id}"
+        )))
     }
 
     fn shortcuts_set(
@@ -347,7 +347,9 @@ impl Handler for LookHandler {
                 .map_err(|error| LinkError::denied(&error.to_string()))?
         };
         if let Some(owner) = crate::link_consumer::shortcut_owner(&accelerator) {
-            return Err(LinkError::denied(format!("shortcut is already used by {owner}")));
+            return Err(LinkError::denied(&format!(
+                "shortcut is already used by {owner}"
+            )));
         }
         let patch = Map::from_iter([("globalShortcut".into(), Value::String(accelerator))]);
         let (_, result) = update_config(self.app()?, patch)?;
@@ -434,10 +436,9 @@ pub fn update_config(
     let old = state.config();
     let config_path = crate::config::config_path();
     let old_raw = std::fs::read(&config_path).ok();
-    let mut preview = serde_json::to_value(&old)
-        .map_err(|e| LinkError::internal(e.to_string()))?;
+    let mut preview = serde_json::to_value(&old).map_err(|e| LinkError::internal(e.to_string()))?;
     for (key, value) in &patch {
-        preview[ key ] = value.clone();
+        preview[key] = value.clone();
     }
     let shortcut = preview
         .get("globalShortcut")
@@ -451,12 +452,23 @@ pub fn update_config(
     let new: Config = serde_json::from_value(preview)
         .map_err(|e| LinkError::denied(&format!("invalid settings: {e}")))?;
     let shortcut_result = if new.global_shortcut != old.global_shortcut {
-        Some(crate::integration::set_live_shortcut(app, &new.global_shortcut)?)
+        Some(crate::integration::set_live_shortcut(
+            app,
+            &new.global_shortcut,
+        )?)
     } else {
         None
     };
 
-    let saved = crate::config::update(&old, patch).map_err(LinkError::denied)?;
+    let saved = match crate::config::update(&old, patch) {
+        Ok(saved) => saved,
+        Err(error) => {
+            if shortcut_result.is_some() {
+                let _ = crate::integration::set_live_shortcut(app, &old.global_shortcut);
+            }
+            return Err(LinkError::denied(&error));
+        }
+    };
     if let Err(error) = publish_config(&saved) {
         crate::portable_settings::restore_raw(&config_path, old_raw.as_deref());
         if let Some(old_shortcut) = shortcut_result.as_ref() {
@@ -492,10 +504,9 @@ fn publish_config(config: &Config) -> Result<(), LinkError> {
             .map_err(|e| LinkError::unavailable(e.to_string()))?;
     }
     let path = Locations::discover().manifest(ids::LOOK);
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| LinkError::unavailable(e.to_string()))?;
-    let mut actual = ManifestDocument::from_json(&text)
-        .map_err(|e| LinkError::unavailable(e.to_string()))?;
+    let text = std::fs::read_to_string(path).map_err(|e| LinkError::unavailable(e.to_string()))?;
+    let mut actual =
+        ManifestDocument::from_json(&text).map_err(|e| LinkError::unavailable(e.to_string()))?;
     actual.manifest.written_at = document.manifest.written_at.clone();
     if actual != document {
         return Err(LinkError::unavailable(

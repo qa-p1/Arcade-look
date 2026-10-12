@@ -212,7 +212,7 @@ fn fmt_float(f: f64) -> String {
     if f.fract() == 0.0 && f.abs() < 1e15 {
         format!("{}", f as i64)
     } else {
-        let s = format!("{:.10}", f);
+        let s = format!("{f:.10}");
         let s = s.trim_end_matches('0').trim_end_matches('.');
         s.to_string()
     }

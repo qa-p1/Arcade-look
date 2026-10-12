@@ -139,9 +139,15 @@ pub fn update(
     for (k, v) in patch {
         obj.insert(k, v);
     }
-    if let Some(shortcut) = obj.get("globalShortcut").and_then(serde_json::Value::as_str) {
+    if let Some(shortcut) = obj
+        .get("globalShortcut")
+        .and_then(serde_json::Value::as_str)
+    {
         if shortcut.is_empty() {
-            obj.insert("globalShortcut".into(), serde_json::Value::String(String::new()));
+            obj.insert(
+                "globalShortcut".into(),
+                serde_json::Value::String(String::new()),
+            );
         } else {
             let canonical = arcade_link::accelerator::normalize(shortcut)
                 .map_err(|e| format!("invalid global shortcut: {e}"))?;

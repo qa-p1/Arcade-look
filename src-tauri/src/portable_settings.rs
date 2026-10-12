@@ -95,8 +95,8 @@ impl PortableSettings {
 pub fn export(config: &crate::config::Config) -> Result<Vec<Content>, LinkError> {
     let document = PortableSettings::from_config(config);
     document.validate()?;
-    let bytes = serde_json::to_vec_pretty(&document)
-        .map_err(|e| LinkError::internal(e.to_string()))?;
+    let bytes =
+        serde_json::to_vec_pretty(&document).map_err(|e| LinkError::internal(e.to_string()))?;
     if bytes.len() as u64 > MAX_BYTES {
         return Err(LinkError::denied("settings file exceeds 1 MiB"));
     }

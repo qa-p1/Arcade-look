@@ -94,7 +94,9 @@ fn process_alive(pid: u32) -> bool {
 #[cfg(windows)]
 fn process_alive(pid: u32) -> bool {
     use windows::Win32::Foundation::{CloseHandle, WAIT_TIMEOUT};
-    use windows::Win32::System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE};
+    use windows::Win32::System::Threading::{
+        OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
+    };
     // SAFETY: the process handle is only queried and closed here.
     unsafe {
         let Ok(handle) = OpenProcess(PROCESS_SYNCHRONIZE, false, pid) else {
@@ -120,7 +122,9 @@ pub fn start(app: &AppHandle) {
             let app = app.clone();
             move |state| {
                 let app = app.clone();
-                let _ = app.clone().run_on_main_thread(move || set_state(&app, state));
+                let _ = app
+                    .clone()
+                    .run_on_main_thread(move || set_state(&app, state));
             }
         },
     );
@@ -297,9 +301,8 @@ mod native {
     }
 
     fn prepare(app: &AppHandle) -> tauri::Result<TrayIconBuilder<tauri::Wry>> {
-        let [open, settings, restart, quit] = ITEMS.map(|(id, label, _)| {
-            MenuItem::with_id(app, id, label, true, None::<&str>)
-        });
+        let [open, settings, restart, quit] =
+            ITEMS.map(|(id, label, _)| MenuItem::with_id(app, id, label, true, None::<&str>));
         let menu = Menu::with_items(
             app,
             &[

@@ -16,4 +16,4 @@ Arcade Look opens a fast preview for a file or folder without launching a full e
 - **Moving through a folder quickly.** Step between files, open nested folders or archive entries, and use Back and Forward to retrace what you opened.
 - **Sending a file to another Arcade app.** Run a compatible Box, Lens, Clipboard, Wheel or Shelf action from the Actions menu when that app is installed and connected.
 
-Start with [installation and first run](getting-started.md), or browse [features](features.md), [shortcuts](shortcuts.json), [Arcade app connections](with-other-apps.md), [common questions](faq.md) and [troubleshooting](troubleshooting.md).
+Start with [installation and first run](getting-started.md), or browse [features](features.md), [shortcuts](shortcuts.md), [Arcade app connections](with-other-apps.md), [common questions](faq.md) and [troubleshooting](troubleshooting.md).

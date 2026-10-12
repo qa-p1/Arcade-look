@@ -34,7 +34,11 @@ pub fn text(state: &DialogState) -> (String, Option<String>, Vec<String>) {
         DialogState::OpenInstalled { version } => (&all.same_or_newer, version.as_str(), ""),
         DialogState::MoveToApplications => (&all.macos, VERSION, ""),
     };
-    (format(&dialog.title, version, from), dialog.body.as_ref().map(|s| format(s, version, from)), dialog.buttons.clone())
+    (
+        format(&dialog.title, version, from),
+        dialog.body.as_ref().map(|s| format(s, version, from)),
+        dialog.buttons.clone(),
+    )
 }
 
 /// What the user picked: a button index and the (possibly changed) options.
@@ -45,8 +49,18 @@ struct Choice {
 
 /// Runs the chosen action. Button 0 is always the main action; for a new
 /// copy, button 2 is "Don't ask again for this file".
-fn act(environment: &Environment, runtime: &Runtime, detection: &Detection, state: &DialogState, choice: Choice) -> Result<Outcome, String> {
-    let managed = detection.receipt.as_ref().is_some_and(|r| r.managed_by == ManagedBy::Tools) && installer::tools_installed(environment);
+fn act(
+    environment: &Environment,
+    runtime: &Runtime,
+    detection: &Detection,
+    state: &DialogState,
+    choice: Choice,
+) -> Result<Outcome, String> {
+    let managed = detection
+        .receipt
+        .as_ref()
+        .is_some_and(|r| r.managed_by == ManagedBy::Tools)
+        && installer::tools_installed(environment);
     match choice.button {
         Some(0) => {}
         Some(2) if *state == DialogState::Install => {
@@ -56,7 +70,10 @@ fn act(environment: &Environment, runtime: &Runtime, detection: &Detection, stat
         _ => return Ok(Outcome::Continue),
     }
     if let DialogState::OpenInstalled { .. } = state {
-        let receipt = detection.receipt.as_ref().ok_or("No installed copy was found")?;
+        let receipt = detection
+            .receipt
+            .as_ref()
+            .ok_or("No installed copy was found")?;
         return Ok(Outcome::Launch(installer::launch_path(receipt)));
     }
     if managed {
@@ -65,14 +82,33 @@ fn act(environment: &Environment, runtime: &Runtime, detection: &Detection, stat
     }
     let receipt = installer::install_copy(environment, runtime, &choice.options)
         .map_err(|e| format(&strings::get().errors["install"], VERSION, &e.to_string()))?;
-    if let Some(command) = installer::integration_status(environment).ok().and_then(|s| s.path_hint) {
-        message(&strings::format(&strings::get().path_hint, NAME, VERSION, "", &command));
+    if let Some(command) = installer::integration_status(environment)
+        .ok()
+        .and_then(|s| s.path_hint)
+    {
+        message(&strings::format(
+            &strings::get().path_hint,
+            NAME,
+            VERSION,
+            "",
+            &command,
+        ));
     }
     Ok(Outcome::Launch(installer::launch_path(&receipt)))
 }
 
-pub fn run(environment: Environment, runtime: Runtime, detection: Detection, state: DialogState, options: Options) -> Result<Outcome, String> {
-    let managed = detection.receipt.as_ref().is_some_and(|r| r.managed_by == ManagedBy::Tools) && installer::tools_installed(&environment);
+pub fn run(
+    environment: Environment,
+    runtime: Runtime,
+    detection: Detection,
+    state: DialogState,
+    options: Options,
+) -> Result<Outcome, String> {
+    let managed = detection
+        .receipt
+        .as_ref()
+        .is_some_and(|r| r.managed_by == ManagedBy::Tools)
+        && installer::tools_installed(&environment);
     let choice = ask(&state, options, managed)?;
     let result = act(&environment, &runtime, &detection, &state, choice);
     if let Err(e) = &result {
@@ -82,7 +118,9 @@ pub fn run(environment: Environment, runtime: Runtime, detection: Detection, sta
 }
 
 pub fn run_uninstall(environment: Environment, remove_data: bool) -> Result<Outcome, String> {
-    let Some(remove_data) = ask_uninstall(remove_data)? else { return Ok(Outcome::Continue) };
+    let Some(remove_data) = ask_uninstall(remove_data)? else {
+        return Ok(Outcome::Continue);
+    };
     installer::uninstall(&environment, remove_data).map_err(|e| {
         let e = format(&strings::get().errors["uninstall"], VERSION, &e.to_string());
         message(&e);
@@ -106,7 +144,10 @@ fn ask(state: &DialogState, mut options: Options, managed: bool) -> Result<Choic
     content.set_spacing(10);
     content.set_border_width(18);
     let heading = gtk::Label::new(None);
-    heading.set_markup(&format!("<span size=\"large\" weight=\"bold\">{}</span>", gtk::glib::markup_escape_text(&title)));
+    heading.set_markup(&format!(
+        "<span size=\"large\" weight=\"bold\">{}</span>",
+        gtk::glib::markup_escape_text(&title)
+    ));
     heading.set_xalign(0.0);
     heading.set_line_wrap(true);
     content.add(&heading);
@@ -163,10 +204,14 @@ fn ask_uninstall(remove_data: bool) -> Result<Option<bool>, String> {
     content.set_spacing(10);
     content.set_border_width(18);
     let heading = gtk::Label::new(None);
-    heading.set_markup(&format!("<span size=\"large\" weight=\"bold\">Uninstall {NAME}?</span>"));
+    heading.set_markup(&format!(
+        "<span size=\"large\" weight=\"bold\">Uninstall {NAME}?</span>"
+    ));
     heading.set_xalign(0.0);
     content.add(&heading);
-    let label = gtk::Label::new(Some("This removes the app, its launcher entry, terminal command and start-at-login entry."));
+    let label = gtk::Label::new(Some(
+        "This removes the app, its launcher entry, terminal command and start-at-login entry.",
+    ));
     label.set_xalign(0.0);
     label.set_line_wrap(true);
     content.add(&label);
@@ -192,7 +237,13 @@ fn message(text: &str) {
         eprintln!("arcade-look: {text}");
         return;
     }
-    let dialog = gtk::MessageDialog::new(None::<&gtk::Window>, gtk::DialogFlags::MODAL, gtk::MessageType::Info, gtk::ButtonsType::Ok, text);
+    let dialog = gtk::MessageDialog::new(
+        None::<&gtk::Window>,
+        gtk::DialogFlags::MODAL,
+        gtk::MessageType::Info,
+        gtk::ButtonsType::Ok,
+        text,
+    );
     dialog.set_title(NAME);
     dialog.run();
     dialog.close();
@@ -204,8 +255,14 @@ fn message(text: &str) {
 /// AppleScript dialogs: no extra dependency and the standard look.
 #[cfg(target_os = "macos")]
 fn osascript(script: &str) -> Option<String> {
-    let out = std::process::Command::new("/usr/bin/osascript").arg("-e").arg(script).output().ok()?;
-    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    let out = std::process::Command::new("/usr/bin/osascript")
+        .arg("-e")
+        .arg(script)
+        .output()
+        .ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 #[cfg(target_os = "macos")]
@@ -218,9 +275,16 @@ fn ask(state: &DialogState, mut options: Options, managed: bool) -> Result<Choic
     let (title, body, buttons) = text(state);
     let mut message = body.unwrap_or_default();
     if managed {
-        message = format!("{message}\n\n{}", format(&strings::get().managed_by_tools, VERSION, ""));
+        message = format!(
+            "{message}\n\n{}",
+            format(&strings::get().managed_by_tools, VERSION, "")
+        );
     }
-    let list = buttons.iter().map(|b| quote(b)).collect::<Vec<_>>().join(", ");
+    let list = buttons
+        .iter()
+        .map(|b| quote(b))
+        .collect::<Vec<_>>()
+        .join(", ");
     let script = format!(
         "button returned of (display dialog {} with title {} buttons {{{list}}} default button {} with icon note)",
         quote(&format!("{title}\n\n{message}")),
@@ -228,7 +292,12 @@ fn ask(state: &DialogState, mut options: Options, managed: bool) -> Result<Choic
         quote(&buttons[0]),
     );
     let button = osascript(&script).and_then(|picked| buttons.iter().position(|b| *b == picked));
-    if button == Some(0) && matches!(state, DialogState::MoveToApplications | DialogState::Install) {
+    if button == Some(0)
+        && matches!(
+            state,
+            DialogState::MoveToApplications | DialogState::Install
+        )
+    {
         let offer = format!("Add the {} terminal command?", installer::CLI_NAME);
         options.install_cli = osascript(&format!(
             "button returned of (display dialog {} with title {} buttons {{\"Not now\", \"Add\"}} default button \"Add\")",
@@ -256,13 +325,20 @@ fn ask_uninstall(remove_data: bool) -> Result<Option<bool>, String> {
 
 #[cfg(target_os = "macos")]
 fn message(text: &str) {
-    let _ = osascript(&format!("display dialog {} with title {} buttons {{\"OK\"}} default button \"OK\"", quote(text), quote(NAME)));
+    let _ = osascript(&format!(
+        "display dialog {} with title {} buttons {{\"OK\"}} default button \"OK\"",
+        quote(text),
+        quote(NAME)
+    ));
 }
 
 /// Windows installs through its per-user installer; nothing prompts here.
 #[cfg(windows)]
 fn ask(_state: &DialogState, options: Options, _managed: bool) -> Result<Choice, String> {
-    Ok(Choice { button: None, options })
+    Ok(Choice {
+        button: None,
+        options,
+    })
 }
 
 #[cfg(windows)]
@@ -283,8 +359,17 @@ mod tests {
     fn uses_the_shared_strings_verbatim() {
         let (title, body, buttons) = text(&DialogState::Install);
         assert_eq!(title, format!("Install {NAME}?"));
-        assert_eq!(body, Some(format!("This adds {NAME} to the app launcher and your apps folder.")));
+        assert_eq!(
+            body,
+            Some(format!(
+                "This adds {NAME} to the app launcher and your apps folder."
+            ))
+        );
         assert_eq!(buttons, strings::get().not_installed.buttons);
-        assert!(text(&DialogState::Update { from: "0.0.1".into() }).0.contains(&format!("0.0.1 → {VERSION}")));
+        assert!(text(&DialogState::Update {
+            from: "0.0.1".into()
+        })
+        .0
+        .contains(&format!("0.0.1 → {VERSION}")));
     }
 }

@@ -6,3 +6,7 @@ src-tauri/gen/
 *.log
 .DS_Store
 fixtures/
+
+# Python validation cache
+__pycache__/
+*.pyc

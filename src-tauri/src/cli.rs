@@ -1,7 +1,5 @@
 //! Command-line interface.
 
-use std::path::Path;
-
 #[derive(Debug, Default, Clone)]
 pub struct Args {
     pub paths: Vec<String>,
@@ -141,7 +139,9 @@ pub fn run_integration(install: bool) {
 pub fn restart_running() {
     let locations = arcade_link::Locations::discover();
     let peer = crate::link_consumer::me();
-    if let Ok(mut client) = arcade_link::client::Client::connect(&locations, arcade_link::ids::LOOK, &peer) {
+    if let Ok(mut client) =
+        arcade_link::client::Client::connect(&locations, arcade_link::ids::LOOK, &peer)
+    {
         if let Err(error) = client.restart(None) {
             eprintln!("arcade-look: restart failed: {error}");
             std::process::exit(1);

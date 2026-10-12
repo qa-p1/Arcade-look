@@ -81,7 +81,10 @@ pub fn start(app: &AppHandle) {
 
 /// Replace the global shortcut live. Link callers run on a worker; the
 /// global-shortcut plugin marshals native registration to the UI thread.
-pub fn set_live_shortcut(app: &AppHandle, input: &str) -> Result<ShortcutSetResult, arcade_link::LinkError> {
+pub fn set_live_shortcut(
+    app: &AppHandle,
+    input: &str,
+) -> Result<ShortcutSetResult, arcade_link::LinkError> {
     let accelerator = if input.is_empty() {
         String::new()
     } else {

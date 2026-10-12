@@ -56,7 +56,7 @@ jobs:
           cache: npm
           cache-dependency-path: arcade-look/package-lock.json
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
@@ -78,7 +78,17 @@ jobs:
       - run: npm ci
 
       - name: Build installer
-        run: npx tauri build --ci ${{ matrix.args }}
+        run: npx tauri build --ci --locked ${{ matrix.args }}
+
+      - name: Verify NSIS silent install and uninstall
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: scripts/verify-nsis.ps1 -SetupPattern 'src-tauri/target/release/bundle/nsis/*-setup.exe' -Id arcade.look -Name 'Arcade Look' -CliName arcade-look
+
+      - name: Verify DMG silent install in a temporary home
+        if: runner.os == 'macOS'
+        shell: bash
+        run: scripts/verify-dmg.sh src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg 'Arcade Look' arcade-look arcade.look
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
