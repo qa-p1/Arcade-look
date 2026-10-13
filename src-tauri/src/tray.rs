@@ -163,11 +163,10 @@ mod linux {
     use super::*;
     use ksni::TrayMethods;
     use std::sync::atomic::AtomicBool;
-    use std::sync::{Arc, Mutex, OnceLock};
+    use std::sync::OnceLock;
 
     struct Tray {
         app: AppHandle,
-        visible: Arc<AtomicBool>,
     }
 
     impl ksni::Tray for Tray {
@@ -179,13 +178,6 @@ mod linux {
         }
         fn category(&self) -> ksni::Category {
             ksni::Category::ApplicationStatus
-        }
-        fn status(&self) -> ksni::Status {
-            if self.visible.load(Ordering::SeqCst) {
-                ksni::Status::Active
-            } else {
-                ksni::Status::Passive
-            }
         }
         fn activate(&mut self, _x: i32, _y: i32) {
             app::open_settings(&self.app);
@@ -244,43 +236,37 @@ mod linux {
         }
     }
 
-    static HANDLE: OnceLock<Mutex<Option<ksni::Handle<Tray>>>> = OnceLock::new();
-    static STARTING: AtomicBool = AtomicBool::new(false);
+    /// The latest requested state; one serialized task reconciles to it.
     static VISIBLE: AtomicBool = AtomicBool::new(false);
+    static HANDLE: OnceLock<tauri::async_runtime::Mutex<Option<ksni::Handle<Tray>>>> =
+        OnceLock::new();
 
+    /// Only Own registers an item. Hosts such as Caelestia and Waybar still
+    /// show Passive items, so a hosted icon is unregistered, not hidden. Each
+    /// change takes the lock in turn and applies the newest request, so an old
+    /// item is gone before a new one registers.
     pub fn set_state(app: &AppHandle, state: TrayState) {
-        let visible = state == TrayState::Own;
-        VISIBLE.store(visible, Ordering::SeqCst);
-        let handle = HANDLE.get_or_init(|| Mutex::new(None));
-        if let Some(handle) = handle.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
-            let handle = handle.clone();
-            tauri::async_runtime::spawn(async move {
-                let _ = handle
-                    .update(|tray| tray.visible.store(visible, Ordering::SeqCst))
-                    .await;
-            });
-            return;
-        }
-        if state == TrayState::None || STARTING.swap(true, Ordering::SeqCst) {
-            return;
-        }
-        let tray = Tray {
-            app: app.clone(),
-            visible: Arc::new(AtomicBool::new(visible)),
-        };
-        let shared_visible = tray.visible.clone();
+        VISIBLE.store(state == TrayState::Own, Ordering::SeqCst);
+        let app = app.clone();
         tauri::async_runtime::spawn(async move {
-            match tray.assume_sni_available(true).spawn().await {
-                Ok(handle) => {
-                    shared_visible.store(VISIBLE.load(Ordering::SeqCst), Ordering::SeqCst);
-                    let _ = HANDLE
-                        .get_or_init(|| Mutex::new(None))
-                        .lock()
-                        .map(|mut slot| *slot = Some(handle));
-                }
-                Err(error) => eprintln!("arcade-look: tray registration failed: {error}"),
+            let mut handle = HANDLE
+                .get_or_init(|| tauri::async_runtime::Mutex::new(None))
+                .lock()
+                .await;
+            if handle.as_ref().is_some_and(ksni::Handle::is_closed) {
+                *handle = None;
             }
-            STARTING.store(false, Ordering::SeqCst);
+            let visible = VISIBLE.load(Ordering::SeqCst);
+            if visible && handle.is_none() {
+                match (Tray { app }).assume_sni_available(true).spawn().await {
+                    Ok(spawned) => *handle = Some(spawned),
+                    Err(error) => eprintln!("arcade-look: tray registration failed: {error}"),
+                }
+            } else if !visible {
+                if let Some(old) = handle.take() {
+                    old.shutdown().await;
+                }
+            }
         });
     }
 }
