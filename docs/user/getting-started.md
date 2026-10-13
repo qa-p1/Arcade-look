@@ -1,7 +1,7 @@
 ---
 title: Install and start Arcade Look
 order: 2
-since: 0.1.2
+since: 0.2.0
 ---
 
 # Install and start Arcade Look

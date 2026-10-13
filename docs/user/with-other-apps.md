@@ -1,7 +1,7 @@
 ---
 title: Use Arcade Look with other apps
 order: 4
-since: 0.1.2
+since: 0.2.0
 ---
 
 # Use Arcade Look with other apps

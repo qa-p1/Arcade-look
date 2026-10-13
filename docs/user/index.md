@@ -1,7 +1,7 @@
 ---
 title: Arcade Look user guide
 order: 1
-since: 0.1.2
+since: 0.2.0
 ---
 
 # Arcade Look

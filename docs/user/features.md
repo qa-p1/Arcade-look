@@ -1,7 +1,7 @@
 ---
 title: Preview, browse and extend files
 order: 3
-since: 0.1.2
+since: 0.2.0
 ---
 
 # Preview, browse and extend files
