@@ -23,6 +23,7 @@ export PATH="$ARCADE_HOME/.local/bin:$PATH"
 hdiutil attach "$image" -readonly -nobrowse -mountpoint "$mount" >/dev/null
 mounted=1
 source="$mount/$name.app"
+[[ -L "$mount/Applications" && "$(readlink "$mount/Applications")" == /Applications ]]
 [[ -x "$source/Contents/MacOS/$executable" ]]
 plutil -lint "$source/Contents/Info.plist"
 "$source/Contents/MacOS/$executable" --install --silent --no-launch

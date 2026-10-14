@@ -37,8 +37,15 @@ fn set_login_entry(
     contents: Option<&[u8]>,
 ) -> Res<()> {
     let receipt = store.read(arcade_link::ids::LOOK).or_str()?;
+    let mut document = None;
     if let Some(receipt) = &receipt {
         receipt.validate_native_paths().or_str()?;
+        document = Some(
+            serde_json::from_slice::<serde_json::Value>(
+                &std::fs::read(store.path(arcade_link::ids::LOOK).or_str()?).or_str()?,
+            )
+            .or_str()?,
+        );
     }
     if let Some(contents) = contents {
         if let Some(directory) = path.parent() {
@@ -53,10 +60,17 @@ fn set_login_entry(
             _ => {}
         }
     }
-    if let Some(mut receipt) = receipt {
-        receipt.integration.autostart = contents.map(|_| path.to_path_buf());
-        receipt.updated_at = arcade_link::manifest::now_rfc3339();
-        store.write(&receipt).or_str()?;
+    if let Some(mut document) = document {
+        document["integration"]["autostart"] =
+            serde_json::to_value(contents.map(|_| path)).or_str()?;
+        document["updatedAt"] = arcade_link::manifest::now_rfc3339().into();
+        let bytes = serde_json::to_vec_pretty(&document).or_str()?;
+        arcade_link::paths::write_atomic(
+            &store.path(arcade_link::ids::LOOK).or_str()?,
+            &bytes,
+            true,
+        )
+        .or_str()?;
     }
     Ok(())
 }
@@ -453,6 +467,11 @@ mod login_receipt_tests {
         let fixture = Fixture::new();
         let store = fixture.environment.receipts();
         store.write(&fixture.receipt).unwrap();
+        let file = store.path(arcade_link::ids::LOOK).unwrap();
+        let mut document = serde_json::to_value(&fixture.receipt).unwrap();
+        document["futureField"] = serde_json::json!({"keep": true});
+        document["integration"]["futureEntry"] = serde_json::json!("keep");
+        std::fs::write(&file, serde_json::to_vec(&document).unwrap()).unwrap();
         fixture.set(true).unwrap();
         assert!(fixture.path.is_file());
         let enabled = store.read(arcade_link::ids::LOOK).unwrap().unwrap();
@@ -464,6 +483,13 @@ mod login_receipt_tests {
         fixture.set(false).unwrap();
         fixture.set(false).unwrap();
         assert!(!fixture.path.exists());
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap();
+        assert_eq!(saved["futureField"], document["futureField"]);
+        assert_eq!(
+            saved["integration"]["futureEntry"],
+            document["integration"]["futureEntry"]
+        );
         assert!(store
             .read(arcade_link::ids::LOOK)
             .unwrap()

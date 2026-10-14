@@ -418,7 +418,7 @@ fn exec_program(exec: &str) -> Option<PathBuf> {
 
 fn autostart_entry(exe: &std::path::Path) -> String {
     format!(
-        "[Desktop Entry]\nType=Application\nName=Arcade Look\nComment=Keep Arcade Look ready in the background\nExec={} --service\nIcon=arcade-look\nTerminal=false\nX-GNOME-Autostart-enabled=true\nX-GNOME-Autostart-Delay=2\n",
+        "[Desktop Entry]\nType=Application\nName=Arcade Look\nComment=Keep Arcade Look ready in the background\nExec={} --service\nIcon=arcade-look\nTerminal=false\nX-Arcade-Id=arcade.look\nX-GNOME-Autostart-enabled=true\nX-GNOME-Autostart-Delay=2\n",
         exec_quote(exe)
     )
 }
@@ -630,6 +630,13 @@ pub fn uninstall() -> Res<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn login_entry_identifies_its_owner_and_quotes_the_executable() {
+        let entry = autostart_entry(std::path::Path::new("/home/user/My Apps/Look.AppImage"));
+        assert!(entry.contains("\nX-Arcade-Id=arcade.look\n"));
+        assert!(entry.contains("Exec=\"/home/user/My Apps/Look.AppImage\" --service\n"));
+    }
 
     #[test]
     fn exec_quoting_round_trips() {
