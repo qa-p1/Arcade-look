@@ -9,6 +9,8 @@ pub mod detect;
 pub mod font;
 pub mod fsx;
 pub mod imaging;
+pub mod installer;
+pub mod installer_ui;
 pub mod integration;
 pub mod link;
 pub mod link_consumer;
@@ -17,6 +19,7 @@ pub mod media;
 pub mod mediaserver;
 pub mod office;
 pub mod plugins;
+pub mod portable_settings;
 pub mod protocol;
 pub mod rtf;
 pub mod slides;
@@ -48,26 +51,34 @@ pub fn run() {
         return;
     }
 
-    if args.help || args.version || args.install || args.uninstall {
+    if args.help
+        || args.version
+        || args.install_integration
+        || args.uninstall_integration
+        || args.install
+        || args.uninstall
+        || args.repair
+        || args.integration_status
+        || args.restart
+    {
         integration::attach_console();
         if args.version {
             println!("arcade-look {}", env!("CARGO_PKG_VERSION"));
         } else if args.help {
             print!("{}", cli::HELP);
+        } else if args.install_integration {
+            cli::run_integration(true);
+        } else if args.uninstall_integration {
+            cli::run_integration(false);
+        } else if args.restart {
+            cli::restart_running();
         } else {
-            let r = if args.install {
-                integration::install()
-            } else {
-                integration::uninstall()
-            };
-            match r {
-                Ok(msg) => println!("{msg}"),
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    std::process::exit(1);
-                }
-            }
+            cli::run_maintenance(&args);
         }
+        return;
+    }
+
+    if installer::first_run_prompt(&argv) {
         return;
     }
 
@@ -76,9 +87,9 @@ pub fn run() {
     let config = config::load();
     let plugins = plugins::load_all(config.plugins);
     let start_args = args.clone();
-    // The shortcut plugin grabs keys through X11/Win32/Carbon at startup; only load it when a
-    // shortcut is configured so a pure-Wayland session can never fail to launch because of it.
-    let want_shortcut = !config.global_shortcut.trim().is_empty();
+    // Native shortcut registration is also needed when a shortcut is set later from Settings.
+    // Pure Wayland has no X11 display, so leave the plugin unloaded there.
+    let want_shortcut = integration::shortcut_supported();
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {

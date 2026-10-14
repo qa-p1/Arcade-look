@@ -61,9 +61,9 @@ pub fn info(path: &Path) -> Res<AudioInfo> {
         ai.track = t.track();
         ai.track_total = t.track_total();
         ai.disc = t.disk();
-        ai.year = t.date().map(|d| d.year.to_string());
-        ai.album_artist = t.get_string(ItemKey::AlbumArtist).map(str::to_string);
-        ai.composer = t.get_string(ItemKey::Composer).map(str::to_string);
+        ai.year = t.year().map(|year| year.to_string());
+        ai.album_artist = t.get_string(&ItemKey::AlbumArtist).map(str::to_string);
+        ai.composer = t.get_string(&ItemKey::Composer).map(str::to_string);
         ai.has_cover = !t.pictures().is_empty();
     }
     if !ai.has_cover {

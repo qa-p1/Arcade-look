@@ -296,6 +296,13 @@ impl Consumer {
             .with(|registry| registry.shortcut_owner(ids::LOOK, accelerator))
     }
 
+    pub fn busy(&self) -> bool {
+        self.jobs
+            .lock()
+            .map(|jobs| !jobs.is_empty())
+            .unwrap_or(false)
+    }
+
     pub fn offers(&self, config: &Config, content: &Content, pdf_page: bool) -> Vec<Offer> {
         if !config.link_enabled {
             return Vec::new();
@@ -723,6 +730,14 @@ fn consumer() -> Arc<Consumer> {
         .clone()
 }
 
+pub fn shortcut_owner(accelerator: &str) -> Option<String> {
+    consumer().shortcut_owner(accelerator)
+}
+
+pub fn busy() -> bool {
+    CONSUMER.get().is_some_and(|consumer| consumer.busy())
+}
+
 pub fn start(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
@@ -898,12 +913,12 @@ pub fn link_shortcut_recording(recording: bool) {
 #[tauri::command]
 pub async fn link_save_shortcut(app: AppHandle, accelerator: String) -> Res<Config> {
     let accelerator = blocking(move || {
-        if !accelerator.is_empty() {
-            accelerator
-                .parse::<tauri_plugin_global_shortcut::Shortcut>()
-                .map_err(|_| "This shortcut is not supported.".to_string())?;
+        if accelerator.is_empty() {
+            Ok(accelerator)
+        } else {
+            arcade_link::accelerator::normalize(&accelerator)
+                .map_err(|error| format!("This shortcut is not supported: {error}"))
         }
-        Ok(accelerator)
     })
     .await?;
     crate::commands::set_config(

@@ -15,13 +15,65 @@ pub mod macos;
 pub mod windows;
 
 use crate::app::{self, AppState, Source};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use crate::util::OrStr;
 use crate::util::Res;
+use arcade_link::app::{ShortcutSetResult, ShortcutVia};
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 static SHORTCUT_ACTIVE: AtomicBool = AtomicBool::new(false);
 static SHORTCUT_RECORDING: AtomicBool = AtomicBool::new(false);
+static ACTIVE_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
+
+/// Keep receipt-owned login entries discoverable by repair and uninstall.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn set_login_entry(
+    store: &arcade_link::receipt::Store,
+    path: &std::path::Path,
+    contents: Option<&[u8]>,
+) -> Res<()> {
+    let receipt = store.read(arcade_link::ids::LOOK).or_str()?;
+    let mut document = None;
+    if let Some(receipt) = &receipt {
+        receipt.validate_native_paths().or_str()?;
+        document = Some(
+            serde_json::from_slice::<serde_json::Value>(
+                &std::fs::read(store.path(arcade_link::ids::LOOK).or_str()?).or_str()?,
+            )
+            .or_str()?,
+        );
+    }
+    if let Some(contents) = contents {
+        if let Some(directory) = path.parent() {
+            std::fs::create_dir_all(directory).or_str()?;
+        }
+        std::fs::write(path, contents).or_str()?;
+    } else {
+        match std::fs::remove_file(path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                return Err(format!("remove {}: {e}", path.display()));
+            }
+            _ => {}
+        }
+    }
+    if let Some(mut document) = document {
+        document["integration"]["autostart"] =
+            serde_json::to_value(contents.map(|_| path)).or_str()?;
+        document["updatedAt"] = arcade_link::manifest::now_rfc3339().into();
+        let bytes = serde_json::to_vec_pretty(&document).or_str()?;
+        arcade_link::paths::write_atomic(
+            &store.path(arcade_link::ids::LOOK).or_str()?,
+            &bytes,
+            true,
+        )
+        .or_str()?;
+    }
+    Ok(())
+}
 
 pub fn set_shortcut_recording(recording: bool) {
     SHORTCUT_RECORDING.store(recording, Ordering::SeqCst);
@@ -55,7 +107,11 @@ pub fn start(app: &AppHandle) {
     {
         use tauri_plugin_global_shortcut::GlobalShortcutExt;
         match app.global_shortcut().register(shortcut) {
-            Ok(()) => SHORTCUT_ACTIVE.store(true, Ordering::SeqCst),
+            Ok(()) => {
+                SHORTCUT_ACTIVE.store(true, Ordering::SeqCst);
+                *ACTIVE_SHORTCUT.lock().unwrap_or_else(|e| e.into_inner()) =
+                    Some(shortcut.to_string());
+            }
             Err(e) => {
                 eprintln!("arcade-look: could not register global shortcut {shortcut:?}: {e}")
             }
@@ -69,6 +125,70 @@ pub fn start(app: &AppHandle) {
     if cfg.explorer_space {
         windows::start_hook(app.clone());
     }
+}
+
+/// Replace the global shortcut live. Link callers run on a worker; the
+/// global-shortcut plugin marshals native registration to the UI thread.
+pub fn set_live_shortcut(
+    app: &AppHandle,
+    input: &str,
+) -> Result<ShortcutSetResult, arcade_link::LinkError> {
+    let accelerator = if input.is_empty() {
+        String::new()
+    } else {
+        arcade_link::accelerator::normalize(input)
+            .map_err(|e| arcade_link::LinkError::denied(&e.to_string()))?
+    };
+    if !accelerator.is_empty() && !shortcut_supported() {
+        return Ok(ShortcutSetResult {
+            applied: false,
+            via: ShortcutVia::Manual,
+            hint: Some("Bind `arcade-look --toggle` in Settings → Keyboard".into()),
+        });
+    }
+    let manager = app
+        .try_state::<tauri_plugin_global_shortcut::GlobalShortcut<tauri::Wry>>()
+        .ok_or_else(|| arcade_link::LinkError::unavailable("native shortcuts are unavailable"))?;
+    let old = ACTIVE_SHORTCUT
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if old.as_deref() == Some(accelerator.as_str()) {
+        return Ok(ShortcutSetResult {
+            applied: true,
+            via: ShortcutVia::Native,
+            hint: None,
+        });
+    }
+    if !accelerator.is_empty() {
+        let parsed = tauri_plugin_global_shortcut::Shortcut::from_str(&accelerator)
+            .map_err(|e| arcade_link::LinkError::denied(&e.to_string()))?;
+        manager
+            .register(parsed)
+            .map_err(|e| arcade_link::LinkError::unavailable(e.to_string()))?;
+    }
+    if let Some(old) = old {
+        if let Err(error) = manager.unregister(old.as_str()) {
+            if !accelerator.is_empty() {
+                let _ = manager.unregister(accelerator.as_str());
+            }
+            return Err(arcade_link::LinkError::unavailable(error.to_string()));
+        }
+    }
+    *ACTIVE_SHORTCUT.lock().unwrap_or_else(|e| e.into_inner()) =
+        (!accelerator.is_empty()).then_some(accelerator);
+    SHORTCUT_ACTIVE.store(
+        ACTIVE_SHORTCUT
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some(),
+        Ordering::SeqCst,
+    );
+    Ok(ShortcutSetResult {
+        applied: true,
+        via: ShortcutVia::Native,
+        hint: None,
+    })
 }
 
 /// True when something must keep running in the background to catch the next Space press.
@@ -219,6 +339,11 @@ pub fn first_run_setup(app: &AppHandle) {
     }
     let app = app.clone();
     std::thread::spawn(move || {
+        // A copy with a receipt was set up by its installer (the AppImage
+        // self-installer or the macOS move); a bare AppImage asks first.
+        if crate::installer::has_receipt() || std::env::var_os("APPIMAGE").is_some() {
+            return;
+        }
         let state = app.state::<AppState>();
         if state
             .window_state
@@ -267,4 +392,153 @@ pub fn launcher_path() -> PathBuf {
         }
     }
     exe
+}
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+mod login_receipt_tests {
+    use super::*;
+    use arcade_link::install::{self, Environment, UninstallOptions};
+    use arcade_link::receipt::{InstallMethod, Integration, ManagedBy, Receipt};
+    use std::fs;
+
+    struct Fixture {
+        environment: Environment,
+        path: PathBuf,
+        receipt: Receipt,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "login-receipt-{}",
+                arcade_link::endpoint::new_token().unwrap()
+            ));
+            let environment = Environment::under(&root);
+            let path = if cfg!(target_os = "macos") {
+                root.join("Library/LaunchAgents/app.plist")
+            } else {
+                environment.config.join("autostart/arcade-look.desktop")
+            };
+            let receipt = Receipt {
+                schema: 1,
+                id: arcade_link::ids::LOOK.into(),
+                version: "0.2.0".into(),
+                channel: "nightly".into(),
+                method: InstallMethod::Appimage,
+                managed_by: ManagedBy::Tools,
+                path: environment.applications.join("app.AppImage"),
+                integration: Integration {
+                    cli: Some(environment.bin.join("app")),
+                    ..Default::default()
+                },
+                previous: None,
+                installed_at: "2026-01-01T00:00:00Z".into(),
+                updated_at: "2026-01-01T00:00:00Z".into(),
+            };
+            Self {
+                environment,
+                path,
+                receipt,
+            }
+        }
+
+        fn set(&self, enabled: bool) -> Result<(), String> {
+            set_login_entry(
+                &self.environment.receipts(),
+                &self.path,
+                enabled.then_some(
+                    b"[Desktop Entry]\nType=Application\nX-Arcade-Id=arcade.look\nExec=app\n"
+                        .as_slice(),
+                ),
+            )
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            if self.environment.home.exists() {
+                fs::remove_dir_all(&self.environment.home).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn login_toggle_preserves_receipt_metadata_and_uninstall_removes_the_entry() {
+        let fixture = Fixture::new();
+        let store = fixture.environment.receipts();
+        store.write(&fixture.receipt).unwrap();
+        let file = store.path(arcade_link::ids::LOOK).unwrap();
+        let mut document = serde_json::to_value(&fixture.receipt).unwrap();
+        document["futureField"] = serde_json::json!({"keep": true});
+        document["integration"]["futureEntry"] = serde_json::json!("keep");
+        std::fs::write(&file, serde_json::to_vec(&document).unwrap()).unwrap();
+        fixture.set(true).unwrap();
+        assert!(fixture.path.is_file());
+        let enabled = store.read(arcade_link::ids::LOOK).unwrap().unwrap();
+        let mut expected = fixture.receipt.clone();
+        expected.integration.autostart = Some(fixture.path.clone());
+        expected.updated_at = enabled.updated_at.clone();
+        assert_eq!(enabled, expected);
+        assert!(enabled.updated_at > fixture.receipt.updated_at);
+        fixture.set(false).unwrap();
+        fixture.set(false).unwrap();
+        assert!(!fixture.path.exists());
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap();
+        assert_eq!(saved["futureField"], document["futureField"]);
+        assert_eq!(
+            saved["integration"]["futureEntry"],
+            document["integration"]["futureEntry"]
+        );
+        assert!(store
+            .read(arcade_link::ids::LOOK)
+            .unwrap()
+            .unwrap()
+            .integration
+            .autostart
+            .is_none());
+        fixture.set(true).unwrap();
+        assert!(install::uninstall(
+            &fixture.environment,
+            arcade_link::ids::LOOK,
+            UninstallOptions {
+                remove_data: false,
+                data_folders: &[]
+            }
+        )
+        .unwrap());
+        assert!(!fixture.path.exists());
+        assert!(store.read(arcade_link::ids::LOOK).unwrap().is_none());
+    }
+
+    #[test]
+    fn portable_login_toggle_never_creates_an_install_receipt() {
+        let fixture = Fixture::new();
+        fixture.set(true).unwrap();
+        assert!(fixture.path.is_file());
+        assert!(fixture
+            .environment
+            .receipts()
+            .read(arcade_link::ids::LOOK)
+            .unwrap()
+            .is_none());
+        fixture.set(false).unwrap();
+        assert!(!fixture.path.exists());
+    }
+
+    #[test]
+    fn damaged_receipt_does_not_mutate_login_entries() {
+        let fixture = Fixture::new();
+        let store = fixture.environment.receipts();
+        store.write(&fixture.receipt).unwrap();
+        fixture.set(true).unwrap();
+        let original = fs::read(&fixture.path).unwrap();
+        fs::write(
+            store.path(arcade_link::ids::LOOK).unwrap(),
+            b"invalid receipt",
+        )
+        .unwrap();
+        assert!(fixture.set(false).is_err());
+        assert_eq!(fs::read(&fixture.path).unwrap(), original);
+    }
 }

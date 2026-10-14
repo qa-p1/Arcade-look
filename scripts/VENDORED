@@ -1,4 +1,1 @@
-arcade-release.py is copied unchanged from Arcade-link tools/arcade-release.py
-Source: https://github.com/qa-p1/Arcade-link
-Commit: 539fa91
-Standard-library release metadata helper; NSIS uses /S by default.
+Arcade Link v0.3.0, commit 33650a87b6999fbd553ac678cc7bde7a308cb852; see ../VENDORED.md for the complete SHA-256 inventory.

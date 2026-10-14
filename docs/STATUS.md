@@ -1,10 +1,11 @@
 # Arcade Look: status
 
-Version 0.1.2, Arcade Link `v0.2.0`. The `verify-link.py` checks, the
-consumer tests, Look's own ecosystem checks and the benchmark were rerun on
-2026-10-10 for this version; the cross-app flagship row is from 0.1.0
-(2026-10-08, Link `v0.1.0`). This page records what is implemented and how
-it was checked; the other documents describe how it works.
+Version 0.2.0, Arcade Link `v0.3.0`. The verification below records 0.1.2
+with Arcade Link `v0.2.0`: the `verify-link.py` checks, the consumer tests,
+Look's own ecosystem checks and the benchmark were rerun on 2026-10-10; the
+cross-app flagship row is from 0.1.0 (2026-10-08, Link `v0.1.0`). This page
+records what is implemented and how it was checked; the other documents
+describe how it works.
 
 ## Implemented
 

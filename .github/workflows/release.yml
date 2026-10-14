@@ -32,7 +32,7 @@ jobs:
   publish:
     name: Publish
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request')
     runs-on: ubuntu-latest
     env:
@@ -42,7 +42,7 @@ jobs:
       GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - name: Find the CI run
+      - name: Find and validate the CI run
         id: run
         env:
           INPUT_RUN: ${{ inputs.run-id }}
@@ -53,7 +53,15 @@ jobs:
             run="$(gh run list --workflow CI --branch main --event push --status success --limit 1 \
               --json databaseId --jq '.[0].databaseId')"
           fi
-          sha="$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)"
+          gh api "repos/$GH_REPO/actions/runs/$run" > "$RUNNER_TEMP/ci-run.json"
+          python3 - "$RUNNER_TEMP/ci-run.json" <<'PY'
+          import json, os, sys
+          run = json.load(open(sys.argv[1]))
+          assert run['name'] == 'CI' and run['path'] == '.github/workflows/ci.yml'
+          assert run['head_branch'] == 'main' and run['head_repository']['full_name'] == os.environ['GH_REPO']
+          assert run['conclusion'] == 'success' and run['event'] in ('push', 'workflow_dispatch')
+          PY
+          sha="$(jq -r .head_sha "$RUNNER_TEMP/ci-run.json")"
           echo "CI run $run at $sha"
           echo "id=$run" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -112,8 +120,8 @@ jobs:
             cp "$f" "release/$name"
           done
           count="$(find release -type f | wc -l)"
-          if [ "$count" -ne 3 ]; then
-            echo "::error::Expected 3 installers (Windows, Linux, macOS), found $count"
+          if [ "$count" -lt 3 ]; then
+            echo "::error::Expected the 3 platform installers (Windows, Linux, macOS), found $count assets"
             ls -l built
             exit 1
           fi

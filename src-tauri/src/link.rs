@@ -12,18 +12,19 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use arcade_link::manifest::{ManifestAdditions, ManifestDocument};
 use arcade_link::server::{Handler, InvokeContext, Reply};
 use arcade_link::{
     ids, Action, Content, InvokeRequest, InvokeResult, LinkError, Locations, Manifest, Presence,
 };
-use serde_json::{json, Value};
-use tauri::{AppHandle, Manager};
+use serde_json::{json, Map, Value};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::config::Config;
 use crate::detect::Kind;
 
-/// The manifest for this configuration (also printed by `--arcade-manifest`).
-pub fn manifest(config: &Config) -> Manifest {
+/// The complete manifest for this configuration (also printed by `--arcade-manifest`).
+pub fn manifest(config: &Config) -> ManifestDocument {
     let mut m = Manifest::new(
         ids::LOOK,
         env!("CARGO_PKG_VERSION"),
@@ -31,15 +32,25 @@ pub fn manifest(config: &Config) -> Manifest {
     );
     m.launch.background = vec!["--background".into()];
     m.launch.invoke = Some(vec![arcade_link::oneshot::FLAG.into()]);
-    if !config.global_shortcut.trim().is_empty() {
+    if let Ok(shortcut) = arcade_link::accelerator::normalize(&config.global_shortcut) {
         m.shortcuts.push(arcade_link::manifest::Shortcut {
             id: "preview-selection".into(),
-            accelerator: config.global_shortcut.clone(),
+            accelerator: shortcut,
         });
     }
     m.settings.link_enabled = config.link_enabled;
     m.actions = actions();
-    m
+    let method = crate::installer::method();
+    ManifestDocument {
+        manifest: m,
+        additions: ManifestAdditions {
+            docs: Some(arcade_link::manifest::Docs {
+                version: env!("CARGO_PKG_VERSION").into(),
+            }),
+            install: Some(method),
+            ..Default::default()
+        },
+    }
 }
 
 /// The actions Look exposes.
@@ -216,8 +227,18 @@ impl LookHandler {
 }
 
 impl Handler for LookHandler {
+    fn methods(&self) -> Vec<String> {
+        arcade_link::wire::method::OPTIONAL
+            .iter()
+            .map(|method| (*method).to_string())
+            .collect()
+    }
+
     fn status(&self) -> Value {
-        json!({"mode": if self.background { "background" } else { "foreground" }})
+        json!({
+            "mode": if self.background { "background" } else { "foreground" },
+            "tray": self.app.as_ref().map(crate::tray::status).unwrap_or("none"),
+        })
     }
     fn describe(&self) -> Vec<Action> {
         actions()
@@ -285,6 +306,72 @@ impl Handler for LookHandler {
         app.exit(0);
         Ok(())
     }
+
+    fn settings(&self) -> Result<(), LinkError> {
+        on_main(self.app()?, crate::app::open_settings)
+    }
+
+    fn restart_ready(&self, mode: &str) -> Result<(), LinkError> {
+        if mode != "force" && crate::link_consumer::busy() {
+            return Err(LinkError::busy());
+        }
+        Ok(())
+    }
+
+    fn restart(&self, _mode: &str) -> Result<(), LinkError> {
+        crate::tray::restart_request(self.app()?)
+    }
+
+    fn menu(&self) -> Result<Vec<arcade_link::manifest::MenuItem>, LinkError> {
+        Ok(Vec::new())
+    }
+
+    fn menu_invoke(&self, id: &str) -> Result<(), LinkError> {
+        Err(LinkError::unavailable(format!(
+            "Arcade Look has no menu item {id}"
+        )))
+    }
+
+    fn shortcuts_set(
+        &self,
+        id: &str,
+        accelerator: &str,
+    ) -> Result<arcade_link::app::ShortcutSetResult, LinkError> {
+        if id != "preview-selection" {
+            return Err(LinkError::denied("unknown shortcut id"));
+        }
+        let accelerator = if accelerator.is_empty() {
+            String::new()
+        } else {
+            arcade_link::accelerator::normalize(accelerator)
+                .map_err(|error| LinkError::denied(&error.to_string()))?
+        };
+        if let Some(owner) = crate::link_consumer::shortcut_owner(&accelerator) {
+            return Err(LinkError::denied(&format!(
+                "shortcut is already used by {owner}"
+            )));
+        }
+        let patch = Map::from_iter([("globalShortcut".into(), Value::String(accelerator))]);
+        let (_, result) = update_config(self.app()?, patch)?;
+        result.ok_or_else(|| LinkError::internal("shortcut update did not return a result"))
+    }
+
+    fn settings_export(&self) -> Result<Vec<Content>, LinkError> {
+        crate::portable_settings::export(&self.app()?.state::<crate::app::AppState>().config())
+    }
+
+    fn settings_import(
+        &self,
+        inputs: &[Content],
+    ) -> Result<arcade_link::app::ImportResult, LinkError> {
+        let document = crate::portable_settings::read_import(inputs)?;
+        crate::portable_settings::backup_current()?;
+        let _ = update_config(self.app()?, document.patch())?;
+        Ok(arcade_link::app::ImportResult {
+            imported: true,
+            restart_required: false,
+        })
+    }
 }
 
 /// `--arcade-invoke`: serves one request from stdin without any window.
@@ -316,7 +403,8 @@ pub fn start(app: &AppHandle, config: &Config) {
     let _ = std::thread::Builder::new()
         .name("look-link".into())
         .spawn(move || {
-            let p = Presence::start(Locations::discover(), m, handler);
+            let locations = Locations::discover();
+            let p = Presence::start_document(locations, m, handler);
             if let Some(e) = p.last_error() {
                 crate::dbg_log!("arcade link: {e}");
             }
@@ -329,8 +417,103 @@ pub fn refresh(config: &Config) {
     let m = manifest(config);
     let p = slot().lock().unwrap_or_else(|e| e.into_inner()).clone();
     if let Some(p) = p {
-        std::thread::spawn(move || p.update(m));
+        std::thread::spawn(move || p.update_document(m));
     }
+}
+
+/// Apply one serialized settings change, updating the live shortcut before
+/// writing and verifying the manifest. Restore both disk and native state on
+/// any failed step.
+pub fn update_config(
+    app: &AppHandle,
+    patch: Map<String, Value>,
+) -> Result<(Config, Option<arcade_link::app::ShortcutSetResult>), LinkError> {
+    let state = app.state::<crate::app::AppState>();
+    let _change = state
+        .settings_changes
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let old = state.config();
+    let config_path = crate::config::config_path();
+    let old_raw = std::fs::read(&config_path).ok();
+    let mut preview = serde_json::to_value(&old).map_err(|e| LinkError::internal(e.to_string()))?;
+    for (key, value) in &patch {
+        preview[key] = value.clone();
+    }
+    let shortcut = preview
+        .get("globalShortcut")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if !shortcut.is_empty() {
+        let canonical = arcade_link::accelerator::normalize(shortcut)
+            .map_err(|e| LinkError::denied(&e.to_string()))?;
+        preview["globalShortcut"] = Value::String(canonical);
+    }
+    let new: Config = serde_json::from_value(preview)
+        .map_err(|e| LinkError::denied(&format!("invalid settings: {e}")))?;
+    let shortcut_result = if new.global_shortcut != old.global_shortcut {
+        Some(crate::integration::set_live_shortcut(
+            app,
+            &new.global_shortcut,
+        )?)
+    } else {
+        None
+    };
+
+    let saved = match crate::config::update(&old, patch) {
+        Ok(saved) => saved,
+        Err(error) => {
+            if shortcut_result.is_some() {
+                let _ = crate::integration::set_live_shortcut(app, &old.global_shortcut);
+            }
+            return Err(LinkError::denied(&error));
+        }
+    };
+    if let Err(error) = publish_config(&saved) {
+        crate::portable_settings::restore_raw(&config_path, old_raw.as_deref());
+        if let Some(old_shortcut) = shortcut_result.as_ref() {
+            let _ = old_shortcut;
+            let _ = crate::integration::set_live_shortcut(app, &old.global_shortcut);
+        }
+        let _ = publish_config(&old);
+        return Err(error);
+    }
+    if let Ok(mut current) = state.config.write() {
+        *current = saved.clone();
+    }
+    if let Ok(mut stamp) = state.config_stamp.lock() {
+        *stamp = crate::config::stamp();
+    }
+    if let Ok(mut tray) = state.tray_watcher.lock() {
+        if let Some(watcher) = tray.as_mut() {
+            watcher.set_link_enabled(saved.link_enabled);
+        }
+    }
+    crate::link_consumer::refresh(app);
+    let _ = app.emit_to(crate::app::MAIN, "config", saved.clone());
+    Ok((saved, shortcut_result))
+}
+
+fn publish_config(config: &Config) -> Result<(), LinkError> {
+    let document = manifest(config);
+    let presence = slot().lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if let Some(presence) = presence {
+        presence.update_document(document.clone());
+    } else {
+        arcade_link::manifest::write_document(&Locations::discover(), &document)
+            .map_err(|e| LinkError::unavailable(e.to_string()))?;
+    }
+    let path = Locations::discover().manifest(ids::LOOK);
+    let text = std::fs::read_to_string(path).map_err(|e| LinkError::unavailable(e.to_string()))?;
+    let mut actual =
+        ManifestDocument::from_json(&text).map_err(|e| LinkError::unavailable(e.to_string()))?;
+    actual.manifest.written_at = document.manifest.written_at.clone();
+    if actual != document {
+        return Err(LinkError::unavailable(
+            "couldn't publish settings in the Arcade Link manifest",
+        ));
+    }
+    Ok(())
 }
 
 /// Stops listening and removes the endpoint file (the manifest stays).

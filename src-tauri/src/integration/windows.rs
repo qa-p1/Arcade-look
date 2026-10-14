@@ -309,12 +309,15 @@ pub fn install() -> Res<String> {
             "/f",
         ])?;
     }
-    // Start the background listener now so Space works without logging out.
+    // A standalone integration request starts the listener immediately;
+    // installer hooks use --silent and leave launching to the finish page.
     use std::os::windows::process::CommandExt;
-    let _ = std::process::Command::new(&*exe)
-        .arg("--service")
-        .creation_flags(0x0800_0000)
-        .spawn();
+    if !std::env::args().any(|arg| arg == "--silent") {
+        let _ = std::process::Command::new(&*exe)
+            .arg("--service")
+            .creation_flags(0x0800_0000)
+            .spawn();
+    }
     Ok(
         "Installed: press Space on any file in File Explorer. Arcade Look now starts with Windows \
         in the background, and \"Quick Look\" is in the right-click menu."

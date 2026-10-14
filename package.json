@@ -1,7 +1,7 @@
 {
   "name": "arcade-look",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "fixtures": "python3 scripts/make-fixtures.py fixtures"
   },
   "dependencies": {
-    "@tauri-apps/api": "2.12.1",
+    "@tauri-apps/api": "2.11.1",
     "highlight.js": "11.12.0",
     "pdfjs-dist": "6.3.289",
     "three": "0.186.1"

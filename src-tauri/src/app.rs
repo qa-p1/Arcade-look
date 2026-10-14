@@ -50,6 +50,11 @@ pub struct AppState {
     /// Files another Arcade app asked to preview together; ←/→ step through
     /// them instead of the folder.
     pub batch: Mutex<Option<Vec<PathBuf>>>,
+    /// Serializes live shortcut/settings changes from UI and Link clients.
+    pub settings_changes: Mutex<()>,
+    /// Link tray-host worker. Dropping it restores the app's own icon.
+    pub tray_watcher: Mutex<Option<arcade_link::trayhost::TrayHostWatcher>>,
+    pub tray_state: Mutex<arcade_link::trayhost::TrayState>,
 }
 
 impl AppState {
@@ -68,6 +73,9 @@ impl AppState {
             current: Mutex::new(None),
             activation_token: Mutex::new(None),
             batch: Mutex::new(None),
+            settings_changes: Mutex::new(()),
+            tray_watcher: Mutex::new(None),
+            tray_state: Mutex::new(arcade_link::trayhost::TrayState::None),
         }
     }
 
