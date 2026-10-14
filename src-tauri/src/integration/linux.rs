@@ -356,7 +356,10 @@ fn files() -> Files {
 }
 
 fn autostart_file() -> PathBuf {
-    dirs::config_dir()
+    arcade_link::install::Environment::discover()
+        .ok()
+        .map(|e| e.config)
+        .or_else(dirs::config_dir)
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"))
         .join("autostart/arcade-look.desktop")
 }
@@ -427,12 +430,7 @@ pub fn autostart_enabled() -> bool {
 pub fn set_autostart(enabled: bool) -> Res<()> {
     let path = autostart_file();
     if !enabled {
-        return match std::fs::remove_file(&path) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
-                Err(format!("remove {}: {e}", path.display()))
-            }
-            _ => Ok(()),
-        };
+        return super::set_login_entry(&arcade_link::receipt::Store::discover(), &path, None);
     }
     let exe = super::launcher_path();
     // An entry pointing into a temporary folder stops working after a reboot.
@@ -446,7 +444,11 @@ pub fn set_autostart(enabled: bool) -> Res<()> {
             exe.display()
         ));
     }
-    write(&path, &autostart_entry(&exe), false)
+    super::set_login_entry(
+        &arcade_link::receipt::Store::discover(),
+        &path,
+        Some(autostart_entry(&exe).as_bytes()),
+    )
 }
 
 /// If our autostart entry points at an executable that no longer exists (the app was moved,

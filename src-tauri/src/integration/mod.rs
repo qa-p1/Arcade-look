@@ -15,6 +15,8 @@ pub mod macos;
 pub mod windows;
 
 use crate::app::{self, AppState, Source};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use crate::util::OrStr;
 use crate::util::Res;
 use arcade_link::app::{ShortcutSetResult, ShortcutVia};
 use std::path::PathBuf;
@@ -26,6 +28,38 @@ use tauri::{AppHandle, Manager};
 static SHORTCUT_ACTIVE: AtomicBool = AtomicBool::new(false);
 static SHORTCUT_RECORDING: AtomicBool = AtomicBool::new(false);
 static ACTIVE_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
+
+/// Keep receipt-owned login entries discoverable by repair and uninstall.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn set_login_entry(
+    store: &arcade_link::receipt::Store,
+    path: &std::path::Path,
+    contents: Option<&[u8]>,
+) -> Res<()> {
+    let receipt = store.read(arcade_link::ids::LOOK).or_str()?;
+    if let Some(receipt) = &receipt {
+        receipt.validate_native_paths().or_str()?;
+    }
+    if let Some(contents) = contents {
+        if let Some(directory) = path.parent() {
+            std::fs::create_dir_all(directory).or_str()?;
+        }
+        std::fs::write(path, contents).or_str()?;
+    } else {
+        match std::fs::remove_file(path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                return Err(format!("remove {}: {e}", path.display()));
+            }
+            _ => {}
+        }
+    }
+    if let Some(mut receipt) = receipt {
+        receipt.integration.autostart = contents.map(|_| path.to_path_buf());
+        receipt.updated_at = arcade_link::manifest::now_rfc3339();
+        store.write(&receipt).or_str()?;
+    }
+    Ok(())
+}
 
 pub fn set_shortcut_recording(recording: bool) {
     SHORTCUT_RECORDING.store(recording, Ordering::SeqCst);
@@ -344,4 +378,141 @@ pub fn launcher_path() -> PathBuf {
         }
     }
     exe
+}
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+mod login_receipt_tests {
+    use super::*;
+    use arcade_link::install::{self, Environment, UninstallOptions};
+    use arcade_link::receipt::{InstallMethod, Integration, ManagedBy, Receipt};
+    use std::fs;
+
+    struct Fixture {
+        environment: Environment,
+        path: PathBuf,
+        receipt: Receipt,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "login-receipt-{}",
+                arcade_link::endpoint::new_token().unwrap()
+            ));
+            let environment = Environment::under(&root);
+            let path = if cfg!(target_os = "macos") {
+                root.join("Library/LaunchAgents/app.plist")
+            } else {
+                environment.config.join("autostart/arcade-look.desktop")
+            };
+            let receipt = Receipt {
+                schema: 1,
+                id: arcade_link::ids::LOOK.into(),
+                version: "0.2.0".into(),
+                channel: "nightly".into(),
+                method: InstallMethod::Appimage,
+                managed_by: ManagedBy::Tools,
+                path: environment.applications.join("app.AppImage"),
+                integration: Integration {
+                    cli: Some(environment.bin.join("app")),
+                    ..Default::default()
+                },
+                previous: None,
+                installed_at: "2026-01-01T00:00:00Z".into(),
+                updated_at: "2026-01-01T00:00:00Z".into(),
+            };
+            Self {
+                environment,
+                path,
+                receipt,
+            }
+        }
+
+        fn set(&self, enabled: bool) -> Result<(), String> {
+            set_login_entry(
+                &self.environment.receipts(),
+                &self.path,
+                enabled.then_some(
+                    b"[Desktop Entry]\nType=Application\nX-Arcade-Id=arcade.look\nExec=app\n"
+                        .as_slice(),
+                ),
+            )
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            if self.environment.home.exists() {
+                fs::remove_dir_all(&self.environment.home).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn login_toggle_preserves_receipt_metadata_and_uninstall_removes_the_entry() {
+        let fixture = Fixture::new();
+        let store = fixture.environment.receipts();
+        store.write(&fixture.receipt).unwrap();
+        fixture.set(true).unwrap();
+        assert!(fixture.path.is_file());
+        let enabled = store.read(arcade_link::ids::LOOK).unwrap().unwrap();
+        let mut expected = fixture.receipt.clone();
+        expected.integration.autostart = Some(fixture.path.clone());
+        expected.updated_at = enabled.updated_at.clone();
+        assert_eq!(enabled, expected);
+        assert!(enabled.updated_at > fixture.receipt.updated_at);
+        fixture.set(false).unwrap();
+        fixture.set(false).unwrap();
+        assert!(!fixture.path.exists());
+        assert!(store
+            .read(arcade_link::ids::LOOK)
+            .unwrap()
+            .unwrap()
+            .integration
+            .autostart
+            .is_none());
+        fixture.set(true).unwrap();
+        assert!(install::uninstall(
+            &fixture.environment,
+            arcade_link::ids::LOOK,
+            UninstallOptions {
+                remove_data: false,
+                data_folders: &[]
+            }
+        )
+        .unwrap());
+        assert!(!fixture.path.exists());
+        assert!(store.read(arcade_link::ids::LOOK).unwrap().is_none());
+    }
+
+    #[test]
+    fn portable_login_toggle_never_creates_an_install_receipt() {
+        let fixture = Fixture::new();
+        fixture.set(true).unwrap();
+        assert!(fixture.path.is_file());
+        assert!(fixture
+            .environment
+            .receipts()
+            .read(arcade_link::ids::LOOK)
+            .unwrap()
+            .is_none());
+        fixture.set(false).unwrap();
+        assert!(!fixture.path.exists());
+    }
+
+    #[test]
+    fn damaged_receipt_does_not_mutate_login_entries() {
+        let fixture = Fixture::new();
+        let store = fixture.environment.receipts();
+        store.write(&fixture.receipt).unwrap();
+        fixture.set(true).unwrap();
+        let original = fs::read(&fixture.path).unwrap();
+        fs::write(
+            store.path(arcade_link::ids::LOOK).unwrap(),
+            b"invalid receipt",
+        )
+        .unwrap();
+        assert!(fixture.set(false).is_err());
+        assert_eq!(fs::read(&fixture.path).unwrap(), original);
+    }
 }

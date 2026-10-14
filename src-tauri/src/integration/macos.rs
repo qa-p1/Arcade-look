@@ -1,7 +1,7 @@
 //! macOS: read Finder's selection for the global shortcut. (Finder's own Space key keeps
 //! opening Apple's Quick Look; our shortcut, Ctrl+Alt+Space by default, opens Arcade Look.)
 
-use crate::util::{OrStr, Res};
+use crate::util::Res;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -57,7 +57,10 @@ pub fn uninstall() -> Res<String> {
 }
 
 fn launch_agent() -> PathBuf {
-    dirs::home_dir()
+    arcade_link::install::Environment::discover()
+        .ok()
+        .map(|e| e.home)
+        .or_else(dirs::home_dir)
         .unwrap_or_default()
         .join("Library/LaunchAgents/app.arcadelook.plist")
 }
@@ -69,12 +72,7 @@ pub fn autostart_enabled() -> bool {
 pub fn set_autostart(enabled: bool) -> Res<()> {
     let path = launch_agent();
     if !enabled {
-        return match std::fs::remove_file(&path) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
-                Err(format!("remove {}: {e}", path.display()))
-            }
-            _ => Ok(()),
-        };
+        return super::set_login_entry(&arcade_link::receipt::Store::discover(), &path, None);
     }
     let exe = super::launcher_path();
     // Apps run from the disk image, or from Downloads before being moved (macOS then runs a
@@ -106,8 +104,9 @@ pub fn set_autostart(enabled: bool) -> Res<()> {
 </plist>
 "#
     );
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).or_str()?;
-    }
-    std::fs::write(&path, plist).or_str()
+    super::set_login_entry(
+        &arcade_link::receipt::Store::discover(),
+        &path,
+        Some(plist.as_bytes()),
+    )
 }
