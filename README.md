@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="96" alt="Arcade Look logo">
+  <img src="assets/icon.svg" width="112" alt="Arcade Look icon">
 </p>
 
 <h1 align="center">Arcade Look</h1>
