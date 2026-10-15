@@ -163,6 +163,8 @@ jobs:
             echo "Arcade Look then waits in the background with an icon in the system tray: click it for Settings."
             echo
             echo "The installers are not code-signed yet, so the first time Windows SmartScreen needs **More info → Run anyway** and macOS needs **right-click → Open**. Verify downloads with \`SHA256SUMS.txt\`."
+            echo
+            echo "User guide: https://github.com/qa-p1/Arcade-look/tree/main/docs/user"
           } > "$RUNNER_TEMP/notes.md"
 
       - name: Publish release
