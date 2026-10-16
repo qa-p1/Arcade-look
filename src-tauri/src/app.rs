@@ -1,9 +1,8 @@
 //! App state and window lifecycle.
 //!
-//! The process stays resident after a preview is closed so the next one is instant. While
-//! hidden, the webview is released after `idleMinutes`; the process then exits, unless an
-//! integration (Explorer Space hook, global shortcut) needs it to keep listening, or the tray
-//! icon is showing.
+//! Preview and Settings share an on-demand webview, released 30 seconds after hiding.
+//! The resident Rust process keeps Link, the tray and file-manager shortcuts available.
+//! `idleMinutes` controls process exit only when none of those services is needed.
 
 use crate::config::{Config, WindowState};
 use crate::plugins::Plugin;
@@ -33,16 +32,62 @@ pub enum Request {
     File(PathBuf),
 }
 
+// Thirty seconds keeps repeated Space previews warm while promptly releasing expensive
+// WebKit/WebView2 processes after browsing stops (SPEC §17.5), even with idleMinutes = 0.
+const WEBVIEW_IDLE_RELEASE: Duration = Duration::from_secs(30);
+
+#[derive(Default)]
+struct FrontendState {
+    ready: bool,
+    releasing: bool,
+    pending: Vec<Request>,
+    hidden_since: Option<Instant>,
+}
+
+impl FrontendState {
+    fn request(&mut self, request: Request) -> Option<Request> {
+        // Cancel an old release before rendering starts, not just after it paints.
+        self.hidden_since = None;
+        if self.ready {
+            Some(request)
+        } else {
+            self.pending.push(request);
+            None
+        }
+    }
+
+    fn ready(&mut self) -> Vec<Request> {
+        if self.releasing {
+            return Vec::new();
+        }
+        self.ready = true;
+        std::mem::take(&mut self.pending)
+    }
+
+    fn destroyed(&mut self) -> bool {
+        self.ready = false;
+        self.releasing = false;
+        !self.pending.is_empty()
+    }
+
+    fn hide(&mut self, now: Instant) {
+        self.pending.clear();
+        self.hidden_since = Some(now);
+    }
+
+    fn still_hidden(&self, since: Instant) -> bool {
+        self.hidden_since == Some(since)
+    }
+}
+
 pub struct AppState {
-    pub pending: Mutex<Option<Request>>,
+    frontend: Mutex<FrontendState>,
     pub config: RwLock<Config>,
     /// Modification time of config.json when it was last read or written.
     pub config_stamp: Mutex<Option<SystemTime>>,
     pub plugins: RwLock<Vec<Plugin>>,
     pub window_state: Mutex<WindowState>,
-    pub hidden_since: Mutex<Option<Instant>>,
     pub service: AtomicBool,
-    pub frontend_ready: AtomicBool,
     pub visible: AtomicBool,
     pub source: Mutex<Source>,
     pub current: Mutex<Option<PathBuf>>,
@@ -60,14 +105,12 @@ pub struct AppState {
 impl AppState {
     pub fn new(config: Config, plugins: Vec<Plugin>, service: bool) -> Self {
         Self {
-            pending: Mutex::new(None),
+            frontend: Mutex::new(FrontendState::default()),
             config: RwLock::new(config),
             config_stamp: Mutex::new(crate::config::stamp()),
             plugins: RwLock::new(plugins),
             window_state: Mutex::new(crate::config::load_state()),
-            hidden_since: Mutex::new(None),
             service: AtomicBool::new(service),
-            frontend_ready: AtomicBool::new(false),
             visible: AtomicBool::new(false),
             source: Mutex::new(Source::Local),
             current: Mutex::new(None),
@@ -107,9 +150,8 @@ pub fn open(app: &AppHandle, path: Option<PathBuf>, source: Source) {
             *b = None;
         }
     }
-    let payload = path.as_ref().map(|p| p.to_string_lossy().to_string());
     let request = path.map_or(Request::Welcome, Request::File);
-    deliver(app, request, "open", payload);
+    deliver(app, request);
 }
 
 /// Preview several files as one batch (from another Arcade app): ←/→ step
@@ -146,7 +188,7 @@ pub fn open_settings(app: &AppHandle) {
     if let Ok(mut c) = state.current.lock() {
         *c = None;
     }
-    deliver(app, Request::Settings, "settings", None);
+    deliver(app, Request::Settings);
 }
 
 /// Bring the window forward if it is showing; otherwise open the welcome screen.
@@ -158,27 +200,72 @@ pub fn open_main(app: &AppHandle) {
     }
 }
 
-/// Send `request` to a loaded UI, or keep it until the UI asks for it (`bootstrap`).
-fn deliver(app: &AppHandle, request: Request, event: &str, payload: Option<String>) {
-    refresh_config(app);
-    let state = app.state::<AppState>();
-    let ready = state.frontend_ready.load(Ordering::SeqCst);
-    match app.get_webview_window(MAIN) {
-        Some(_) if ready => {
-            if let Ok(mut p) = state.pending.lock() {
-                *p = None;
-            }
-            let _ = app.emit_to(MAIN, event, payload);
-        }
-        window => {
-            if let Ok(mut p) = state.pending.lock() {
-                *p = Some(request);
-            }
+/// Serialize delivery and destruction on the main thread, including tray callbacks.
+fn deliver(app: &AppHandle, request: Request) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        refresh_config(&handle);
+        let state = handle.state::<AppState>();
+        let window = handle.get_webview_window(MAIN);
+        let (request, create) = {
+            let mut frontend = state.frontend.lock().unwrap_or_else(|e| e.into_inner());
             if window.is_none() {
-                if let Err(e) = build_window(app) {
-                    eprintln!("arcade-look: could not create window: {e}");
-                }
+                frontend.ready = false;
             }
+            let create = window.is_none() && !frontend.releasing;
+            (frontend.request(request), create)
+        };
+        if let Some(request) = request {
+            emit_request(&handle, request);
+        } else if create {
+            if let Err(e) = build_window(&handle) {
+                eprintln!("arcade-look: could not create window: {e}");
+            }
+        }
+    });
+}
+
+fn emit_request(app: &AppHandle, request: Request) {
+    match request {
+        Request::File(path) => {
+            let _ = app.emit_to(MAIN, "open", Some(path.to_string_lossy().to_string()));
+        }
+        Request::Welcome => {
+            let _ = app.emit_to(MAIN, "open", None::<String>);
+        }
+        Request::Settings => {
+            let _ = app.emit_to(MAIN, "settings", ());
+        }
+    }
+}
+
+/// Called only after the page has initialized and installed every event listener.
+pub fn frontend_ready(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let requests = state
+        .frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .ready();
+    // Settings might have changed between bootstrap and listener registration.
+    let _ = app.emit_to(MAIN, "config", state.config());
+    for request in requests {
+        emit_request(app, request);
+    }
+}
+
+/// Tauri removes the old window from its manager before this RunEvent. Destruction
+/// is asynchronous: requests arriving after destroy() must wait for this event.
+pub fn window_destroyed(app: &AppHandle) {
+    let pending = app
+        .state::<AppState>()
+        .frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .destroyed();
+    if pending {
+        if let Err(error) = build_window(app) {
+            eprintln!("arcade-look: could not recreate window: {error}");
         }
     }
 }
@@ -207,7 +294,12 @@ fn refresh_config(app: &AppHandle) {
     }
     crate::link::refresh(&config);
     crate::link_consumer::refresh(app);
-    if state.frontend_ready.load(Ordering::SeqCst) {
+    if state
+        .frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .ready
+    {
         let _ = app.emit_to(MAIN, "config", config);
     }
 }
@@ -215,7 +307,11 @@ fn refresh_config(app: &AppHandle) {
 pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     crate::dbg_log!("creating window");
     let state = app.state::<AppState>();
-    state.frontend_ready.store(false, Ordering::SeqCst);
+    state
+        .frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .ready = false;
     let ws = state.window_state.lock().map(|s| *s).unwrap_or_default();
     let dark = !matches!(state.config().theme.as_str(), "light");
     let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
@@ -258,10 +354,13 @@ pub fn show(app: &AppHandle) {
     let Some(w) = app.get_webview_window(MAIN) else {
         return;
     };
-    let was_visible = state.visible.swap(true, Ordering::SeqCst);
-    if let Ok(mut h) = state.hidden_since.lock() {
-        *h = None;
+    let frontend = state.frontend.lock().unwrap_or_else(|e| e.into_inner());
+    // Ignore a late paint notification from a preview closed while it was loading.
+    if frontend.hidden_since.is_some() || frontend.releasing {
+        return;
     }
+    drop(frontend);
+    let was_visible = state.visible.swap(true, Ordering::SeqCst);
     if !was_visible {
         let (_width, _height) = place_on_cursor_monitor(app, &w);
         #[cfg(target_os = "linux")]
@@ -329,12 +428,13 @@ pub fn hide(app: &AppHandle) {
         let _ = app.emit_to(MAIN, "hidden", ());
     }
     // A preview still loading when the user closed it must not pop up afterwards.
-    if let Ok(mut p) = state.pending.lock() {
-        *p = None;
-    }
-    if let Ok(mut h) = state.hidden_since.lock() {
-        *h = Some(Instant::now());
-    }
+    let since = Instant::now();
+    state
+        .frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .hide(since);
+    schedule_idle_release(app, since);
     if state.visible.swap(false, Ordering::SeqCst) {
         crate::integration::visibility_changed(app, false);
     }
@@ -431,43 +531,64 @@ fn place_on_cursor_monitor(app: &AppHandle, w: &WebviewWindow) -> (f64, f64) {
     (width, height)
 }
 
-/// Whether the process must stay alive when idle (something is listening for Space, or the
-/// tray icon shows that we are running).
+/// Whether Link, service mode, shortcuts or the tray need the resident process.
 pub fn keep_alive(app: &AppHandle) -> bool {
     app.state::<AppState>().service.load(Ordering::SeqCst)
         || crate::integration::has_listeners()
         || crate::tray::active()
+        || app.state::<AppState>().config().link_enabled
 }
 
-/// Release the webview (or exit) after the window has been hidden for a while.
-pub fn start_idle_watcher(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(20));
-        let state = app.state::<AppState>();
-        let minutes = state.config().idle_minutes;
-        if minutes == 0 {
-            continue;
-        }
-        let idle = state
-            .hidden_since
-            .lock()
-            .ok()
-            .and_then(|h| *h)
-            .is_some_and(|t| t.elapsed() > Duration::from_secs(minutes * 60));
-        if !idle || state.is_visible() {
-            continue;
-        }
-        if keep_alive(&app) {
-            if let Some(w) = app.get_webview_window(MAIN) {
-                state.frontend_ready.store(false, Ordering::SeqCst);
-                let _ = w.destroy();
+/// One-shot release, never a periodic idle poll. Retain only the app handle, so the
+/// timer itself cannot keep a destroyed webview alive. Stale timers cannot destroy
+/// a reopened window (including one still loading) or a later window generation.
+fn schedule_idle_release(app: &AppHandle, since: Instant) {
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(WEBVIEW_IDLE_RELEASE);
+        let app = handle.clone();
+        let _ = handle.run_on_main_thread(move || {
+            let state = app.state::<AppState>();
+            let mut frontend = state.frontend.lock().unwrap_or_else(|e| e.into_inner());
+            if !frontend.still_hidden(since) || state.is_visible() {
+                return;
             }
-            if let Ok(mut h) = state.hidden_since.lock() {
-                *h = None;
+            if let Some(window) = app.get_webview_window(MAIN) {
+                if window.is_visible().unwrap_or(true) {
+                    return;
+                }
+                let was_ready = frontend.ready;
+                frontend.ready = false;
+                frontend.releasing = true;
+                drop(frontend);
+                if let Err(error) = window.destroy() {
+                    let mut frontend = state.frontend.lock().unwrap_or_else(|e| e.into_inner());
+                    frontend.ready = was_ready;
+                    frontend.releasing = false;
+                    eprintln!("arcade-look: could not release webview: {error}");
+                }
             }
-        } else {
-            app.exit(0);
+        });
+        // Preserve the optional non-resident process timeout separately. Link,
+        // --service, the tray and shortcuts never depend on a surviving webview.
+        let minutes = handle.state::<AppState>().config().idle_minutes;
+        if minutes == 0 || keep_alive(&handle) {
+            return;
         }
+        let timeout = Duration::from_secs(minutes.saturating_mul(60));
+        std::thread::sleep(timeout.saturating_sub(since.elapsed()));
+        let app = handle.clone();
+        let _ = handle.run_on_main_thread(move || {
+            let state = app.state::<AppState>();
+            let hidden = state
+                .frontend
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .still_hidden(since);
+            if hidden && !state.is_visible() && !keep_alive(&app) {
+                app.exit(0);
+            }
+        });
     });
 }
 
@@ -492,5 +613,74 @@ pub fn handle_args(app: &AppHandle, args: &crate::cli::Args, cwd: Option<&std::p
         None if args.service => {}
         // Launched again from the app menu: bring up what is already showing.
         None => open_main(app),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cold_preview_requests_wait_for_listeners_and_drain_once() {
+        let mut frontend = FrontendState::default();
+        let requests = vec![
+            Request::File("first.png".into()),
+            Request::File("second.pdf".into()),
+            Request::Settings,
+        ];
+        for request in &requests {
+            assert_eq!(frontend.request(request.clone()), None);
+        }
+        assert_eq!(frontend.ready(), requests);
+        assert!(frontend.ready().is_empty());
+        assert_eq!(frontend.request(Request::Welcome), Some(Request::Welcome));
+    }
+
+    #[test]
+    fn reopening_while_loading_cancels_release_and_old_timers_stay_cancelled() {
+        let mut frontend = FrontendState::default();
+        let first_close = Instant::now();
+        frontend.hide(first_close);
+        assert!(frontend.still_hidden(first_close));
+        assert_eq!(frontend.request(Request::File("slow.pdf".into())), None);
+        assert!(!frontend.still_hidden(first_close));
+        // Close again before loading finishes: the first timer must not shorten
+        // this second grace, and the cancelled preview must never be delivered.
+        let second_close = first_close + Duration::from_secs(10);
+        frontend.hide(second_close);
+        assert!(!frontend.still_hidden(first_close));
+        assert!(frontend.still_hidden(second_close));
+        assert!(frontend.ready().is_empty());
+        assert!(frontend.still_hidden(second_close));
+    }
+
+    #[test]
+    fn request_during_asynchronous_destruction_waits_for_the_new_page() {
+        let mut frontend = FrontendState::default();
+        frontend.ready();
+        frontend.hide(Instant::now());
+        frontend.ready = false;
+        frontend.releasing = true;
+        let file = Request::File("during-destroy.pdf".into());
+        assert_eq!(frontend.request(file.clone()), None);
+        // A late handshake from the old page must not consume the request.
+        assert!(frontend.ready().is_empty());
+        assert!(frontend.destroyed());
+        assert_eq!(frontend.ready(), vec![file]);
+    }
+
+    #[test]
+    fn settings_and_preview_can_reopen_warm_then_cold_after_destruction() {
+        let mut frontend = FrontendState::default();
+        frontend.ready();
+        let closed = Instant::now();
+        frontend.hide(closed);
+        assert_eq!(frontend.request(Request::Settings), Some(Request::Settings));
+        assert!(!frontend.still_hidden(closed));
+        frontend.hide(closed + Duration::from_secs(1));
+        assert!(!frontend.destroyed());
+        let file = Request::File("reopened.png".into());
+        assert_eq!(frontend.request(file.clone()), None);
+        assert_eq!(frontend.ready(), vec![file]);
     }
 }

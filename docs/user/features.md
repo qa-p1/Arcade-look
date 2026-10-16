@@ -48,4 +48,4 @@ When a compatible peer is installed and enabled, press **A** or open the Actions
 
 ## Change settings
 
-Choose the theme, idle timeout, autoplay, file-manager integration, plugin loading and connected apps from Settings. Settings are stored in `config.json` in the platform's per-user configuration folder. When the preview is hidden, Look keeps its window warm for the configured idle period; background integrations, the tray, or start-at-login can keep the process available afterward.
+Choose the theme, idle timeout, autoplay, file-manager integration, plugin loading and connected apps from Settings. Settings are stored in `config.json` in the platform's per-user configuration folder. When a preview or Settings is hidden, Look keeps its window warm for 30 seconds, then releases the webview. Link, background integrations, the tray and start-at-login keep the process available afterward. The `idleMinutes` config option controls process exit only when no background service needs it; 0 disables that exit, but still releases the webview.

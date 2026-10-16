@@ -77,10 +77,9 @@ export class App {
     await listen<boolean>('link-changed', (e) => { this.peers = e.payload; void this.updatePeers(); void this.connected?.refresh(); });
     void invoke<boolean>('link_available').then((available) => { this.peers = available; void this.updatePeers(); });
 
-    const { screen, pending } = this.boot;
-    if (screen === 'settings') await this.openSettings();
-    else if (screen === 'file' && pending) await this.open(pending);
-    else if (screen === 'welcome') await this.open(null);
+    // Bootstrap supplies config only. Requests remain queued in Rust until all
+    // listeners exist, including on a cold reopen after the idle release.
+    await api.frontendReady();
   }
 
   /** Apply settings that take effect immediately (startup, config.json edits, the settings screen). */
