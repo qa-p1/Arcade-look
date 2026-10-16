@@ -2,7 +2,7 @@
 //!
 //! Preview and Settings share an on-demand webview, released 30 seconds after hiding.
 //! The resident Rust process keeps Link, the tray and file-manager shortcuts available.
-//! `idleMinutes` controls process exit only when none of those services is needed.
+//! `idleMinutes` controls process exit when no service mode, tray or shortcut needs it.
 
 use crate::config::{Config, WindowState};
 use crate::plugins::Plugin;
@@ -531,12 +531,12 @@ fn place_on_cursor_monitor(app: &AppHandle, w: &WebviewWindow) -> (f64, f64) {
     (width, height)
 }
 
-/// Whether Link, service mode, shortcuts or the tray need the resident process.
+/// Whether service mode, shortcuts or the tray need the resident process. Link
+/// doesn't: a peer that finds Look stopped launches it (Link SPEC §7).
 pub fn keep_alive(app: &AppHandle) -> bool {
     app.state::<AppState>().service.load(Ordering::SeqCst)
         || crate::integration::has_listeners()
         || crate::tray::active()
-        || app.state::<AppState>().config().link_enabled
 }
 
 /// One-shot release, never a periodic idle poll. Retain only the app handle, so the

@@ -144,7 +144,7 @@ Settings live in `config.json` in your config folder: `~/.config/arcade-look/` o
 }
 ```
 
-Once hidden for 30 seconds, the web view is released, even when `idleMinutes` is 0. Link, start-at-login, the tray, the Windows Explorer hook and global shortcuts keep the Rust process available without a webview. If none is needed, `idleMinutes` controls when the process exits (0 disables automatic exit). The final ecosystem benchmark measured about 74.5 MiB for Look at its three-second idle sample; it did not measure the post-timeout state separately.
+Once hidden for 30 seconds, the web view is released, even when `idleMinutes` is 0. The Rust process keeps serving Link without a webview. Start-at-login, the tray, the Windows Explorer hook and global shortcuts keep it running; if none of them is needed, it exits after `idleMinutes` (0 disables automatic exit), and other Arcade apps start it again when they need it. The final ecosystem benchmark measured about 74.5 MiB for Look at its three-second idle sample; it did not measure the post-timeout state separately.
 
 Arcade Tools can export and import Look's settings: theme, idle minutes, global shortcut, text and highlight limits, autoplay and show hidden files. Imports are validated, the current settings are backed up, and they apply live. Nothing outside that list is exported. Look does not keep a clipboard history.
 
