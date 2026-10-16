@@ -120,6 +120,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
+            commands::frontend_ready,
             commands::inspect,
             commands::read_text,
             commands::render_markdown,
@@ -181,7 +182,6 @@ pub fn run() {
             integration::refresh_autostart();
             integration::first_run_setup(&handle);
             tray::start(&handle);
-            app::start_idle_watcher(handle.clone());
             link::start(&handle, &handle.state::<app::AppState>().config());
             link_consumer::start(&handle);
             #[cfg(all(feature = "e2e", unix))]
@@ -204,6 +204,16 @@ pub fn run() {
         }
     };
     app.run(|app, event| {
+        if let RunEvent::WindowEvent {
+            label,
+            event: WindowEvent::Destroyed,
+            ..
+        } = &event
+        {
+            if label == app::MAIN {
+                app::window_destroyed(app);
+            }
+        }
         if let RunEvent::Exit = event {
             link::stop();
         }
@@ -211,10 +221,9 @@ pub fn run() {
             code: None, api, ..
         } = event
         {
-            // The last window was destroyed (idle release): keep listening if needed.
-            if app::keep_alive(app) {
-                api.prevent_exit();
-            }
+            // Releasing the last webview must not stop Link, tray or shortcuts.
+            // Explicit Quit and the optional non-resident idle exit carry a code.
+            api.prevent_exit();
         }
     });
 }

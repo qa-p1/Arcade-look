@@ -8,7 +8,7 @@ use std::path::PathBuf;
 pub struct Config {
     /// "system" | "light" | "dark"
     pub theme: String,
-    /// Minutes a hidden window stays warm before its webview is released (0 = never).
+    /// Minutes before a non-resident process exits (0 = never). Webviews release after 30 s.
     pub idle_minutes: u64,
     /// Global shortcut that previews the file manager's selection. Empty disables it.
     pub global_shortcut: String,

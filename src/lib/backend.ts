@@ -56,9 +56,6 @@ export interface Config {
 }
 
 export interface Bootstrap {
-  /** What to show first: the file in `pending`, the welcome or settings screen, or nothing (background start). */
-  screen: 'file' | 'welcome' | 'settings' | null;
-  pending: string | null;
   platform: 'linux' | 'windows' | 'macos' | string;
   version: string;
   config: Config;
@@ -102,6 +99,7 @@ export interface PluginOutput { output: Plugin['output']; text: string | null; p
 
 export const api = {
   bootstrap: () => invoke<Bootstrap>('bootstrap'),
+  frontendReady: () => invoke<void>('frontend_ready'),
   inspect: (path: string) => invoke<FileInfo>('inspect', { path }),
   readText: (path: string, maxBytes?: number) => invoke<TextData>('read_text', { path, maxBytes }),
   renderMarkdown: (path: string) => invoke<{ html: string; truncated: boolean }>('render_markdown', { path }),

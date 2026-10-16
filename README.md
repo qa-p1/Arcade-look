@@ -46,7 +46,7 @@ See [Install and start Arcade Look](docs/user/getting-started.md).
 - **Browse folders:** a folder opens as a grid; Back/Forward history and Left/Right to move between files.
 - **Fallback:** if a format has no viewer or its decoder fails, Look shows a file information card and a hex view.
 - **Plugins:** command plugins turn a CLI into a previewer; script plugins are ES modules that render into the preview pane. Examples in [examples/plugins](examples/plugins) (LibreOffice, Pandoc, ffmpeg transcoding fallback, SQLite schema, color palettes); reference in [docs/PLUGINS.md](docs/PLUGINS.md).
-- **Fast:** after you close a preview the window stays warm so the next one is instant; after `idleMinutes` hidden, the web view is released.
+- **Fast:** after you close a preview the window stays warm so the next one is instant; after 30 seconds hidden, the web view is released.
 
 More in [Preview, browse and extend files](docs/user/features.md).
 
@@ -132,7 +132,7 @@ Settings live in `config.json` in your config folder: `~/.config/arcade-look/` o
 ```jsonc
 {
   "theme": "system",            // "system" | "light" | "dark"
-  "idleMinutes": 10,            // release memory after the window has been hidden this long (0 = never)
+  "idleMinutes": 10,            // exit after this many idle minutes if no background services need Look (0 = never)
   "globalShortcut": "Ctrl+Alt+Shift+Space", // Windows default; macOS Ctrl+Alt+Space; Linux ""
   "explorerSpace": true,        // Windows: Space in File Explorer
   "nautilusPreviewer": true,    // Linux: Space in GNOME Files
@@ -144,7 +144,7 @@ Settings live in `config.json` in your config folder: `~/.config/arcade-look/` o
 }
 ```
 
-Once hidden for `idleMinutes`, the web view is released. The process then exits unless it is needed in the background for start-at-login, the tray, the Windows Explorer hook or a global shortcut. The final ecosystem benchmark measured about 74.5 MiB for Look at its three-second idle sample; it did not measure the post-timeout state separately.
+Once hidden for 30 seconds, the web view is released, even when `idleMinutes` is 0. The Rust process keeps serving Link without a webview. Start-at-login, the tray, the Windows Explorer hook and global shortcuts keep it running; if none of them is needed, it exits after `idleMinutes` (0 disables automatic exit), and other Arcade apps start it again when they need it. The final ecosystem benchmark measured about 74.5 MiB for Look at its three-second idle sample; it did not measure the post-timeout state separately.
 
 Arcade Tools can export and import Look's settings: theme, idle minutes, global shortcut, text and highlight limits, autoplay and show hidden files. Imports are validated, the current settings are backed up, and they apply live. Nothing outside that list is exported. Look does not keep a clipboard history.
 

@@ -276,9 +276,6 @@ pub fn reveal(app: AppHandle, path: String) -> Res<()> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Bootstrap {
-    /// What to show first: "file" (`pending`), "welcome", "settings", or nothing (`None`).
-    screen: Option<&'static str>,
-    pending: Option<String>,
     platform: &'static str,
     version: &'static str,
     config: crate::config::Config,
@@ -294,19 +291,7 @@ pub struct Bootstrap {
 
 #[tauri::command]
 pub fn bootstrap(state: State<'_, app::AppState>) -> Bootstrap {
-    state
-        .frontend_ready
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    crate::dbg_log!("frontend ready");
-    let (screen, pending) = match state.pending.lock().ok().and_then(|mut p| p.take()) {
-        Some(app::Request::File(p)) => (Some("file"), Some(p.to_string_lossy().to_string())),
-        Some(app::Request::Welcome) => (Some("welcome"), None),
-        Some(app::Request::Settings) => (Some("settings"), None),
-        None => (None, None),
-    };
     Bootstrap {
-        screen,
-        pending,
         platform: std::env::consts::OS,
         version: env!("CARGO_PKG_VERSION"),
         config: state.config(),
@@ -323,6 +308,12 @@ pub fn bootstrap(state: State<'_, app::AppState>) -> Bootstrap {
         integration: crate::integration::status(),
         shortcut_supported: crate::integration::shortcut_supported(),
     }
+}
+
+/// A separate handshake avoids losing Link requests during bootstrap/listener setup.
+#[tauri::command]
+pub fn frontend_ready(app: AppHandle) {
+    app::frontend_ready(&app);
 }
 
 /// Frontend diagnostics, printed only with `ALOOK_DEBUG=1`.
