@@ -25,12 +25,24 @@ fn format(s: &str, version: &str, from: &str) -> String {
     strings::format(s, NAME, version, from, VERSION)
 }
 
+fn newer_installed(installed: &str) -> bool {
+    installer::parse_version(installed)
+        .zip(installer::parse_version(VERSION))
+        .is_some_and(|(installed, this)| installed > this)
+}
+
 /// Title, body and buttons for a dialog state.
 pub fn text(state: &DialogState) -> (String, Option<String>, Vec<String>) {
     let all = strings::get();
     let (dialog, version, from) = match state {
         DialogState::Install => (&all.not_installed, VERSION, ""),
         DialogState::Update { from } => (&all.older, VERSION, from.as_str()),
+        // Say so when this file is the older one, not just "already installed".
+        DialogState::OpenInstalled { version } if newer_installed(version) => (
+            all.newer_installed.as_ref().unwrap_or(&all.same_or_newer),
+            version.as_str(),
+            VERSION,
+        ),
         DialogState::OpenInstalled { version } => (&all.same_or_newer, version.as_str(), ""),
         DialogState::MoveToApplications => (&all.macos, VERSION, ""),
     };
@@ -67,6 +79,8 @@ fn act(
             installer::dismiss(&detection.running_from).map_err(|e| e.to_string())?;
             return Ok(Outcome::Continue);
         }
+        // Closing the question answers nothing: don't install, don't start.
+        None => return Ok(Outcome::Exit),
         _ => return Ok(Outcome::Continue),
     }
     if let DialogState::OpenInstalled { .. } = state {
@@ -82,6 +96,8 @@ fn act(
     }
     let receipt = installer::install_copy(environment, runtime, &choice.options)
         .map_err(|e| format(&strings::get().errors["install"], VERSION, &e.to_string()))?;
+    // The installed copy replaces an older one still running.
+    installer::stop_running_copy(environment);
     if let Some(command) = installer::integration_status(environment)
         .ok()
         .and_then(|s| s.path_hint)
@@ -109,10 +125,14 @@ pub fn run(
         .as_ref()
         .is_some_and(|r| r.managed_by == ManagedBy::Tools)
         && installer::tools_installed(&environment);
-    let choice = ask(&state, options, managed)?;
+    #[cfg(target_os = "linux")]
+    let legacy = arcade_link::install::legacy_copies(&environment, &installer::app_info());
+    #[cfg(not(target_os = "linux"))]
+    let legacy: Vec<PathBuf> = Vec::new();
+    let choice = ask(&state, options, managed, &legacy)?;
     let result = act(&environment, &runtime, &detection, &state, choice);
     if let Err(e) = &result {
-        message(e);
+        error(e);
     }
     result
 }
@@ -123,7 +143,7 @@ pub fn run_uninstall(environment: Environment, remove_data: bool) -> Result<Outc
     };
     installer::uninstall(&environment, remove_data).map_err(|e| {
         let e = format(&strings::get().errors["uninstall"], VERSION, &e.to_string());
-        message(&e);
+        error(&e);
         e
     })?;
     let _ = ME;
@@ -131,7 +151,7 @@ pub fn run_uninstall(environment: Environment, remove_data: bool) -> Result<Outc
 }
 
 #[cfg(target_os = "linux")]
-fn ask(state: &DialogState, mut options: Options, managed: bool) -> Result<Choice, String> {
+fn ask(state: &DialogState, mut options: Options, managed: bool, legacy: &[PathBuf]) -> Result<Choice, String> {
     use gtk::prelude::*;
     gtk::init().map_err(|e| format!("no display for the install dialog: {e}"))?;
     let (title, body, buttons) = text(state);
@@ -139,6 +159,7 @@ fn ask(state: &DialogState, mut options: Options, managed: bool) -> Result<Choic
     dialog.set_title(&format!("{NAME} — Installation"));
     dialog.set_icon_name(Some(installer::DESKTOP_ID));
     dialog.set_resizable(false);
+    dialog.set_position(gtk::WindowPosition::Center);
     dialog.set_default_size(460, -1);
     let content = dialog.content_area();
     content.set_spacing(10);
@@ -159,6 +180,14 @@ fn ask(state: &DialogState, mut options: Options, managed: bool) -> Result<Choic
     }
     if managed {
         let label = gtk::Label::new(Some(&format(&strings::get().managed_by_tools, VERSION, "")));
+        label.set_xalign(0.0);
+        label.set_line_wrap(true);
+        content.add(&label);
+    }
+    if let (Some(note), Some(old), DialogState::Install | DialogState::Update { .. }) =
+        (&strings::get().replaces_legacy, legacy.first(), state)
+    {
+        let label = gtk::Label::new(Some(&format(note, VERSION, &old.display().to_string())));
         label.set_xalign(0.0);
         label.set_line_wrap(true);
         content.add(&label);
@@ -200,6 +229,7 @@ fn ask_uninstall(remove_data: bool) -> Result<Option<bool>, String> {
     let dialog = gtk::Dialog::new();
     dialog.set_title(&format!("Uninstall {NAME}?"));
     dialog.set_resizable(false);
+    dialog.set_position(gtk::WindowPosition::Center);
     let content = dialog.content_area();
     content.set_spacing(10);
     content.set_border_width(18);
@@ -232,6 +262,22 @@ fn ask_uninstall(remove_data: bool) -> Result<Option<bool>, String> {
 
 #[cfg(target_os = "linux")]
 fn message(text: &str) {
+    show(text, false);
+}
+
+/// Failures get the error icon, not the information one.
+#[cfg(target_os = "linux")]
+fn error(text: &str) {
+    show(text, true);
+}
+
+#[cfg(not(target_os = "linux"))]
+fn error(text: &str) {
+    message(text);
+}
+
+#[cfg(target_os = "linux")]
+fn show(text: &str, failure: bool) {
     use gtk::prelude::*;
     if gtk::init().is_err() {
         eprintln!("arcade-look: {text}");
@@ -240,7 +286,11 @@ fn message(text: &str) {
     let dialog = gtk::MessageDialog::new(
         None::<&gtk::Window>,
         gtk::DialogFlags::MODAL,
-        gtk::MessageType::Info,
+        if failure {
+            gtk::MessageType::Error
+        } else {
+            gtk::MessageType::Info
+        },
         gtk::ButtonsType::Ok,
         text,
     );
@@ -271,7 +321,7 @@ fn quote(s: &str) -> String {
 }
 
 #[cfg(target_os = "macos")]
-fn ask(state: &DialogState, mut options: Options, managed: bool) -> Result<Choice, String> {
+fn ask(state: &DialogState, mut options: Options, managed: bool, _legacy: &[PathBuf]) -> Result<Choice, String> {
     let (title, body, buttons) = text(state);
     let mut message = body.unwrap_or_default();
     if managed {
@@ -334,7 +384,7 @@ fn message(text: &str) {
 
 /// Windows installs through its per-user installer; nothing prompts here.
 #[cfg(windows)]
-fn ask(_state: &DialogState, options: Options, _managed: bool) -> Result<Choice, String> {
+fn ask(_state: &DialogState, options: Options, _managed: bool, _legacy: &[PathBuf]) -> Result<Choice, String> {
     Ok(Choice {
         button: None,
         options,

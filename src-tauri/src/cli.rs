@@ -39,7 +39,7 @@ OPTIONS:
     --service                Start in the background without a window
     --settings               Open the settings
     --restart                Restart the running instance
-    --install [--silent] [--no-launch] [--channel C]
+    --install [--silent] [--no-launch] [--keep-download] [--channel C]
                              Install this AppImage or move this macOS app bundle
     --install-integration    Alias for --install
     --uninstall [--silent] [--remove-data]
