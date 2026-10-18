@@ -1,6 +1,6 @@
 [package]
 name = "arcade-look"
-version = "0.3.1"
+version = "0.3.2"
 description = "Universal Quick Look: select a file, press Space, see it instantly"
 authors = ["Arcade Look contributors"]
 license = "MIT"
@@ -44,7 +44,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 kamadak-exif = "0.6"
 imagesize = "0.15"
 # Arcade Link (the shared protocol and install/tray runtime).
-arcade-link = { git = "https://github.com/qa-p1/Arcade-link", rev = "85bdb0e9769cc724c0edd83c6f214b70fba33f42", features = ["install", "trayhost"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-link", rev = "829cc90a0628fe5c4afc87796eb900aff3fd4e50", features = ["install", "trayhost"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3"
