@@ -2,5 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+    arcade_link::childenv::on_startup();
     arcade_look_lib::run()
 }

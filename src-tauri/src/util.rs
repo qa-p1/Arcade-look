@@ -138,8 +138,22 @@ pub fn image_mime_from_name(name: &str) -> &'static str {
 }
 
 /// Root for files we extract (archive entries, plugin output). Cleaned on startup.
+///
+/// It lives in the user's own cache folder (`~/.cache/arcade-look` on Linux),
+/// which uninstalling with its data removes. A fixed `/tmp/arcade-look` was
+/// owned by whichever user ran Look first: every other user on the machine
+/// got "Permission denied" for archive previews, and another user could
+/// pre-create it and control the files Look reads back.
 pub fn temp_root() -> PathBuf {
-    std::env::temp_dir().join("arcade-look")
+    match dirs::cache_dir() {
+        Some(cache) => cache.join("arcade-look"),
+        None => {
+            let user = std::env::var("USER")
+                .or_else(|_| std::env::var("USERNAME"))
+                .unwrap_or_default();
+            std::env::temp_dir().join(format!("arcade-look-{user}"))
+        }
+    }
 }
 
 /// Remove temp sub-directories older than a day. Best effort.
@@ -318,6 +332,15 @@ pub fn escape_html(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extracted_files_stay_in_the_users_own_cache() {
+        let root = temp_root();
+        if let Some(cache) = dirs::cache_dir() {
+            assert_eq!(root, cache.join("arcade-look"));
+        }
+        assert_ne!(root, std::env::temp_dir().join("arcade-look"));
+    }
 
     #[test]
     fn natural() {

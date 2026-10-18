@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1 — 2026-10-18
+
+- Updating or installing from your Downloads folder, the lean restart after five
+  quiet minutes and starting other Arcade apps no longer leave the old AppImage
+  mounted and its runtime (about 20 MB) running. A program the app started
+  inherited an open handle on its AppImage mount and kept it busy.
+- `arcade-look report.json` with a relative path opens the file instead of "This
+  file no longer exists".
+- Archive entries and plugin output are extracted into your own cache folder
+  (`~/.cache/arcade-look` on Linux) instead of a shared `/tmp/arcade-look`, so
+  other users on the same computer can preview archives too.
+
 ## 0.3.0 — 2026-10-18
 
 - Lower idle memory on Linux: WebKit's processes are shed after five quiet
