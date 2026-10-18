@@ -111,6 +111,19 @@ pub struct Options {
     pub install_cli: bool,
 }
 
+/// Whether the login entry will start Look. On Linux the desktop's startup
+/// settings can switch an entry off without removing it.
+fn login_entry_runs(path: &Path) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        install::autostart_enabled(path)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        path.exists()
+    }
+}
+
 impl Options {
     /// Look starts at login by default, like its first-run setup always did.
     pub fn defaults(environment: &Environment) -> Self {
@@ -123,7 +136,7 @@ impl Options {
                 r.integration
                     .autostart
                     .as_ref()
-                    .is_some_and(|p| install::autostart_enabled(p))
+                    .is_some_and(|p| login_entry_runs(p))
             });
         let install_cli = environment
             .path
