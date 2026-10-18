@@ -78,6 +78,11 @@ pub fn run() {
         return;
     }
 
+    #[cfg(target_os = "linux")]
+    if integration::linux::forward_to_running(&argv) {
+        return;
+    }
+
     if installer::first_run_prompt(&argv) {
         return;
     }
