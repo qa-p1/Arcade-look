@@ -129,6 +129,8 @@ OPTIONS:
 
 Settings live in `config.json` in your config folder: `~/.config/arcade-look/` on Linux, `~/Library/Application Support/arcade-look/` on macOS, and `%APPDATA%\arcade-look\` on Windows. The welcome screen links to it.
 
+Log messages go to `logs/arcade-look.log` in the same folder.
+
 ```jsonc
 {
   "theme": "system",            // "system" | "light" | "dark"
@@ -154,7 +156,7 @@ Arcade Tools can export and import Look's settings: theme, idle minutes, global 
 - **Windows:** **Settings → Apps** (Apps & features), or Arcade Tools.
 - **macOS:** `arcade-look --uninstall` removes the installation recorded in its receipt, or remove Look in Arcade Tools.
 
-Your settings stay unless you choose to remove them (`--remove-data`).
+Your settings stay unless you choose to remove them (`--remove-data`, or *Remove settings and data* in Arcade Tools). That also removes the preview's web storage and caches: `~/.local/share/app.arcadelook` and `~/.cache/app.arcadelook` on Linux, `%LOCALAPPDATA%\app.arcadelook` on Windows, and `~/Library/WebKit/app.arcadelook` and `~/Library/Caches/app.arcadelook` on macOS.
 
 ## Platform notes
 

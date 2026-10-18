@@ -119,7 +119,12 @@ impl Options {
             .as_ref()
             // Fresh installs start at login like every Arcade app; an existing
             // install reflects whether its entry will really run.
-            .is_none_or(|r| r.integration.autostart.as_ref().is_some_and(|p| install::autostart_enabled(p)));
+            .is_none_or(|r| {
+                r.integration
+                    .autostart
+                    .as_ref()
+                    .is_some_and(|p| install::autostart_enabled(p))
+            });
         let install_cli = environment
             .path
             .as_ref()
@@ -554,22 +559,34 @@ fn quit_running_instance() {
 /// keep the single instance and the new copy would only show it. Asks over the
 /// Link first (and waits for it to go), else with the app's own `--quit`.
 pub fn stop_running_copy(environment: &Environment) {
-    let quit = install::quit_running(&environment.locations, ME, std::time::Duration::from_secs(10));
+    let quit = install::quit_running(
+        &environment.locations,
+        ME,
+        std::time::Duration::from_secs(10),
+    );
     if !matches!(quit, Ok(true)) {
         quit_running_instance();
     }
 }
 
+/// Tauri's app identifier (tauri.conf.json).
+const IDENTIFIER: &str = "app.arcadelook";
+
 pub fn uninstall(environment: &Environment, remove_data: bool) -> io::Result<bool> {
     quit_running_instance();
     #[cfg(target_os = "linux")]
     crate::integration::linux::remove_installed_entries(environment);
-    let data_folders = [
+    let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+    // The WebView's storage and cache live under the app identifier.
+    #[allow(unused_mut)]
+    let mut data_folders = vec![
         crate::config::dir(),
-        dirs::cache_dir()
-            .unwrap_or_else(std::env::temp_dir)
-            .join("arcade-look"),
+        cache.join("arcade-look"),
+        cache.join(IDENTIFIER),
     ];
+    data_folders.extend(dirs::data_local_dir().map(|d| d.join(IDENTIFIER)));
+    #[cfg(target_os = "macos")]
+    data_folders.extend(dirs::home_dir().map(|h| h.join("Library/WebKit").join(IDENTIFIER)));
     #[cfg(target_os = "macos")]
     let cli = bundle_cli(environment)?;
     let removed = install::uninstall(
