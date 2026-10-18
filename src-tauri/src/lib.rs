@@ -78,6 +78,11 @@ pub fn run() {
         return;
     }
 
+    #[cfg(target_os = "linux")]
+    if integration::linux::forward_to_running(&argv) {
+        return;
+    }
+
     if installer::first_run_prompt(&argv) {
         return;
     }
@@ -171,6 +176,13 @@ pub fn run() {
             if start_args.quit {
                 handle.exit(0);
                 return Ok(());
+            }
+            // Started from the menu, at login or by Tools, stderr goes nowhere:
+            // keep it next to the settings instead.
+            if let Err(error) =
+                arcade_link::logs::capture_stderr(&config::dir().join("logs"), "arcade-look")
+            {
+                eprintln!("arcade-look: log unavailable: {error}");
             }
             // A background utility: no Dock icon, just the menu bar item and the preview.
             #[cfg(target_os = "macos")]

@@ -9,6 +9,8 @@ import type { Mounted, ViewCtx } from './types';
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const { info } = ctx;
   const d = await api.readDocument(info.path, info.kind === 'epub' ? 'epub' : info.format);
+  // Navigated away while loading: build nothing for a preview that is gone.
+  if (ctx.signal.aborted) return {};
   const paper = h(`article.prose.paper.selectable${info.kind === 'epub' ? '.book' : ''}`);
   paper.append(sanitize(d.html, { baseDir: info.dir, allowDataImages: true }));
   if (!paper.textContent?.trim() && !paper.querySelector('img')) {

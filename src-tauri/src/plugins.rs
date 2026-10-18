@@ -130,7 +130,21 @@ pub fn run(p: &Plugin, file: &Path) -> Res<PluginOutput> {
     if p.kind != "command" {
         return Err("not a command plugin".into());
     }
-    let key = util::hash_key(&[&p.id, &util::file_key(file), &p.command.join("\u{1}")]);
+    // An updated plugin (its manifest or its program) must not reuse results.
+    let program = p
+        .command
+        .first()
+        .and_then(|program| resolve_program(program, Path::new(&p.dir)))
+        .map(|path| util::file_key(&path))
+        .unwrap_or_default();
+    let manifest = util::file_key(&Path::new(&p.dir).join("plugin.json"));
+    let key = util::hash_key(&[
+        &p.id,
+        &util::file_key(file),
+        &p.command.join("\u{1}"),
+        &program,
+        &manifest,
+    ]);
     let outdir = util::temp_root().join("p").join(key);
     let done = outdir.join(".done");
     let stdout_file = outdir.join(".stdout");
@@ -200,48 +214,101 @@ fn execute(p: &Plugin, file: &Path, outdir: &Path) -> Res<Vec<u8>> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
+    // Its own process group, so a timeout also stops what it started.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("Could not run `{}`: {e}", args[0]))?;
     let mut so = child.stdout.take().ok_or("no stdout")?;
     let mut se = child.stderr.take().ok_or("no stderr")?;
-    let out_t = std::thread::spawn(move || {
+    let (out_tx, out_rx) = std::sync::mpsc::channel();
+    let (err_tx, err_rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
         let mut v = Vec::new();
         let _ = (&mut so).take(MAX_OUTPUT).read_to_end(&mut v);
         // Drain the rest so the child never blocks on a full pipe.
         let _ = std::io::copy(&mut so, &mut std::io::sink());
-        v
+        let _ = out_tx.send(v);
     });
-    let err_t = std::thread::spawn(move || {
+    std::thread::spawn(move || {
         let mut v = Vec::new();
         let _ = (&mut se).take(64 * 1024).read_to_end(&mut v);
         let _ = std::io::copy(&mut se, &mut std::io::sink());
-        v
+        let _ = err_tx.send(v);
     });
     let timeout = Duration::from_millis(p.timeout_ms.unwrap_or(15_000));
-    let started = Instant::now();
+    let deadline = Instant::now() + timeout;
+    let timed_out = |child: &mut std::process::Child| {
+        kill_tree(child);
+        format!("`{}` timed out after {} s", args[0], timeout.as_secs_f32())
+    };
     let status = loop {
         if let Some(s) = child.try_wait().or_str()? {
             break s;
         }
-        if started.elapsed() > timeout {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(format!(
-                "`{}` timed out after {} s",
-                args[0],
-                timeout.as_secs()
-            ));
+        if Instant::now() > deadline {
+            return Err(timed_out(&mut child));
         }
         std::thread::sleep(Duration::from_millis(15));
     };
-    let stdout = out_t.join().unwrap_or_default();
-    let stderr = err_t.join().unwrap_or_default();
+    // The timeout covers the whole run: a process it started may still hold
+    // the output open after the command itself exited.
+    let remaining = || deadline.saturating_duration_since(Instant::now());
+    let Ok(stdout) = out_rx.recv_timeout(remaining()) else {
+        return Err(timed_out(&mut child));
+    };
+    let Ok(stderr) = err_rx.recv_timeout(remaining()) else {
+        return Err(timed_out(&mut child));
+    };
     if !status.success() {
         let msg = String::from_utf8_lossy(&stderr);
         return Err(format!("`{}` failed ({status}): {}", args[0], msg.trim()));
     }
     Ok(stdout)
+}
+
+/// Where `program` runs from: relative to the plugin's folder when it names a
+/// path, else the first match on PATH.
+fn resolve_program(program: &str, dir: &Path) -> Option<PathBuf> {
+    let named = Path::new(program);
+    if named.components().count() > 1 || named.is_absolute() {
+        return Some(dir.join(named)).filter(|p| p.is_file());
+    }
+    std::env::split_paths(&std::env::var_os("PATH")?)
+        .flat_map(|folder| {
+            let plain = folder.join(program);
+            let exe = folder.join(format!("{program}{}", std::env::consts::EXE_SUFFIX));
+            [plain, exe]
+        })
+        .find(|candidate| candidate.is_file())
+}
+
+/// Stops the command and every process it started.
+fn kill_tree(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    {
+        extern "C" {
+            fn kill(pid: i32, signal: i32) -> i32;
+        }
+        // SAFETY: signals the process group created for this child only.
+        unsafe { kill(-(child.id() as i32), 9) };
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &child.id().to_string()])
+            .creation_flags(0x0800_0000)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 #[cfg(all(test, unix))]
@@ -275,6 +342,16 @@ mod tests {
         };
         let out = run(&p, &f).unwrap();
         assert_eq!(out.text.as_deref(), Some("<b>abc</b>"));
+        // Same size, same modification time, new contents: not the cached result.
+        let mtime = std::fs::metadata(&f).unwrap().modified().unwrap();
+        std::fs::write(&f, "xyz").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&f)
+            .unwrap()
+            .set_modified(mtime)
+            .unwrap();
+        assert_eq!(run(&p, &f).unwrap().text.as_deref(), Some("<b>xyz</b>"));
         let (o, fb) = matching(std::slice::from_ref(&p), "txt", "text");
         assert!(o.is_some() && fb.is_none());
 
@@ -286,5 +363,20 @@ mod tests {
         };
         let e = run(&slow, &f).unwrap_err();
         assert!(e.contains("timed out"), "{e}");
+
+        // The command exits at once but leaves a process holding its output.
+        let started = Instant::now();
+        let detached = Plugin {
+            command: vec!["sh".into(), "-c".into(), "sleep 3 & echo started".into()],
+            id: "detached".into(),
+            ..slow
+        };
+        let e = run(&detached, &f).unwrap_err();
+        assert!(e.contains("timed out"), "{e}");
+        assert!(
+            started.elapsed() < Duration::from_millis(1500),
+            "{:?}",
+            started.elapsed()
+        );
     }
 }

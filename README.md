@@ -29,7 +29,7 @@ Download the file for your system from [Releases](https://github.com/qa-p1/Arcad
 | Windows x64 | `Arcade-Look_<version>_x64-setup.exe` | Run Setup (NSIS, per-user, no admin). Adds a Start menu entry, an optional desktop shortcut and start at login, puts `arcade-look` on PATH and sets up the File Explorer integration. |
 | macOS (universal) | `Arcade-Look_<version>_universal.dmg` | Open the dmg and drag Arcade Look to Applications. Run from the dmg or Downloads, it offers to move itself to Applications. |
 
-- Scripted install: `arcade-look --install --silent` (add `--no-launch`, or `--channel C`). `--repair` repairs the integration recorded in the install receipt; `--integration-status` prints it as JSON.
+- Scripted install: `arcade-look --install --silent` (add `--no-launch`, or `--channel C`). `--repair` repairs the integration recorded in the install receipt; `--integration-status` prints it as JSON. A silent install removes the AppImage it was started from only when that file is in your Downloads folder; add `--keep-download` to keep it there too. Files elsewhere are never removed.
 - If `~/.local/bin` is not on your PATH, Look shows the exact line to add for your shell.
 - Builds are unsigned. On Windows, SmartScreen may warn: choose **More info → Run anyway**. On macOS the app is not notarized: Control-click or right-click it and choose **Open** the first time.
 - If FUSE is missing on Linux, run the AppImage with `--appimage-extract-and-run`.
@@ -110,7 +110,7 @@ OPTIONS:
     --service                Start in the background without a window
     --settings               Open the settings
     --restart                Restart the running instance
-    --install [--silent] [--no-launch] [--channel C]
+    --install [--silent] [--no-launch] [--keep-download] [--channel C]
                              Install this AppImage or move this macOS app bundle
     --install-integration    Alias for --install
     --uninstall [--silent] [--remove-data]
@@ -128,6 +128,8 @@ OPTIONS:
 ## Settings and data
 
 Settings live in `config.json` in your config folder: `~/.config/arcade-look/` on Linux, `~/Library/Application Support/arcade-look/` on macOS, and `%APPDATA%\arcade-look\` on Windows. The welcome screen links to it.
+
+Log messages go to `logs/arcade-look.log` in the same folder.
 
 ```jsonc
 {
@@ -154,7 +156,7 @@ Arcade Tools can export and import Look's settings: theme, idle minutes, global 
 - **Windows:** **Settings → Apps** (Apps & features), or Arcade Tools.
 - **macOS:** `arcade-look --uninstall` removes the installation recorded in its receipt, or remove Look in Arcade Tools.
 
-Your settings stay unless you choose to remove them (`--remove-data`).
+Your settings stay unless you choose to remove them (`--remove-data`, or *Remove settings and data* in Arcade Tools). That also removes the preview's web storage and caches: `~/.local/share/app.arcadelook` and `~/.cache/app.arcadelook` on Linux, `%LOCALAPPDATA%\app.arcadelook` on Windows, and `~/Library/WebKit/app.arcadelook` and `~/Library/Caches/app.arcadelook` on macOS.
 
 ## Platform notes
 

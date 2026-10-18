@@ -97,6 +97,8 @@ export function renderCode(host: HTMLElement, ctx: ViewCtx, t: TextData, lang: s
 
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const t = await api.readText(ctx.info.path);
+  // Navigated away while loading: build nothing for a preview that is gone.
+  if (ctx.signal.aborted) return {};
   if (ctx.info.kind === 'binary' && /\u0000/.test(t.text.slice(0, 4096))) {
     throw new Error('This file is binary.');
   }

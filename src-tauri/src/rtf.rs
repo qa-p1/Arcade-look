@@ -77,6 +77,10 @@ fn convert(b: &[u8]) -> String {
     let mut run = String::new();
     let mut run_fmt = (false, false, false);
     let mut pending_skip = 0u32; // chars to skip after \uN
+                                 // `\ansicpg` names the code page of `\'xx` escapes.
+    let mut codepage: &'static encoding_rs::Encoding = encoding_rs::WINDOWS_1252;
+    // A character outside the BMP arrives as two `\uN` surrogates.
+    let mut high_surrogate: Option<u32> = None;
     let mut i = 0;
 
     let flush_run = |run: &mut String, para: &mut String, fmt: (bool, bool, bool)| {
@@ -199,12 +203,25 @@ fn convert(b: &[u8]) -> String {
                             st.i = false;
                             st.u = false;
                         }
+                        "ansicpg" => codepage = param.and_then(code_page).unwrap_or(codepage),
                         "uc" => st.uc = param.unwrap_or(1).max(0) as u32,
                         "u" => {
                             if let Some(p) = param {
                                 let code = if p < 0 { (p + 65536) as u32 } else { p as u32 };
-                                if let Some(ch) = char::from_u32(code) {
-                                    emit_char!(ch);
+                                match (code, high_surrogate.take()) {
+                                    (0xD800..=0xDBFF, _) => high_surrogate = Some(code),
+                                    (0xDC00..=0xDFFF, Some(high)) => {
+                                        let full =
+                                            0x10000 + ((high - 0xD800) << 10) + (code - 0xDC00);
+                                        if let Some(ch) = char::from_u32(full) {
+                                            emit_char!(ch);
+                                        }
+                                    }
+                                    _ => {
+                                        if let Some(ch) = char::from_u32(code) {
+                                            emit_char!(ch);
+                                        }
+                                    }
                                 }
                                 pending_skip = st.uc;
                             }
@@ -223,17 +240,31 @@ fn convert(b: &[u8]) -> String {
                     i += 1;
                     match n {
                         b'\'' => {
-                            let hex = b
-                                .get(i..i + 2)
-                                .and_then(|h| std::str::from_utf8(h).ok())
-                                .and_then(|h| u8::from_str_radix(h, 16).ok());
-                            i += 2;
-                            if let Some(byte) = hex {
-                                let buf = [byte];
-                                let (s, _, _) = encoding_rs::WINDOWS_1252.decode(&buf);
-                                for ch in s.chars() {
-                                    emit_char!(ch);
+                            // Collect the whole run of `\'xx` bytes: in double-byte
+                            // code pages one character spans two escapes.
+                            let mut bytes = Vec::new();
+                            loop {
+                                let hex = b
+                                    .get(i..i + 2)
+                                    .and_then(|h| std::str::from_utf8(h).ok())
+                                    .and_then(|h| u8::from_str_radix(h, 16).ok());
+                                i += 2;
+                                if let Some(byte) = hex {
+                                    // A `\uN` fallback counts each escaped byte.
+                                    if pending_skip > 0 && !st.skip {
+                                        pending_skip -= 1;
+                                    } else {
+                                        bytes.push(byte);
+                                    }
                                 }
+                                if b.get(i..i + 2) != Some(b"\\'") {
+                                    break;
+                                }
+                                i += 2;
+                            }
+                            let (s, _, _) = codepage.decode(&bytes);
+                            for ch in s.chars() {
+                                emit_char!(ch);
                             }
                         }
                         b'~' => emit_char!('\u{a0}'),
@@ -261,6 +292,23 @@ fn convert(b: &[u8]) -> String {
     out
 }
 
+/// The encoding of a Windows code page number, as `\ansicpg` gives it.
+fn code_page(number: i32) -> Option<&'static encoding_rs::Encoding> {
+    let label = match number {
+        874 | 1250..=1258 => format!("windows-{number}"),
+        932 => "shift_jis".into(),
+        936 => "gbk".into(),
+        949 => "euc-kr".into(),
+        950 => "big5".into(),
+        10000 => "macintosh".into(),
+        20866 => "koi8-r".into(),
+        28591..=28599 => format!("iso-8859-{}", number - 28590),
+        65001 => "utf-8".into(),
+        _ => return None,
+    };
+    encoding_rs::Encoding::for_label(label.as_bytes())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -270,5 +318,22 @@ mod tests {
         let rtf: &[u8] = b"{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}}{\\*\\generator x;}\\f0 Hello {\\b bold} caf\\'e9 \\u8364?\\par Next\\par}";
         let h = convert(rtf);
         assert_eq!(h, "<p>Hello <strong>bold</strong> café €</p><p>Next</p>");
+    }
+
+    #[test]
+    fn surrogate_pairs_and_code_pages() {
+        // 😀 is U+1F600: \u-10179 (D83D) \u-8704 (DE00), each with a `?` fallback.
+        let emoji: &[u8] = b"{\\rtf1\\ansi a\\u-10179?\\u-8704?b \\u8364?\\par}";
+        assert_eq!(convert(emoji), "<p>a\u{1F600}b \u{20AC}</p>");
+        let cyrillic: &[u8] = b"{\\rtf1\\ansi\\ansicpg1251 \\'cf\\'f0\\'e8\\'e2\\'e5\\'f2\\par}";
+        assert_eq!(
+            convert(cyrillic),
+            "<p>\u{41F}\u{440}\u{438}\u{432}\u{435}\u{442}</p>"
+        );
+        let japanese: &[u8] = b"{\\rtf1\\ansi\\ansicpg932 \\'82\\'a0\\par}";
+        assert_eq!(convert(japanese), "<p>\u{3042}</p>");
+        // A \u fallback written as an escape is skipped, not shown.
+        let fallback: &[u8] = b"{\\rtf1\\ansi\\ansicpg1251 \\u1046\\'c6!\\par}";
+        assert_eq!(convert(fallback), "<p>\u{416}!</p>");
     }
 }

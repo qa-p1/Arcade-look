@@ -54,6 +54,42 @@ const INTROSPECT: &str = r#"<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Obj
   </interface>
 </node>"#;
 
+/// The single-instance plugin's D-Bus name: Tauri's identifier plus
+/// ".SingleInstance" (the plugin's `semver` feature is off).
+const SINGLE_INSTANCE: &str = "app.arcadelook.SingleInstance";
+const SINGLE_INSTANCE_PATH: &str = "/app/arcadelook/SingleInstance";
+
+/// A second launch hands its arguments to the running Look before loading
+/// config, plugins and GTK. The single-instance plugin makes the same call,
+/// but only once the app is set up. Returns false when no Look is running or
+/// the call fails, and the normal start takes over.
+pub fn forward_to_running(argv: &[String]) -> bool {
+    tauri::async_runtime::block_on(async {
+        let Ok(conn) = zbus::Connection::session().await else {
+            return false;
+        };
+        let Ok(dbus) = zbus::fdo::DBusProxy::new(&conn).await else {
+            return false;
+        };
+        let Ok(name) = zbus::names::BusName::try_from(SINGLE_INSTANCE) else {
+            return false;
+        };
+        if !dbus.name_has_owner(name).await.unwrap_or(false) {
+            return false;
+        }
+        let cwd = std::env::current_dir().unwrap_or_default();
+        conn.call_method(
+            Some(SINGLE_INSTANCE),
+            SINGLE_INSTANCE_PATH,
+            Some("org.SingleInstance.DBus"),
+            "ExecuteCallback",
+            &(argv.to_vec(), cwd.to_string_lossy().into_owned()),
+        )
+        .await
+        .is_ok()
+    })
+}
+
 pub fn start_previewer(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         if let Err(e) = serve(app).await {
@@ -629,6 +665,19 @@ pub fn uninstall() -> Res<String> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn single_instance_name_matches_the_plugin() {
+        // The plugin names its bus after tauri.conf.json's identifier.
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let identifier = conf["identifier"].as_str().unwrap();
+        assert_eq!(SINGLE_INSTANCE, format!("{identifier}.SingleInstance"));
+        assert_eq!(
+            SINGLE_INSTANCE_PATH,
+            format!("/{}", SINGLE_INSTANCE.replace('.', "/").replace('-', "_"))
+        );
+    }
     use super::*;
 
     #[test]

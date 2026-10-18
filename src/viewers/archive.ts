@@ -74,6 +74,8 @@ const sorted = (n: Node) => [...n.children.values()].sort((a, b) => Number(b.dir
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const { info } = ctx;
   const listing = await api.listArchive(info.path, info.format);
+  // Navigated away while loading: build nothing for a preview that is gone.
+  if (ctx.signal.aborted) return {};
   const root = buildTree(listing.entries);
   const files = listing.entries.filter((e) => !e.dir);
   const countDirs = (n: Node): number => [...n.children.values()].reduce((a, c) => a + (c.dir ? 1 + countDirs(c) : 0), 0);
