@@ -247,6 +247,8 @@ fn emit_request(app: &AppHandle, request: Request) {
 
 /// Called only after the page has initialized and installed every event listener.
 pub fn frontend_ready(app: &AppHandle) {
+    // Test runners (scripts/verify-rendering.py, the Link e2e checks) wait for this.
+    crate::dbg_log!("frontend ready");
     let state = app.state::<AppState>();
     let requests = state
         .frontend
