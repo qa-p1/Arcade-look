@@ -94,6 +94,8 @@ struct Para {
     style: Option<String>,
     outline: Option<u8>,
     list: Option<(String, u8)>,
+    /// `numId 0`: numbering switched off, even if the style has it.
+    list_off: bool,
     align: Option<String>,
     html: String,
 }
@@ -111,6 +113,12 @@ impl Lists {
     }
     fn item(&mut self, out: &mut String, level: usize, ordered: bool, html: &str) {
         while self.stack.len() > level + 1 {
+            let o = self.stack.pop().unwrap();
+            out.push_str(if o { "</ol>" } else { "</ul>" });
+        }
+        // A bullet list followed straight by a numbered one (or the reverse)
+        // at the same level is a new list.
+        if self.stack.len() == level + 1 && self.stack[level] != ordered {
             let o = self.stack.pop().unwrap();
             out.push_str(if o { "</ol>" } else { "</ul>" });
         }
@@ -135,9 +143,28 @@ fn docx(path: &Path) -> Res<DocOut> {
 
     // styleId → (lower-cased name, outline level)
     let mut styles: HashMap<String, (String, Option<u8>)> = HashMap::new();
+    // styleId → its numbering (numId, ilvl) and the style it is based on:
+    // List Bullet, List Number and the like number their paragraphs.
+    let mut style_num: HashMap<String, (Option<String>, Option<u8>)> = HashMap::new();
+    let mut style_base: HashMap<String, String> = HashMap::new();
     if let Some(s) = zip_text(&mut z, "word/styles.xml") {
         let mut cur: Option<String> = None;
         let _ = walk(&s, |ev| match ev {
+            X::Open("w:basedOn", a) => {
+                if let (Some(id), Some(v)) = (&cur, a.get("w:val")) {
+                    style_base.insert(id.clone(), v.to_string());
+                }
+            }
+            X::Open("w:numId", a) => {
+                if let (Some(id), Some(v)) = (&cur, a.get("w:val")) {
+                    style_num.entry(id.clone()).or_default().0 = Some(v.to_string());
+                }
+            }
+            X::Open("w:ilvl", a) => {
+                if let (Some(id), Some(v)) = (&cur, a.get("w:val").and_then(|v| v.parse().ok())) {
+                    style_num.entry(id.clone()).or_default().1 = Some(v);
+                }
+            }
             X::Open("w:style", a) => {
                 cur = a.get("w:styleId").map(str::to_string);
                 if let Some(id) = &cur {
@@ -191,6 +218,28 @@ fn docx(path: &Path) -> Res<DocOut> {
             _ => {}
         });
     }
+    // The paragraph's own numbering, completed from its style chain.
+    let list_of = |p: &Para| -> Option<(String, u8)> {
+        if p.list_off {
+            return None;
+        }
+        let (mut num, mut lvl) = (None, None);
+        let mut style = p.style.clone();
+        for _ in 0..16 {
+            let Some(id) = style else { break };
+            if let Some((n, l)) = style_num.get(&id) {
+                num = num.or_else(|| n.clone());
+                lvl = lvl.or(*l);
+            }
+            style = style_base.get(&id).cloned();
+        }
+        match &p.list {
+            Some((id, l)) if !id.is_empty() => Some((id.clone(), *l)),
+            Some((_, l)) => num.map(|n| (n, *l)),
+            None => num.map(|n| (n, lvl.unwrap_or(0))),
+        }
+        .filter(|(n, _)| n != "0")
+    };
     let ordered = |num_id: &str, lvl: u8| -> bool {
         num_abs
             .get(num_id)
@@ -279,6 +328,7 @@ fn docx(path: &Path) -> Res<DocOut> {
                 if let Some(p) = paras.last_mut() {
                     let id = a.get("w:val").unwrap_or("0").to_string();
                     let lvl = p.list.as_ref().map(|l| l.1).unwrap_or(0);
+                    p.list_off = id == "0";
                     p.list = if id == "0" { None } else { Some((id, lvl)) };
                 }
             }
@@ -407,7 +457,7 @@ fn docx(path: &Path) -> Res<DocOut> {
                     }
                     None => &mut out,
                 };
-                if let Some((num, lvl)) = &p.list {
+                if let Some((num, lvl)) = &list_of(&p) {
                     lists.item(target, *lvl as usize, ordered(num, *lvl), &p.html);
                 } else {
                     lists.close_all(target);
@@ -477,9 +527,11 @@ fn docx(path: &Path) -> Res<DocOut> {
     })?;
     lists.close_all(&mut out);
 
-    // Resolve images now that the zip is free again.
+    // Resolve images now that the zip is free again, then put them in place
+    // in one pass (replacing marker by marker copied the whole document for
+    // every image).
+    let mut resolved = std::collections::HashMap::new();
     for (idx, rid, width) in pending_images {
-        let marker = format!("\u{0}IMG{idx}\u{0}");
         let img = rel
             .get(&rid)
             .filter(|(_, ext)| !ext)
@@ -489,7 +541,10 @@ fn docx(path: &Path) -> Res<DocOut> {
                 _ => format!("<img src=\"{src}\" alt=\"\">"),
             })
             .unwrap_or_default();
-        out = out.replacen(&marker, &img, 1);
+        resolved.insert(idx, img);
+    }
+    if !resolved.is_empty() {
+        out = place_images(&out, &mut resolved);
     }
 
     let (title, meta) = ooxml_core_props(&mut z);
@@ -848,8 +903,8 @@ fn odt(path: &Path) -> Res<DocOut> {
     })?;
 
     let mut budget = ImageBudget { used: 0 };
+    let mut resolved = std::collections::HashMap::new();
     for (idx, (part, w)) in images.into_iter().enumerate() {
-        let marker = format!("\u{0}IMG{idx}\u{0}");
         let img = budget
             .take(&mut z, &part)
             .map(|src| match w {
@@ -857,7 +912,10 @@ fn odt(path: &Path) -> Res<DocOut> {
                 None => format!("<img src=\"{src}\" alt=\"\">"),
             })
             .unwrap_or_default();
-        out = out.replacen(&marker, &img, 1);
+        resolved.insert(idx, img);
+    }
+    if !resolved.is_empty() {
+        out = place_images(&out, &mut resolved);
     }
     let (title, meta) = odf_meta(&mut z);
     Ok(DocOut {
@@ -1072,9 +1130,46 @@ fn local(n: &str) -> &str {
     n.rsplit(':').next().unwrap_or(n)
 }
 
+/// Replaces each `\0IMG{n}\0` marker with its image, in one pass.
+fn place_images(html: &str, images: &mut std::collections::HashMap<usize, String>) -> String {
+    let mut placed =
+        String::with_capacity(html.len() + images.values().map(String::len).sum::<usize>());
+    let mut rest = html;
+    while let Some(start) = rest.find("\u{0}IMG") {
+        placed.push_str(&rest[..start]);
+        let after = &rest[start + 4..];
+        let Some(end) = after.find('\u{0}') else {
+            rest = &rest[start..];
+            break;
+        };
+        match after[..end]
+            .parse::<usize>()
+            .ok()
+            .and_then(|idx| images.remove(&idx))
+        {
+            Some(img) => placed.push_str(&img),
+            None => placed.push_str(&rest[start..start + 4 + end + 1]),
+        }
+        rest = &after[end + 1..];
+    }
+    placed.push_str(rest);
+    placed
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    #[test]
+    fn images_are_placed_in_one_pass() {
+        let html = "<p>a\u{0}IMG0\u{0}b\u{0}IMG1\u{0}c\u{0}IMG2\u{0}</p>";
+        let mut images = std::collections::HashMap::from([
+            (0, "<i0>".to_string()),
+            (1, String::new()),
+            (2, "<i2>".to_string()),
+        ]);
+        assert_eq!(place_images(html, &mut images), "<p>a<i0>bc<i2></p>");
+    }
     use std::io::Write;
 
     pub fn make_zip(path: &Path, files: &[(&str, &[u8])]) {
@@ -1091,6 +1186,58 @@ pub(crate) mod tests {
         let d = std::env::temp_dir().join(format!("alook-office-{}", std::process::id()));
         std::fs::create_dir_all(&d).unwrap();
         d.join(name)
+    }
+
+    #[test]
+    fn docx_lists_follow_styles_and_switch_type() {
+        let p = tmp("lists.docx");
+        let para = |style: &str, num: Option<&str>, text: &str| {
+            let style = if style.is_empty() {
+                String::new()
+            } else {
+                format!("<w:pStyle w:val=\"{style}\"/>")
+            };
+            let num = num
+                .map(|n| {
+                    format!("<w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"{n}\"/></w:numPr>")
+                })
+                .unwrap_or_default();
+            format!("<w:p><w:pPr>{style}{num}</w:pPr><w:r><w:t>{text}</w:t></w:r></w:p>")
+        };
+        let doc = format!(
+            "<w:document xmlns:w=\"w\"><w:body>{}{}{}{}{}{}</w:body></w:document>",
+            para("ListBullet", None, "b1"),
+            para("MyBullet", None, "b2"),
+            para("ListNumber", None, "n1"),
+            para("ListBullet", Some("0"), "plain"),
+            para("", Some("1"), "direct bullet"),
+            para("", Some("2"), "direct number"),
+        );
+        // MyBullet inherits its numbering from ListBullet.
+        let styles = br#"<w:styles xmlns:w="w">
+<w:style w:styleId="ListBullet"><w:name w:val="List Bullet"/><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr></w:style>
+<w:style w:styleId="MyBullet"><w:name w:val="My Bullet"/><w:basedOn w:val="ListBullet"/></w:style>
+<w:style w:styleId="ListNumber"><w:name w:val="List Number"/><w:pPr><w:numPr><w:numId w:val="2"/></w:numPr></w:pPr></w:style>
+</w:styles>"#;
+        let numbering = br#"<w:numbering xmlns:w="w">
+<w:abstractNum w:abstractNumId="10"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/></w:lvl></w:abstractNum>
+<w:abstractNum w:abstractNumId="20"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/></w:lvl></w:abstractNum>
+<w:num w:numId="1"><w:abstractNumId w:val="10"/></w:num>
+<w:num w:numId="2"><w:abstractNumId w:val="20"/></w:num>
+</w:numbering>"#;
+        make_zip(
+            &p,
+            &[
+                ("word/document.xml", doc.as_bytes()),
+                ("word/styles.xml", styles),
+                ("word/numbering.xml", numbering),
+            ],
+        );
+        let d = read(&p, "docx").unwrap();
+        assert_eq!(
+            d.html.replace('\n', ""),
+            "<ul><li>b1</li><li>b2</li></ul><ol><li>n1</li></ol><p>plain</p><ul><li>direct bullet</li></ul><ol><li>direct number</li></ol>"
+        );
     }
 
     #[test]
