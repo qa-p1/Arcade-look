@@ -173,14 +173,36 @@ pub fn hash_key(parts: &[&str]) -> String {
 }
 
 /// Cache key for a file's current content: path + size + mtime.
+/// Cache identity of a file's current contents. Path, size and modification
+/// time alone miss a same-size rewrite that keeps the old time (`cp -p`,
+/// `touch -r`); the inode and change time catch it where the OS has them.
 pub fn file_key(path: &Path) -> String {
     let meta = std::fs::metadata(path).ok();
     let size = meta.as_ref().map(|m| m.len()).unwrap_or(0).to_string();
+    let nanos = |t: std::io::Result<std::time::SystemTime>| {
+        t.ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_nanos())
+            .to_string()
+    };
     let mtime = meta
-        .and_then(|m| millis(m.modified()))
-        .unwrap_or(0)
-        .to_string();
-    hash_key(&[&path.to_string_lossy(), &size, &mtime])
+        .as_ref()
+        .map(|m| nanos(m.modified()))
+        .unwrap_or_default();
+    #[cfg(unix)]
+    let changed = meta
+        .as_ref()
+        .map(|m| {
+            use std::os::unix::fs::MetadataExt;
+            format!("{}:{}:{}.{}", m.dev(), m.ino(), m.ctime(), m.ctime_nsec())
+        })
+        .unwrap_or_default();
+    #[cfg(not(unix))]
+    let changed = meta
+        .as_ref()
+        .map(|m| nanos(m.created()))
+        .unwrap_or_default();
+    hash_key(&[&path.to_string_lossy(), &size, &mtime, &changed])
 }
 
 /// Turn a user-supplied argument (path, `file://` URI, relative path) into an absolute path.

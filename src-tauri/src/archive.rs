@@ -12,6 +12,52 @@ const MAX_ENTRIES: usize = 50_000;
 const BUDGET: Duration = Duration::from_millis(2500);
 /// Never extract more than this for a preview.
 const MAX_EXTRACT: u64 = 1 << 30;
+/// Reaching one entry may mean decompressing everything before it.
+const EXTRACT_BUDGET: Duration = Duration::from_secs(30);
+
+/// Fails reads (and seeks) once `deadline` has passed, so no single member
+/// (a huge one, or a decompression bomb before the wanted entry) can hold a
+/// listing or extraction past its budget.
+struct Deadline<R> {
+    inner: R,
+    deadline: Instant,
+}
+
+impl<R> Deadline<R> {
+    fn new(inner: R, budget: Duration) -> Self {
+        Self {
+            inner,
+            deadline: Instant::now() + budget,
+        }
+    }
+    fn check(&self) -> std::io::Result<()> {
+        if Instant::now() > self.deadline {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "time budget exceeded",
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl<R: Read> Read for Deadline<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.check()?;
+        self.inner.read(buf)
+    }
+}
+
+impl<R: Seek> Seek for Deadline<R> {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        self.check()?;
+        self.inner.seek(pos)
+    }
+}
+
+fn timed_out(error: &dyn std::fmt::Display) -> bool {
+    error.to_string().contains("time budget exceeded")
+}
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -149,8 +195,15 @@ fn list_zip(path: &Path) -> Res<Listing> {
 }
 
 fn list_7z(path: &Path) -> Res<Listing> {
-    let r = sevenz_rust2::ArchiveReader::open(path, sevenz_rust2::Password::empty())
-        .ctx("Not a readable 7z archive")?;
+    // Opening reads (and may decompress) the whole header: same budget.
+    let file = Deadline::new(BufReader::new(File::open(path).or_str()?), BUDGET);
+    let r = match sevenz_rust2::ArchiveReader::new(file, sevenz_rust2::Password::empty()) {
+        Ok(r) => r,
+        Err(e) if timed_out(&e) => {
+            return Err("Listing stopped after 2.5 s: this 7z archive's index is too large.".into())
+        }
+        Err(e) => return Err(format!("Not a readable 7z archive: {e}")),
+    };
     let mut l = empty("7z");
     l.packed_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     for e in &r.archive().files {
@@ -183,7 +236,8 @@ fn nt_to_millis(nt: u64) -> i64 {
 
 fn list_tar(path: &Path, compression: &str) -> Res<Listing> {
     let f = BufReader::with_capacity(256 * 1024, File::open(path).or_str()?);
-    let mut ar = tar::Archive::new(decoder(compression, f)?);
+    // Moving to the next header decompresses the member before it.
+    let mut ar = tar::Archive::new(Deadline::new(decoder(compression, f)?, BUDGET));
     let mut l = empty("tar");
     l.packed_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     let started = Instant::now();
@@ -195,6 +249,10 @@ fn list_tar(path: &Path, compression: &str) -> Res<Listing> {
         }
         let e = match e {
             Ok(e) => e,
+            Err(err) if timed_out(&err) => {
+                l.truncated = true;
+                break;
+            }
             Err(err) => {
                 l.note = Some(format!(
                     "Archive is damaged after {} entries: {err}",
@@ -227,7 +285,7 @@ fn list_tar(path: &Path, compression: &str) -> Res<Listing> {
             encrypted: false,
         });
     }
-    if l.truncated && started.elapsed() > BUDGET {
+    if l.truncated && started.elapsed() >= BUDGET {
         l.note = Some(
             "Listing stopped after 2.5 s: the archive is large and compressed as a single stream."
                 .into(),
@@ -300,14 +358,27 @@ fn gzip_isize(path: &Path) -> Option<u64> {
 /// Extract one entry into the temp cache and return its path. Cached by archive content.
 pub fn extract(path: &Path, hint: &str, entry: &str) -> Res<PathBuf> {
     let fmt = sniff_format(path, hint);
-    let dir = util::temp_root().join("x").join(util::file_key(path));
-    let rel = safe_rel_path(entry);
-    let out = dir.join(&rel);
+    // One folder per exact entry name: names that sanitize alike
+    // (`../a.txt` and `a.txt`, `a:b` and `a?b`, or differ only in case)
+    // never share a cached file. The file keeps the entry's own name.
+    let dir = util::temp_root()
+        .join("x")
+        .join(util::file_key(path))
+        .join(util::hash_key(&[entry]));
+    let name = safe_rel_path(entry);
+    let out = dir.join(name.file_name().unwrap_or(name.as_os_str()));
     if out.is_file() {
         return Ok(out);
     }
-    std::fs::create_dir_all(out.parent().unwrap_or(&dir)).or_str()?;
-    let tmp = out.with_extension("partial");
+    std::fs::create_dir_all(&dir).or_str()?;
+    // Each extraction writes its own partial file; the finished one is
+    // renamed into place, so concurrent previews never share a half-file.
+    static PARTIALS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let tmp = dir.join(format!(
+        ".{}-{}.partial",
+        std::process::id(),
+        PARTIALS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
     let result = (|| -> Res<()> {
         let mut w = std::fs::File::create(&tmp).or_str()?;
         match fmt.as_str() {
@@ -321,9 +392,10 @@ pub fn extract(path: &Path, hint: &str, entry: &str) -> Res<PathBuf> {
                 copy_capped(&mut e, &mut w)?;
             }
             "7z" => {
-                let mut r =
-                    sevenz_rust2::ArchiveReader::open(path, sevenz_rust2::Password::empty())
-                        .or_str()?;
+                let file =
+                    Deadline::new(BufReader::new(File::open(path).or_str()?), EXTRACT_BUDGET);
+                let mut r = sevenz_rust2::ArchiveReader::new(file, sevenz_rust2::Password::empty())
+                    .or_str()?;
                 let mut found = false;
                 let mut err = None;
                 r.for_each_entries(|e, rd| {
@@ -348,7 +420,7 @@ pub fn extract(path: &Path, hint: &str, entry: &str) -> Res<PathBuf> {
             f if f == "tar" || f.starts_with("tar.") => {
                 let comp = f.strip_prefix("tar.").unwrap_or("");
                 let rd = BufReader::with_capacity(256 * 1024, File::open(path).or_str()?);
-                let mut ar = tar::Archive::new(decoder(comp, rd)?);
+                let mut ar = tar::Archive::new(Deadline::new(decoder(comp, rd)?, EXTRACT_BUDGET));
                 let mut found = false;
                 for e in ar.entries().or_str()? {
                     let mut e = e.or_str()?;
@@ -368,7 +440,7 @@ pub fn extract(path: &Path, hint: &str, entry: &str) -> Res<PathBuf> {
             }
             "gz" | "bz2" | "xz" | "lzma" | "zst" => {
                 let rd = BufReader::new(File::open(path).or_str()?);
-                let mut d = decoder(&fmt, rd)?;
+                let mut d = Deadline::new(decoder(&fmt, rd)?, EXTRACT_BUDGET);
                 copy_capped(&mut d, &mut w)?;
             }
             other => return Err(format!("Unsupported archive format: {other}")),
@@ -382,7 +454,14 @@ pub fn extract(path: &Path, hint: &str, entry: &str) -> Res<PathBuf> {
         }
         Err(e) => {
             let _ = std::fs::remove_file(&tmp);
-            Err(e)
+            Err(if timed_out(&e) {
+                format!(
+                    "Gave up after {} s: reaching this entry means decompressing too much of the archive.",
+                    EXTRACT_BUDGET.as_secs()
+                )
+            } else {
+                e
+            })
         }
     }
 }
@@ -505,6 +584,122 @@ mod tests {
             PathBuf::from("etc").join("passwd")
         );
         assert_eq!(safe_rel_path("/abs/x"), PathBuf::from("abs").join("x"));
+    }
+
+    #[test]
+    fn entries_that_sanitize_alike_keep_their_own_contents() {
+        let d = tmpdir("alias");
+        let p = d.join("a.zip");
+        {
+            let mut z = zip::ZipWriter::new(File::create(&p).unwrap());
+            let o = zip::write::SimpleFileOptions::default();
+            for (name, body) in [
+                ("../same.txt", "UP"),
+                ("same.txt", "DOWN"),
+                ("a:b.txt", "COLON"),
+                ("a?b.txt", "QUESTION"),
+            ] {
+                z.start_file(name, o).unwrap();
+                z.write_all(body.as_bytes()).unwrap();
+            }
+            z.finish().unwrap();
+        }
+        for (name, body) in [
+            ("../same.txt", "UP"),
+            ("same.txt", "DOWN"),
+            ("a:b.txt", "COLON"),
+            ("a?b.txt", "QUESTION"),
+        ] {
+            let out = extract(&p, "zip", name).unwrap();
+            assert_eq!(std::fs::read_to_string(&out).unwrap(), body, "{name}");
+            assert!(out.extension().is_some_and(|e| e == "txt"));
+        }
+    }
+
+    #[test]
+    fn concurrent_extractions_do_not_share_a_partial_file() {
+        let d = tmpdir("race");
+        let p = d.join("a.zip");
+        let body = vec![b'x'; 4 << 20];
+        {
+            let mut z = zip::ZipWriter::new(File::create(&p).unwrap());
+            let o = zip::write::SimpleFileOptions::default();
+            for name in ["chapter.txt", "chapter.md"] {
+                z.start_file(name, o).unwrap();
+                z.write_all(&body).unwrap();
+            }
+            z.finish().unwrap();
+        }
+        std::thread::scope(|scope| {
+            let runs: Vec<_> = (0..8)
+                .map(|i| {
+                    let p = &p;
+                    scope.spawn(move || {
+                        extract(
+                            p,
+                            "zip",
+                            if i % 2 == 0 {
+                                "chapter.txt"
+                            } else {
+                                "chapter.md"
+                            },
+                        )
+                    })
+                })
+                .collect();
+            for run in runs {
+                assert_eq!(
+                    std::fs::metadata(run.join().unwrap().unwrap())
+                        .unwrap()
+                        .len(),
+                    body.len() as u64
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn a_slow_member_cannot_hold_a_tar_listing_past_its_budget() {
+        // Stands in for a member that takes long to decompress.
+        struct Slow(std::io::Cursor<Vec<u8>>);
+        impl Read for Slow {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                std::thread::sleep(Duration::from_millis(20));
+                let n = buf.len().min(512);
+                self.0.read(&mut buf[..n])
+            }
+        }
+        let mut tar = tar::Builder::new(Vec::new());
+        for name in ["big.bin", "after.txt"] {
+            let data = vec![0u8; if name == "big.bin" { 200 * 1024 } else { 1 }];
+            let mut header = tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_cksum();
+            tar.append_data(&mut header, name, data.as_slice()).unwrap();
+        }
+        let bytes = tar.into_inner().unwrap();
+        let started = Instant::now();
+        let mut ar = tar::Archive::new(Deadline::new(
+            Slow(std::io::Cursor::new(bytes)),
+            Duration::from_millis(300),
+        ));
+        let mut seen = 0;
+        let mut stopped = false;
+        for e in ar.entries().unwrap() {
+            match e {
+                Ok(_) => seen += 1,
+                Err(err) => {
+                    stopped = timed_out(&err);
+                    break;
+                }
+            }
+        }
+        assert!(stopped && seen == 1, "seen {seen}, stopped {stopped}");
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "{:?}",
+            started.elapsed()
+        );
     }
 
     #[test]
