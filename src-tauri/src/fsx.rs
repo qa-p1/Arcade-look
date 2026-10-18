@@ -111,7 +111,12 @@ pub fn dir_size(path: &Path, budget: Duration) -> DirSize {
         let Ok(rd) = std::fs::read_dir(&d) else {
             continue;
         };
-        for e in rd.flatten() {
+        for (n, e) in rd.flatten().enumerate() {
+            // One wide (or slow, networked) folder must not outlast the budget.
+            if n % 16 == 15 && (started.elapsed() > budget || s.files + s.dirs > 400_000) {
+                s.complete = false;
+                return s;
+            }
             let Ok(ft) = e.file_type() else { continue };
             if ft.is_dir() {
                 s.dirs += 1;
@@ -134,19 +139,7 @@ pub fn neighbor(path: &Path, delta: i64) -> Res<Option<String>> {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
     let show_hidden = is_hidden(&cur_name, path);
-    let mut names: Vec<(bool, String)> = std::fs::read_dir(parent)
-        .or_str()?
-        .flatten()
-        .filter_map(|e| {
-            let n = e.file_name().to_string_lossy().to_string();
-            if !show_hidden && is_hidden(&n, &e.path()) {
-                return None;
-            }
-            let dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
-            Some((dir, n))
-        })
-        .collect();
-    names.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| natural_cmp(&a.1, &b.1)));
+    let names = siblings(parent, show_hidden)?;
     let Some(idx) = names.iter().position(|(_, n)| *n == cur_name) else {
         return Ok(None);
     };
@@ -160,6 +153,55 @@ pub fn neighbor(path: &Path, delta: i64) -> Res<Option<String>> {
             .to_string_lossy()
             .to_string(),
     ))
+}
+
+/// The sorted entries of `parent` (folders first, natural order). Arrowing
+/// through a folder asks for them on every step, so the last folder's list is
+/// kept while the folder itself is unchanged (its modification time moves
+/// when entries are added, removed or renamed), and for a few seconds at
+/// most on filesystems that don't keep it current.
+fn siblings(parent: &Path, show_hidden: bool) -> Res<std::sync::Arc<Vec<(bool, String)>>> {
+    type Cached = (
+        PathBuf,
+        bool,
+        Option<std::time::SystemTime>,
+        Instant,
+        std::sync::Arc<Vec<(bool, String)>>,
+    );
+    static LAST: std::sync::Mutex<Option<Cached>> = std::sync::Mutex::new(None);
+    let modified = std::fs::metadata(parent).and_then(|m| m.modified()).ok();
+    if let Some((dir, hidden, time, at, names)) = &*LAST.lock().unwrap_or_else(|e| e.into_inner()) {
+        if dir == parent
+            && *hidden == show_hidden
+            && *time == modified
+            && modified.is_some()
+            && at.elapsed() < Duration::from_secs(10)
+        {
+            return Ok(names.clone());
+        }
+    }
+    let mut names: Vec<(bool, String)> = std::fs::read_dir(parent)
+        .or_str()?
+        .flatten()
+        .filter_map(|e| {
+            let n = e.file_name().to_string_lossy().to_string();
+            if !show_hidden && is_hidden(&n, &e.path()) {
+                return None;
+            }
+            let dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            Some((dir, n))
+        })
+        .collect();
+    names.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| natural_cmp(&a.1, &b.1)));
+    let names = std::sync::Arc::new(names);
+    *LAST.lock().unwrap_or_else(|e| e.into_inner()) = Some((
+        parent.to_path_buf(),
+        show_hidden,
+        modified,
+        Instant::now(),
+        names.clone(),
+    ));
+    Ok(names)
 }
 
 /// Cheap kind hint for folder listings (no IO).
@@ -218,5 +260,32 @@ mod tests {
         assert_eq!((s.bytes, s.files, s.dirs, s.complete), (18, 5, 1, true));
         let l = list_dir(&d).unwrap();
         assert_eq!(l.entries[0].name, "sub");
+    }
+
+    #[test]
+    fn neighbors_follow_folder_changes() {
+        let d = std::env::temp_dir().join(format!("alook-nb-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        for n in ["a1.txt", "a3.txt"] {
+            std::fs::write(d.join(n), b"x").unwrap();
+        }
+        let next = |from: &str| neighbor(&d.join(from), 1).unwrap();
+        assert_eq!(
+            next("a1.txt"),
+            Some(d.join("a3.txt").to_string_lossy().into())
+        );
+        // A new sibling shows up on the next step (the folder's time moved).
+        std::thread::sleep(Duration::from_millis(20));
+        std::fs::write(d.join("a2.txt"), b"x").unwrap();
+        assert_eq!(
+            next("a1.txt"),
+            Some(d.join("a2.txt").to_string_lossy().into())
+        );
+        for n in 0..200 {
+            std::fs::write(d.join(format!("f{n}")), b"").unwrap();
+        }
+        assert!(dir_size(&d, Duration::from_secs(5)).complete);
+        let _ = std::fs::remove_dir_all(d);
     }
 }
