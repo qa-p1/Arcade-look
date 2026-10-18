@@ -27,8 +27,12 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const tabs = h('div.sheet-tabs');
   host.append(area, tabs);
 
+  let shown = 0;
   async function show(sheet: number) {
+    const generation = ++shown;
     const d = await api.readTable(info.path, info.format, sheet);
+    // Closed, or another sheet was picked meanwhile.
+    if (ctx.signal.aborted || generation !== shown) return;
     virt?.destroy();
     render(d);
   }

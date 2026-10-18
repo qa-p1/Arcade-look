@@ -10,6 +10,7 @@ import type { Mounted, ViewCtx } from './types';
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const { info, signal } = ctx;
   const md = await api.renderMarkdown(info.path);
+  if (ctx.signal.aborted) return {};
   const article = h('article.prose.markdown');
   article.append(sanitize(md.html, { baseDir: info.dir }));
   wireLinks(article, {

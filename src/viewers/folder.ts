@@ -9,10 +9,14 @@ import type { Mounted, ViewCtx } from './types';
 
 const THUMB_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif', 'ico']);
 const THUMB_MAX = 3 * 1024 * 1024;
+const FIRST_TILES = 240;
+const TILE_BATCH = 300;
 
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const { info } = ctx;
   const listing = await api.listDir(info.path);
+  // Navigated away while loading: build nothing for a preview that is gone.
+  if (ctx.signal.aborted) return {};
   const showHidden = ctx.boot.config.showHidden;
   const entries = listing.entries.filter((e) => showHidden || !e.hidden);
   const hiddenCount = listing.entries.length - entries.length;
@@ -48,9 +52,23 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     t.addEventListener('click', () => ctx.open(e.path));
     return t;
   };
-  for (const e of entries) grid.append(tile(e));
-  if (!entries.length) grid.append(h('div.folder-empty', 'This folder is empty.'));
-  if (listing.truncated) grid.append(h('div.folder-empty', `…and ${(listing.total - listing.entries.length).toLocaleString()} more items`));
+  // The first screenfuls at once, the rest in small batches between frames:
+  // 5,000 tiles built in one go blocked the window for about half a second.
+  const tail = h('div.folder-tail');
+  for (const e of entries.slice(0, FIRST_TILES)) grid.append(tile(e));
+  grid.append(tail);
+  let next = FIRST_TILES;
+  const more = () => {
+    if (ctx.signal.aborted || next >= entries.length) return;
+    const batch = document.createDocumentFragment();
+    for (const e of entries.slice(next, next + TILE_BATCH)) batch.append(tile(e));
+    next += TILE_BATCH;
+    tail.before(batch);
+    if (next < entries.length) setTimeout(more, 0);
+  };
+  if (next < entries.length) setTimeout(more, 0);
+  if (!entries.length) tail.append(h('div.folder-empty', 'This folder is empty.'));
+  if (listing.truncated) tail.append(h('div.folder-empty', `…and ${(listing.total - listing.entries.length).toLocaleString()} more items`));
 
   host.append(h('div.prose-scroll', h('div.folder-view', header, grid)));
   ctx.setStatus(fmt.count(listing.total, 'item'));

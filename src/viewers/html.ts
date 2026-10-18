@@ -18,6 +18,8 @@ export function sandboxedFrame(html: string, baseDir: string | null): HTMLIFrame
 
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const t = await api.readText(ctx.info.path);
+  // Navigated away while loading: build nothing for a preview that is gone.
+  if (ctx.signal.aborted) return {};
   const rendered = h('div.html-host', sandboxedFrame(t.text, ctx.info.dir));
   const source = h('div.sub-host.hidden');
   host.append(rendered, source);

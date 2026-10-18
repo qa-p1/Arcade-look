@@ -293,6 +293,7 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
       return false;
     },
     dispose() {
+      clearTimeout(resizeT);
       io.disconnect();
       ro.disconnect();
       for (const s of slots) s.task?.cancel();

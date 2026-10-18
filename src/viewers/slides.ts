@@ -36,6 +36,8 @@ function slideCard(s: Slide, i: number, aspect: number): HTMLElement {
 
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const deck = await api.readSlides(ctx.info.path, ctx.info.format);
+  // Navigated away while loading: build nothing for a preview that is gone.
+  if (ctx.signal.aborted) return {};
   const list = h('div.slides.selectable');
   deck.slides.forEach((s, i) => list.append(slideCard(s, i, deck.aspect || 16 / 9)));
   if (!deck.slides.length) list.append(h('div.center-fill', 'This presentation has no slides.'));

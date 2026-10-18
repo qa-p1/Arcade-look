@@ -10,6 +10,47 @@ const TREE_LIMIT = 24 * 1024 * 1024;
 
 type J = null | boolean | number | string | J[] | { [k: string]: J };
 
+/** Marks a number literal that a JavaScript number can't hold exactly. */
+const EXACT = '\uE000';
+const NUMBER = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+
+/**
+ * JSON.parse, except that number literals a double would change (long IDs
+ * such as 9007199254740993, or more than 17 significant digits) keep their
+ * original text, so the tree shows what the file says.
+ */
+export function parseExact(text: string): J {
+  if (!/\d{16}/.test(text)) return JSON.parse(text) as J;
+  let out = '';
+  let last = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 34 /* " */) {
+      for (i++; i < text.length && text.charCodeAt(i) !== 34; i++) if (text.charCodeAt(i) === 92) i++;
+      continue;
+    }
+    if (c === 45 || (c >= 48 && c <= 57)) {
+      NUMBER.lastIndex = i;
+      const m = NUMBER.exec(text);
+      if (!m) continue;
+      const literal = m[0];
+      if (literal.replace(/[-.eE+]/g, '').length > 15 && !sameNumber(literal)) {
+        out += `${text.slice(last, i)}"${EXACT}${literal}"`;
+        last = i + literal.length;
+      }
+      i += literal.length - 1;
+    }
+  }
+  return JSON.parse(out + text.slice(last)) as J;
+}
+
+function sameNumber(literal: string): boolean {
+  const n = Number(literal);
+  if (!Number.isFinite(n)) return false;
+  if (/^-?\d+$/.test(literal)) return BigInt(literal) === BigInt(Math.trunc(n)) && Number.isSafeInteger(n);
+  return String(n) === literal;
+}
+
 function typeOf(v: J): string {
   if (v === null) return 'null';
   if (Array.isArray(v)) return 'array';
@@ -29,6 +70,9 @@ function preview(v: J): string {
 
 function primitive(v: J): HTMLElement {
   const t = typeOf(v);
+  if (t === 'string' && (v as string).startsWith(EXACT)) {
+    return h('span.jv.jv-number', (v as string).slice(EXACT.length));
+  }
   if (t === 'string') {
     const s = v as string;
     const el = h('span.jv.jv-string', JSON.stringify(s.length > 5000 ? `${s.slice(0, 5000)}…` : s));
@@ -82,13 +126,15 @@ function node(key: string | null, v: J, depth: number, expandDepth: number): HTM
 
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const t = await api.readText(ctx.info.path, TREE_LIMIT);
+  // Navigated away while loading: build nothing for a preview that is gone.
+  if (ctx.signal.aborted) return {};
   if (t.truncated) throw new Error('Large JSON: showing as text.');
   let data: J;
   const text = t.text.replace(/^﻿/, '');
   if (ctx.info.format === 'jsonl' || ctx.info.format === 'ndjson') {
-    data = text.split(/\r?\n/).filter((l) => l.trim()).map((l) => JSON.parse(l) as J);
+    data = text.split(/\r?\n/).filter((l) => l.trim()).map((l) => parseExact(l));
   } else {
-    data = JSON.parse(text) as J;
+    data = parseExact(text);
   }
 
   const tree = h('div.json-tree.selectable', node(null, data, 0, 2));
@@ -110,14 +156,24 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   };
   bTree.addEventListener('click', () => setRaw(false));
   bRaw.addEventListener('click', () => setRaw(true));
+  type Group = HTMLElement & { _toggle?: (s: boolean) => void };
   const setAll = (open: boolean) => {
-    const groups = tree.querySelectorAll<HTMLElement & { _toggle?: (s: boolean) => void }>('.jgroup');
-    let n = 0;
-    for (const g of groups) {
-      if (open && ++n > 2000) break;
-      g._toggle?.(open);
+    if (!open) {
+      for (const g of tree.querySelectorAll<Group>('.jgroup')) g._toggle?.(false);
+      (tree.firstElementChild as Group)?._toggle?.(true);
+      return;
     }
-    if (!open) (tree.firstElementChild as HTMLElement & { _toggle?: (s: boolean) => void })?._toggle?.(true);
+    // Opening a group mounts its children, which may hold closed groups of
+    // their own: repeat, level by level, up to 2,000 groups.
+    let n = 0;
+    for (;;) {
+      const closed = tree.querySelectorAll<Group>('.jgroup:not(.open)');
+      if (!closed.length) return;
+      for (const g of closed) {
+        if (++n > 2000) return;
+        g._toggle?.(true);
+      }
+    }
   };
   ctx.toolbar([
     { title: 'View', el: seg },

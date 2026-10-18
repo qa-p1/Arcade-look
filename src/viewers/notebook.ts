@@ -10,6 +10,15 @@ type Src = string | string[] | undefined;
 interface Output {
   output_type: string;
   name?: string;
+  /** nbformat 3: the stream's name, and outputs keyed by short format names. */
+  stream?: string;
+  png?: Src;
+  jpeg?: Src;
+  gif?: Src;
+  svg?: Src;
+  html?: Src;
+  markdown?: Src;
+  json?: Src;
   text?: Src;
   data?: Record<string, Src>;
   ename?: string;
@@ -32,6 +41,8 @@ const stripAnsi = (s: string) => s.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '');
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const { info, signal } = ctx;
   const t = await api.readText(info.path, 64 * 1024 * 1024);
+  // Navigated away while loading: build nothing for a preview that is gone.
+  if (ctx.signal.aborted) return {};
   const nb = JSON.parse(t.text.replace(/^﻿/, '')) as {
     cells?: Cell[];
     worksheets?: { cells: Cell[] }[];
@@ -99,14 +110,31 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   return {};
 }
 
+/** nbformat 3 keeps each format under its own key (`text`, `png`, …); v4 under `data`. */
+function outputData(o: Output): Record<string, Src> {
+  if (o.data) return o.data;
+  const legacy: Record<string, Src> = {
+    'image/png': o.png,
+    'image/jpeg': o.jpeg,
+    'image/gif': o.gif,
+    'image/svg+xml': o.svg,
+    'text/html': o.html,
+    'text/markdown': o.markdown,
+    'application/json': o.json,
+    'text/plain': o.text,
+  };
+  return Object.fromEntries(Object.entries(legacy).filter(([, v]) => v !== undefined));
+}
+
 function renderOutput(o: Output, dir: string | null): HTMLElement {
   if (o.output_type === 'stream') {
-    return h(`pre.nb-stream${o.name === 'stderr' ? '.nb-stderr' : ''}`, stripAnsi(join(o.text)));
+    const name = o.name ?? o.stream;
+    return h(`pre.nb-stream${name === 'stderr' ? '.nb-stderr' : ''}`, stripAnsi(join(o.text)));
   }
   if (o.output_type === 'error' || o.output_type === 'pyerr') {
     return h('pre.nb-error', stripAnsi((o.traceback ?? [`${o.ename}: ${o.evalue}`]).join('\n')));
   }
-  const d = o.data ?? {};
+  const d = outputData(o);
   for (const mime of ['image/png', 'image/jpeg', 'image/gif']) {
     if (d[mime]) {
       return h('div.nb-image', h('img', { src: `data:${mime};base64,${join(d[mime]).replace(/\s/g, '')}`, alt: '' }));
