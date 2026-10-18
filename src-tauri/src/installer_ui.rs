@@ -151,7 +151,12 @@ pub fn run_uninstall(environment: Environment, remove_data: bool) -> Result<Outc
 }
 
 #[cfg(target_os = "linux")]
-fn ask(state: &DialogState, mut options: Options, managed: bool, legacy: &[PathBuf]) -> Result<Choice, String> {
+fn ask(
+    state: &DialogState,
+    mut options: Options,
+    managed: bool,
+    legacy: &[PathBuf],
+) -> Result<Choice, String> {
     use gtk::prelude::*;
     gtk::init().map_err(|e| format!("no display for the install dialog: {e}"))?;
     let (title, body, buttons) = text(state);
@@ -321,7 +326,12 @@ fn quote(s: &str) -> String {
 }
 
 #[cfg(target_os = "macos")]
-fn ask(state: &DialogState, mut options: Options, managed: bool, _legacy: &[PathBuf]) -> Result<Choice, String> {
+fn ask(
+    state: &DialogState,
+    mut options: Options,
+    managed: bool,
+    _legacy: &[PathBuf],
+) -> Result<Choice, String> {
     let (title, body, buttons) = text(state);
     let mut message = body.unwrap_or_default();
     if managed {
@@ -384,7 +394,12 @@ fn message(text: &str) {
 
 /// Windows installs through its per-user installer; nothing prompts here.
 #[cfg(windows)]
-fn ask(_state: &DialogState, options: Options, _managed: bool, _legacy: &[PathBuf]) -> Result<Choice, String> {
+fn ask(
+    _state: &DialogState,
+    options: Options,
+    _managed: bool,
+    _legacy: &[PathBuf],
+) -> Result<Choice, String> {
     Ok(Choice {
         button: None,
         options,

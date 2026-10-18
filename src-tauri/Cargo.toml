@@ -44,7 +44,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 kamadak-exif = "0.6"
 imagesize = "0.15"
 # Arcade Link (the shared protocol and install/tray runtime).
-arcade-link = { git = "https://github.com/qa-p1/Arcade-link", tag = "v0.3.0", features = ["install", "trayhost"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-link", rev = "2fc7c91b7578ca424264627b82174bedc176e511", features = ["install", "trayhost"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3"
