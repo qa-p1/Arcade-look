@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.4 — 2026-10-19
+
+- Previews no longer crash Arcade Look when it runs from its AppImage (0.3.1 to
+  0.3.3). Since 0.3.1 Look moved to the folder you started it from, so
+  `arcade-look notes.md` found the file, and the web view behind every preview
+  then could not find its helper programs, which are looked up relative to the
+  AppImage. Look now reads the files you name against your folder and then goes
+  back into the AppImage's folder.
+- The AppImage check in CI now previews a file named relative to the user's
+  folder from the installed AppImage and fails if Look quits.
+
 ## 0.3.3 — 2026-10-19
 
 - A helper an app starts from its own image (such as a settings window) keeps

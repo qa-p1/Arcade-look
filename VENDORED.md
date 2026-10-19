@@ -1,8 +1,8 @@
 # Vendored Arcade Link assets
 
 Shared installer, release, shortcut and protocol assets are copied unchanged
-from [Arcade Link](https://github.com/qa-p1/Arcade-link/tree/4c75f3a7c806ae78f96127c556708e65eaeeb476) commit
-`4c75f3a7c806ae78f96127c556708e65eaeeb476` (v0.3.0 plus unreleased installer fixes). License: MIT OR Apache-2.0.
+from [Arcade Link](https://github.com/qa-p1/Arcade-link/tree/3bbbc5d0d7d383e18c7e7e20552e942c1a971abd) commit
+`3bbbc5d0d7d383e18c7e7e20552e942c1a971abd` (v0.3.0 plus unreleased installer fixes). License: MIT OR Apache-2.0.
 Run `python3 scripts/check-vendored.py` to verify the SHA-256 inventory.
 Refresh the source pin and hashes together.
 

@@ -87,6 +87,11 @@ pub fn run() {
         return;
     }
 
+    // Files on the command line are relative to the user's directory; the
+    // previews are webviews, and WebKit needs the AppImage's own directory.
+    let user_dir = std::env::current_dir().ok();
+    arcade_link::childenv::enter_image_dir();
+
     tray::wait_for_predecessor();
     std::thread::spawn(util::clean_temp);
     let config = config::load();
@@ -198,7 +203,7 @@ pub fn run() {
             link_consumer::start(&handle);
             #[cfg(all(feature = "e2e", unix))]
             e2e::start(&handle);
-            app::handle_args(&handle, &start_args, None);
+            app::handle_args(&handle, &start_args, user_dir.as_deref());
             Ok(())
         });
 
