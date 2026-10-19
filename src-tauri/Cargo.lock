@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "arcade-look"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "arcade-link",
  "base64 0.23.1",
