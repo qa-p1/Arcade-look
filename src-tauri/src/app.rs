@@ -7,7 +7,7 @@
 use crate::config::{Config, WindowState};
 use crate::plugins::Plugin;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
@@ -41,6 +41,14 @@ const WEBVIEW_IDLE_RELEASE: Duration = Duration::from_secs(30);
 // quiet, a resident Look restarts into the background. Browsing sessions never
 // see it; the first preview after a long pause costs about 50 ms more.
 const LEAN_RESTART_AFTER: Duration = Duration::from_secs(5 * 60);
+
+// Each released webview also leaves some of WebKit's shared memory behind in
+// this process. Someone previewing a file every minute or two never gives Look
+// the quiet above: an all-day session grew by about two descriptors for every
+// three previews, toward the 1024 limit. After this many releases the next one
+// restarts Look as soon as it is hidden, so the leftovers stay bounded.
+const LEAN_RESTART_EVERY: u32 = 10;
+static RELEASES: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Default)]
 struct FrontendState {
@@ -575,7 +583,8 @@ fn schedule_idle_release(app: &AppHandle, since: Instant) {
                     frontend.releasing = false;
                     eprintln!("arcade-look: could not release webview: {error}");
                 } else {
-                    schedule_lean_restart(&app, since);
+                    let releases = RELEASES.fetch_add(1, Ordering::SeqCst) + 1;
+                    schedule_lean_restart(&app, since, releases >= LEAN_RESTART_EVERY);
                 }
             }
         });
@@ -605,16 +614,20 @@ fn schedule_idle_release(app: &AppHandle, since: Instant) {
 /// Restart a resident Look into the background once it has stayed hidden for
 /// [`LEAN_RESTART_AFTER`] after its webview was released (Linux, where WebKit
 /// keeps its network process for the life of the process).
-fn schedule_lean_restart(app: &AppHandle, since: Instant) {
+fn schedule_lean_restart(app: &AppHandle, since: Instant, soon: bool) {
     if !cfg!(target_os = "linux") || std::env::var_os("ARCADE_LOOK_NO_LEAN_RESTART").is_some() {
         return;
     }
     let handle = app.clone();
     // Debug builds can shorten the wait to test it.
-    let after = cfg!(debug_assertions)
-        .then(|| std::env::var("ALOOK_LEAN_RESTART_SECS").ok()?.parse().ok())
-        .flatten()
-        .map_or(LEAN_RESTART_AFTER, Duration::from_secs);
+    let after = if soon {
+        Duration::from_secs(1)
+    } else {
+        cfg!(debug_assertions)
+            .then(|| std::env::var("ALOOK_LEAN_RESTART_SECS").ok()?.parse().ok())
+            .flatten()
+            .map_or(LEAN_RESTART_AFTER, Duration::from_secs)
+    };
     std::thread::spawn(move || {
         std::thread::sleep(after);
         let app = handle.clone();

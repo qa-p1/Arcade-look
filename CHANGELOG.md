@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.5 — 2026-10-19
+
+- A long day of previews no longer makes Look grow until it fails. Each preview
+  window Look releases leaves some of WebKit's shared memory behind, and the
+  restart that clears it waited for five quiet minutes, which a steady user
+  never gives it: in a soak test the resident Look gained about two open files
+  for every three previews, on its way to the 1024 limit. Look now restarts
+  itself after every tenth release, as soon as the preview is hidden.
+
 ## 0.3.4 — 2026-10-19
 
 - Previews no longer crash Arcade Look when it runs from its AppImage (0.3.1 to
