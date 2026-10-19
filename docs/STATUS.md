@@ -2,7 +2,8 @@
 
 ## Release status (2026-10-18)
 
-- Latest release: [v0.3.1](https://github.com/qa-p1/Arcade-look/releases/tag/v0.3.1), published 2026-10-18 (fixes for what verifying the previous release found; see CHANGELOG.md). The CI and e2e notes below were recorded for the earlier v0.2.0.
+- Latest release: [v0.3.2](https://github.com/qa-p1/Arcade-look/releases/tag/v0.3.2), published 2026-10-19 (releases every descriptor an AppImage start inherits; see CHANGELOG.md). The CI and e2e notes below were recorded for the earlier v0.2.0.
+- Previously released: [v0.3.1](https://github.com/qa-p1/Arcade-look/releases/tag/v0.3.1), published 2026-10-18 (fixes for what verifying the release before it found).
 - Previously released: [v0.3.0](https://github.com/qa-p1/Arcade-look/releases/tag/v0.3.0), published 2026-10-18 (fixes from the October audit and stress test).
 - Previously released: [v0.2.1](https://github.com/qa-p1/Arcade-look/releases/tag/v0.2.1), published 2026-10-16.
 - Previously released: [v0.2.0](https://github.com/qa-p1/Arcade-look/releases/tag/v0.2.0) with a Linux self-installing AppImage, a per-user Windows installer, a macOS dmg, `arcade-release.json` and `SHA256SUMS.txt`.
@@ -10,7 +11,7 @@
 - Ecosystem e2e (Arcade Link `tools/e2e.py`, real CI builds of all eight apps): install, tray hosting (hosted by Tools, own icon back within 1 s after Tools is killed, no flash on restart) and shortcuts pass. Tools 0.2.0 adopts, updates, rolls back, uninstalls and backs up Look.
 - Not yet verified: a real Windows or macOS desktop (CI runners only), and the owner's real-desktop checks. Builds are unsigned, so SmartScreen and Gatekeeper ask for approval.
 
-Current source version: 0.3.1, Arcade Link commit `85bdb0e`. The verification below records 0.1.2
+Current source version: 0.3.2, Arcade Link commit `829cc90`. The verification below records 0.1.2
 with Arcade Link `v0.2.0`: the `verify-link.py` checks, the consumer tests,
 Look's own ecosystem checks and the benchmark were rerun on 2026-10-10; the
 cross-app flagship row is from 0.1.0 (2026-10-08, Link `v0.1.0`). This page
