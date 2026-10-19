@@ -53,7 +53,9 @@ fn run(app: &AppHandle, action: Action) {
 pub const RESTART_ENV: &str = "ARCADE_LOOK_RESTART_AFTER";
 
 pub fn restart_request(app: &AppHandle) -> Result<(), arcade_link::LinkError> {
-    std::process::Command::new(crate::integration::launcher_path())
+    let mut command = std::process::Command::new(crate::integration::launcher_path());
+    // The successor runs from a new mount; it mustn't keep this one alive.
+    arcade_link::childenv::detach_from_image(&mut command)
         .arg("--service")
         .env(RESTART_ENV, std::process::id().to_string())
         .spawn()

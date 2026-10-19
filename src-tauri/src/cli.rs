@@ -150,7 +150,12 @@ pub fn restart_running() {
     }
     // No resident endpoint means there is nothing to replace; start the normal service.
     let exe = crate::integration::launcher_path();
-    if let Err(error) = std::process::Command::new(exe).arg("--service").spawn() {
+    let mut command = std::process::Command::new(exe);
+    // The service runs from its own mount; it mustn't keep this one alive.
+    if let Err(error) = arcade_link::childenv::detach_from_image(&mut command)
+        .arg("--service")
+        .spawn()
+    {
         eprintln!("arcade-look: could not start: {error}");
         std::process::exit(1);
     }
