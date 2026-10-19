@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "app": "arcade.look",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "groups": [
     {
       "title": "Preview and navigation",
