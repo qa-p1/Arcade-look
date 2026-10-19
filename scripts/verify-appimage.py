@@ -4,9 +4,35 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+
+
+def survives(executable, env, work, *args, seconds=15):
+    """Starts `executable` from the user's directory `work` and fails if it
+    exits within `seconds`; then stops it and everything it started."""
+    work.mkdir(exist_ok=True)
+    with tempfile.TemporaryFile() as log:
+        child = subprocess.Popen(
+            [str(executable), *args], cwd=work, env=dict(env, OWD=str(work)),
+            stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+        )
+        try:
+            code = child.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            code = None
+        finally:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            child.wait()
+        if code is not None:
+            log.seek(0)
+            output = log.read().decode(errors="replace")[-4000:]
+            raise RuntimeError(f"{executable} {' '.join(args)} exited {code} within {seconds}s:\n{output}")
 
 
 def main():
@@ -75,6 +101,16 @@ def main():
         status = json.loads(run(cli_name, "--integration-status"))
         assert status["receipt"]["path"] == str(installed), status
         assert status["entries"] and all(entry["exists"] for entry in status["entries"]), status
+
+        # The app itself must survive its first webview: a preview of a file
+        # named relative to the user's directory. AppRun changes into
+        # $APPDIR/usr and the mounting runtime sets $OWD (extract-and-run
+        # doesn't, so it is set here); WebKit finds its helpers relative to
+        # $APPDIR/usr and aborts the whole app when they aren't there.
+        work = root / "work"
+        work.mkdir()
+        (work / "note.md").write_text("# Arcade Look\n", encoding="utf-8")
+        survives(installed, env, work, "note.md")
 
         # A missing launcher must be repaired from the installed package.
         desktop.unlink()

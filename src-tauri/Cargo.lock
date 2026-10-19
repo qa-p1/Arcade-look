@@ -50,7 +50,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 [[package]]
 name = "arcade-link"
 version = "0.3.0"
-source = "git+https://github.com/qa-p1/Arcade-link?rev=4c75f3a7c806ae78f96127c556708e65eaeeb476#4c75f3a7c806ae78f96127c556708e65eaeeb476"
+source = "git+https://github.com/qa-p1/Arcade-link?rev=3bbbc5d0d7d383e18c7e7e20552e942c1a971abd#3bbbc5d0d7d383e18c7e7e20552e942c1a971abd"
 dependencies = [
  "getrandom 0.4.3",
  "interprocess",
@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "arcade-look"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "arcade-link",
  "base64 0.23.1",
