@@ -235,9 +235,9 @@ export class App {
     clear(this.titleBadge);
     if (!i) {
       this.titleName.textContent = 'Arcade Look';
-      this.titleMeta.textContent = 'Press Space, see anything';
+      this.titleMeta.textContent = 'Press Space, see anything.';
       this.actions.classList.add('hidden');
-      this.setTitle('Arcade Look');
+      this.setTitle('Preview — Arcade Look');
       return;
     }
     this.actions.classList.remove('hidden');

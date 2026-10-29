@@ -19,11 +19,11 @@
   line-height: 1.75;
 }
 .prose.paper .doc-title {
-  font-size: 2.1em;
+  font-size: var(--fs-title);
   border: 0;
 }
 .prose.paper .doc-subtitle {
-  font-size: 1.25em;
+  font-size: var(--fs-title-sm);
   color: var(--text-2);
   font-weight: 400;
   border: 0;
@@ -128,13 +128,13 @@
 }
 .slide-text.lvl-1 {
   margin-left: 1.4em;
-  font-size: 0.92em;
+  font-size: var(--fs-body);
 }
 .slide-text.lvl-2,
 .slide-text.lvl-3,
 .slide-text.lvl-4 {
   margin-left: 2.8em;
-  font-size: 0.86em;
+  font-size: var(--fs-small);
 }
 .slide-media {
   flex: 0 1 46%;

@@ -96,6 +96,10 @@ try {
     await page.keyboard.press('Control+,');
     await page.waitForFunction(() => window.__mock.calls.some(([command]) => command === 'open_settings'));
     assert.equal(await page.getByRole('heading', { name: 'Getting started', exact: true }).count(), 1, 'Opening settings must preserve the current preview');
+    await page.getByRole('button', { name: 'Info (I)', exact: true }).hover();
+    await page.getByRole('tooltip').waitFor();
+    assert.equal(await page.getByRole('tooltip').locator('.key-chip').textContent(), 'I');
+    await page.mouse.move(0, 0);
     await page.keyboard.press('a'); await page.getByText('No connected apps can take this file', { exact: true }).waitFor();
     await page.keyboard.press('Escape');
     assert.deepEqual(errors, [], errors.join('\n'));

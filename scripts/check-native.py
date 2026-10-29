@@ -77,6 +77,16 @@ def ready(window):
     return evaluate("return !!document.querySelector('h1') && !document.querySelector('.skeleton');", window)
 
 
+def text_scale(factor, window='main'):
+    evaluate("""const base = window.__originalType ??= Object.fromEntries(['body','control','small','caption','heading','title','title-sm','display','mono','launcher'].map(name => {
+      const style = getComputedStyle(document.documentElement); return [name, [parseFloat(style.getPropertyValue('--fs-'+name)), parseFloat(style.getPropertyValue('--lh-'+name))]];
+    }));
+    for (const [name, [size, line]] of Object.entries(base)) {
+      document.documentElement.style.setProperty('--fs-'+name, size * FACTOR + 'px');
+      document.documentElement.style.setProperty('--lh-'+name, line * FACTOR + 'px');
+    }""".replace('FACTOR', str(factor)), window)
+
+
 def capture(name, window, size):
     evaluate('return true;', window, size)
     time.sleep(.25)
@@ -155,9 +165,11 @@ try:
     subprocess.run(['python3', str(ROOT / 'scripts/make-fixtures.py'), str(samples)], check=True)
     (samples / 'command.lookcommand').write_text('command plugin input')
     (samples / 'script.lookscript').write_text('script plugin input')
+    long_name = 'Getting started ' + 'with a deliberately long document name ' * 4 + '.md'
+    (samples / long_name).write_text((samples / 'README.md').read_text())
     fonts = list(samples.glob('*.ttf'))
     assert fonts, 'Fixture font missing'
-    matrix = [('gradient.png','image'), ('photo.jpg','image'), ('scan.tiff','image'), ('layered.psd','image'),
+    matrix = [(long_name,'markdown'), ('gradient.png','image'), ('photo.jpg','image'), ('scan.tiff','image'), ('layered.psd','image'),
               ('texture.tga','image'), ('animated.gif','image'), ('modern.webp','image'), ('logo.svg','image'),
               ('clip.mp4','video'), ('clip.webm','video'), ('tone.wav','audio'), ('song.mp3','audio'), ('tone.flac','audio'),
               ('report.pdf','pdf'), ('README.md','markdown'), ('main.rs','code'), ('notes.txt','code'), ('latin1.txt','code'),
@@ -177,8 +189,11 @@ try:
             second(path)
             wait_for(lambda: f'mounted with {viewer}' in log.read_text(errors='replace')[offset:], 'Wrong viewer for ' + name)
             for size in ([720,520],[1920,1080]):
-                result = capture(name.replace('.','-') + '-' + theme + '-' + str(size[0]), 'main', size)
+                result = capture(name.replace('.','-')[:160] + '-' + theme + '-' + str(size[0]), 'main', size)
                 assert result['viewer'] == viewer, (name, result)
+            text_scale(1.25)
+            capture(name.replace('.','-')[:160] + '-' + theme + '-720-125', 'main', [720,520])
+            text_scale(1)
         offset = log.stat().st_size
         second(ROOT / 'docs/user/getting-started.md')
         wait_for(lambda: 'mounted with markdown' in log.read_text(errors='replace')[offset:], 'User guide did not mount')

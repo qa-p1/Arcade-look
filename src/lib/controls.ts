@@ -53,6 +53,6 @@ export function keyChips(combo: string | string[]): HTMLElement {
   }
   return h(
     'span.key-chip-list',
-    combo.split('+').map((key) => h('kbd.key-chip', key)),
+    (combo === '+' ? ['+'] : combo.split('+')).map((key) => h('kbd.key-chip', key)),
   );
 }

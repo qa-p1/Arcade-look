@@ -31,7 +31,7 @@ pub struct Args {
 }
 
 pub const HELP: &str = "\
-Arcade Look: press Space, see anything.
+Arcade Look: Press Space, see anything.
 
 USAGE:
     arcade-look [OPTIONS] [PATH]
@@ -46,7 +46,7 @@ OPTIONS:
     --show                   Show the preview
     --hide                   Hide the preview
     --toggle                 Preview the selection or close the preview
-    --settings               Open the settings
+    --settings               Open Settings
     --restart                Restart the running instance
     --install [--silent] [--no-launch] [--keep-download] [--channel C]
                              Install this AppImage or move this macOS app bundle

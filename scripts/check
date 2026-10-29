@@ -9,6 +9,7 @@ npm run build
 "$python" scripts/check-version.py
 "$python" scripts/check-docs.py
 "$python" scripts/check-vendored.py
+"$python" scripts/check-design.py
 "$python" -m unittest discover -s scripts -p 'test_*.py'
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings

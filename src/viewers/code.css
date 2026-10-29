@@ -5,7 +5,7 @@
   background: var(--bg);
 }
 .code-view {
-  --code-size: 13px;
+  --code-size: var(--fs-body);
   display: flex;
   align-items: flex-start;
   min-width: max-content;
@@ -113,12 +113,12 @@
 }
 .jsum {
   color: var(--text-3);
-  font-size: 0.95em;
+  font-size: var(--fs-small);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .jgroup.open > .jhead > .jsum {
-  opacity: 0.6;
+  color: var(--muted);
 }
 .jv-string {
   color: var(--hl-string);

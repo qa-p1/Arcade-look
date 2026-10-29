@@ -145,6 +145,10 @@ pub fn run() {
             if matches!(event, WindowEvent::Focused(false))
                 && window.label() == app::MAIN
                 && window.app_handle().state::<app::AppState>().is_visible()
+                && !window
+                    .app_handle()
+                    .get_webview_window(app::SETTINGS)
+                    .is_some_and(|settings| settings.is_visible().unwrap_or(false))
             {
                 app::hide(window.app_handle());
             }

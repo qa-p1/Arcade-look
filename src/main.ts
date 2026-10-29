@@ -1,3 +1,4 @@
+import { installTooltips } from './lib/tooltips';
 import './design/arcade.css';
 import './styles/app.css';
 import { invoke } from '@tauri-apps/api/core';
@@ -24,6 +25,8 @@ for (const level of ['error', 'warn'] as const) {
 }
 window.addEventListener('error', (e) => forward('error', [e.error ?? e.message]));
 window.addEventListener('unhandledrejection', (e) => forward('rejection', [e.reason]));
+
+installTooltips();
 
 const root = document.getElementById('app');
 if (root) {

@@ -17,7 +17,7 @@
   --border: var(--line);
   --border-strong: var(--line-strong);
   --text-2: var(--muted);
-  --text-3: var(--faint);
+  --text-3: var(--muted);
   --accent-2: var(--accent);
   --glass: var(--panel);
   --shadow-sm: var(--shadow);
@@ -740,7 +740,7 @@ button {
   border-left: 3px solid var(--border-strong);
 }
 .prose code {
-  font: 0.86em var(--mono);
+  font: var(--fs-mono) var(--mono);
   background: var(--surface-2);
   padding: 0.15em 0.4em;
   border-radius: 5px;
@@ -801,7 +801,7 @@ button {
   list-style: none;
 }
 .prose kbd {
-  font-size: 0.8em;
+  font-size: var(--fs-caption);
 }
 .prose details {
   border: 1px solid var(--border);
@@ -820,7 +820,7 @@ button {
   margin: 8px 0 4px;
 }
 .prose .footnote-definition {
-  font-size: 0.9em;
+  font-size: var(--fs-small);
   color: var(--text-2);
 }
 .prose mark {
@@ -942,7 +942,7 @@ button {
 .prose blockquote[class^='markdown-alert']::before {
   display: block;
   font-weight: 650;
-  font-size: 0.85em;
+  font-size: var(--fs-caption);
   margin: 0.2em 0 0.3em;
   color: var(--accent);
 }

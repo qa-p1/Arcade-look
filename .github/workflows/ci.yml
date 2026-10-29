@@ -66,8 +66,17 @@ jobs:
             libayatana-appindicator3-dev libxdo-dev libssl-dev
 
       - run: npm ci
-      - name: Install test dependencies before checks
-        run: python3 -m pip install -r requirements-dev.txt
+      - name: Install test dependencies in a private virtual environment
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/look-python"
+          if [ -f "$RUNNER_TEMP/look-python/bin/python" ]; then
+            test_python="$RUNNER_TEMP/look-python/bin/python"
+          else
+            test_python="$RUNNER_TEMP/look-python/Scripts/python.exe"
+          fi
+          "$test_python" -m pip install -r requirements-dev.txt
+          dirname "$test_python" >> "$GITHUB_PATH"
       - name: Arcade Link runner at the same immutable design-kit tag
         if: runner.os == 'Linux'
         shell: bash

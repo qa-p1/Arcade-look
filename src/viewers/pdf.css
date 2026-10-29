@@ -1,3 +1,4 @@
+/* PDF text-selection geometry uses the previewed document's font metrics, not UI type. */
 .pdf-scroll {
   flex: 1;
   overflow: auto;
