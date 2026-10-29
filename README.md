@@ -77,7 +77,7 @@ The preview trigger depends on your platform:
 - **GNOME Files on Linux:** select a file and press **Space**. Look registers as a GNOME Files previewer.
 - **Other Linux file managers:** use **Open With → Arcade Look**, or configure the file manager to run `arcade-look` with the selected path.
 - **Windows:** **Space** in File Explorer when the Explorer integration is enabled, or **Ctrl+Alt+Shift+Space** to preview the current selection.
-- **macOS:** select a file in Finder and press **Control+Option+Space**. Finder's own Space preview remains available.
+- **macOS:** select a file in Finder and press **Control+Option+Shift+Space**. Finder's own Space preview remains available.
 
 You can also run `arcade-look path/to/file` or drop a file or folder on the window.
 
@@ -87,7 +87,7 @@ You can also run `arcade-look path/to/file` or drop a file or folder on the wind
 | ← / → | Previous / next file in the folder |
 | Backspace, Alt+← / Alt+→ | Back / forward in navigation history |
 | Enter or Ctrl+O | Open with the default app |
-| Ctrl+R | Reveal in folder |
+| Ctrl+R | Show in folder |
 | Ctrl+C | Copy the file path when no text is selected |
 | I | File information |
 | F | Fullscreen |
@@ -107,8 +107,11 @@ ARGS:
     PATH                     File or folder to preview (a file:// URI works too)
 
 OPTIONS:
-    --service                Start in the background without a window
-    --settings               Open the settings
+    --background             Start in the background without a window
+    --service                Compatibility alias for --background
+    --status                 Read-only running, version and Link JSON
+    --show / --hide / --toggle  Control the preview
+    --settings               Open Settings
     --restart                Restart the running instance
     --install [--silent] [--no-launch] [--keep-download] [--channel C]
                              Install this AppImage or move this macOS app bundle
@@ -127,15 +130,19 @@ OPTIONS:
 
 ## Settings and data
 
-Settings live in `config.json` in your config folder: `~/.config/arcade-look/` on Linux, `~/Library/Application Support/arcade-look/` on macOS, and `%APPDATA%\arcade-look\` on Windows. The welcome screen links to it.
+Open **Settings** from the tray, the title bar or **Ctrl/⌘+,**. It opens in its own native window, so the active preview stays in place. Theme changes apply immediately to both windows. General also contains **Start at login**, background residency, notifications (off until enabled), and the welcome screen.
 
-Log messages go to `logs/arcade-look.log` in the same folder.
+Settings live in `settings.json` under Link’s `arcade/look/` config folder: `~/.config/arcade/look/` on Linux, `~/Library/Application Support/arcade/look/` on macOS, and `%APPDATA%\arcade\look\` on Windows. Existing folders are copied and verified before removal; saved shortcuts are retained. Conflicts keep the originals and stop migration with details in the log.
+
+Open the current log folder or copy diagnostics in **Settings → About**. Logs and webview data use Link’s platform data folders under `arcade/look/`.
 
 ```jsonc
 {
   "theme": "system",            // "system" | "light" | "dark"
+  "keepReady": true,            // keep the service resident between previews
+  "notifications": false,       // finished actions, only while all windows are hidden
   "idleMinutes": 10,            // exit after this many idle minutes if no background services need Look (0 = never)
-  "globalShortcut": "Ctrl+Alt+Shift+Space", // Windows default; macOS Ctrl+Alt+Space; Linux ""
+  "globalShortcut": "Ctrl+Alt+Shift+Space", // new installs; existing saved shortcuts stay
   "explorerSpace": true,        // Windows: Space in File Explorer
   "nautilusPreviewer": true,    // Linux: Space in GNOME Files
   "textLimitMb": 4,             // text previews read at most this much
@@ -156,7 +163,7 @@ Arcade Tools can export and import Look's settings: theme, idle minutes, global 
 - **Windows:** **Settings → Apps** (Apps & features), or Arcade Tools.
 - **macOS:** `arcade-look --uninstall` removes the installation recorded in its receipt, or remove Look in Arcade Tools.
 
-Your settings stay unless you choose to remove them (`--remove-data`, or *Remove settings and data* in Arcade Tools). That also removes the preview's web storage and caches: `~/.local/share/app.arcadelook` and `~/.cache/app.arcadelook` on Linux, `%LOCALAPPDATA%\app.arcadelook` on Windows, and `~/Library/WebKit/app.arcadelook` and `~/Library/Caches/app.arcadelook` on macOS.
+Your settings stay unless you choose to remove them (`--remove-data`, or *Remove settings and data* in Arcade Tools). That also removes the preview's web storage and caches: the current Link `arcade/look/` data/cache folders and the recognized legacy `arcade-look` / `app.arcadelook` folders.
 
 ## Platform notes
 

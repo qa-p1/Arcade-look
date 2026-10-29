@@ -10,3 +10,6 @@ fixtures/
 # Python validation cache
 __pycache__/
 *.pyc
+
+# Local verification output
+artifacts/

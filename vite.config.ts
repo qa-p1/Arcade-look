@@ -7,7 +7,10 @@ for (const dir of ['cmaps', 'standard_fonts', 'wasm']) {
   const from = `node_modules/pdfjs-dist/${dir}`;
   if (existsSync(from) && !existsSync(`${pdfAssets}/${dir}`)) {
     // Skip the QuickJS engine: it only powers PDF form scripting, which we never enable.
-    cpSync(from, `${pdfAssets}/${dir}`, { recursive: true, filter: (src) => !src.includes('quickjs') });
+    cpSync(from, `${pdfAssets}/${dir}`, {
+      recursive: true,
+      filter: (src) => !src.includes('quickjs'),
+    });
   }
 }
 

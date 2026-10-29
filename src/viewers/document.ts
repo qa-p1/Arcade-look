@@ -1,3 +1,4 @@
+import { formatCount } from '../design/format';
 // Word processing documents (DOCX, ODT, RTF) and EPUB books on a paper-like page.
 import './doc.css';
 import { api } from '../lib/backend';
@@ -17,11 +18,16 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     paper.append(h('p.muted', 'This document has no text content.'));
   }
   wireLinks(paper, { openLocal: (p) => ctx.open(p), openExternal: (u) => void api.openUrl(u) });
-  if (d.truncated) host.append(h('div.notice', 'This document is very long; only the beginning is shown.'));
+  if (d.truncated)
+    host.append(h('div.notice', 'This document is very long; only the beginning is shown.'));
   host.append(h('div.prose-scroll.doc-scroll', paper));
   const words = (paper.textContent ?? '').trim().split(/\s+/).filter(Boolean).length;
   const pages = d.meta.find(([k]) => k === 'Pages')?.[1];
-  ctx.setStatus([d.title ?? '', pages ? `${pages} pages` : '', fmt.plural(words, 'word')].filter(Boolean).join('  ·  '));
-  ctx.setDetails([...d.meta, ['Words', words.toLocaleString()]]);
+  ctx.setStatus(
+    [d.title ?? '', pages ? `${pages} pages` : '', fmt.plural(words, 'word')]
+      .filter(Boolean)
+      .join('  ·  '),
+  );
+  ctx.setDetails([...d.meta, ['Words', formatCount(words)]]);
   return {};
 }

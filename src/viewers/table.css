@@ -1,10 +1,38 @@
-.table-area { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.grid { flex: 1; min-height: 0; display: flex; flex-direction: column; font-size: var(--fs-control); background: var(--bg); }
-.thead { flex: none; overflow: hidden; background: var(--surface-2); border-bottom: 1px solid var(--border-strong); }
-.tbody { flex: 1; min-height: 0; }
-.tr { display: grid; grid-template-columns: var(--cols); height: 28px; }
-.tr.odd { background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
-.tr:not(.th-row):hover { background: var(--accent-soft); }
+.table-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.grid {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-control);
+  background: var(--bg);
+}
+.thead {
+  flex: none;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-strong);
+}
+.tbody {
+  flex: 1;
+  min-height: 0;
+}
+.tr {
+  display: grid;
+  grid-template-columns: var(--cols);
+  height: 28px;
+}
+.tr.odd {
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+}
+.tr:not(.th-row):hover {
+  background: var(--accent-soft);
+}
 .td {
   padding: 0 10px;
   line-height: 28px;
@@ -14,9 +42,19 @@
   border-right: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
 }
-.td.num { text-align: right; font-family: var(--mono); font-size: var(--fs-small); }
-.td.th { font-weight: 600; color: var(--text); }
-.td.th.num { font-family: var(--sans); font-size: var(--fs-control); }
+.td.num {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: var(--fs-small);
+}
+.td.th {
+  font-weight: 600;
+  color: var(--text);
+}
+.td.th.num {
+  font-family: var(--sans);
+  font-size: var(--fs-control);
+}
 .td.rn {
   position: sticky;
   left: 0;
@@ -46,5 +84,11 @@
   color: var(--text-2);
   white-space: nowrap;
 }
-.sheet-tab:hover { background: var(--surface-2); }
-.sheet-tab.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.sheet-tab:hover {
+  background: var(--surface-2);
+}
+.sheet-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}

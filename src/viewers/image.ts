@@ -1,10 +1,31 @@
+import { formatCount } from '../design/format';
 import './image.css';
 import { api } from '../lib/backend';
 import { h } from '../lib/dom';
 import { fileUrl, imageUrl } from '../lib/urls';
 import type { Mounted, ViewCtx } from './types';
 
-const ALPHA_FORMATS = new Set(['png', 'apng', 'gif', 'webp', 'svg', 'avif', 'ico', 'cur', 'tga', 'psd', 'psb', 'tiff', 'exr', 'qoi', 'dds', 'bmp', 'jxl', 'heic', 'heif']);
+const ALPHA_FORMATS = new Set([
+  'png',
+  'apng',
+  'gif',
+  'webp',
+  'svg',
+  'avif',
+  'ico',
+  'cur',
+  'tga',
+  'psd',
+  'psb',
+  'tiff',
+  'exr',
+  'qoi',
+  'dds',
+  'bmp',
+  'jxl',
+  'heic',
+  'heif',
+]);
 
 function loadImage(img: HTMLImageElement, src: string, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -32,12 +53,21 @@ function loadImage(img: HTMLImageElement, src: string, signal: AbortSignal): Pro
 
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const { info, signal } = ctx;
-  const max = Math.min(8192, Math.round(Math.max(screen.width, screen.height) * (devicePixelRatio || 1) * 1.5));
+  const max = Math.min(
+    8192,
+    Math.round(Math.max(screen.width, screen.height) * (devicePixelRatio || 1) * 1.5),
+  );
   const sources: string[] = [];
   switch (info.kind) {
-    case 'image-decode': sources.push(imageUrl(info.path, 'decode', max)); break;
-    case 'image-raw': sources.push(imageUrl(info.path, 'raw', max)); break;
-    case 'image-psd': sources.push(imageUrl(info.path, 'psd', max)); break;
+    case 'image-decode':
+      sources.push(imageUrl(info.path, 'decode', max));
+      break;
+    case 'image-raw':
+      sources.push(imageUrl(info.path, 'raw', max));
+      break;
+    case 'image-psd':
+      sources.push(imageUrl(info.path, 'psd', max));
+      break;
     default:
       sources.push(fileUrl(info.path));
       if (info.kind !== 'svg') sources.push(imageUrl(info.path, 'decode', max));
@@ -163,19 +193,38 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   ro.observe(stage);
 
   ctx.toolbar([
-    { icon: 'zoomOut', title: 'Zoom out (−)', onClick: () => zoomTo(scale / 1.25, undefined, undefined, true) },
+    {
+      icon: 'zoomOut',
+      title: 'Zoom out (−)',
+      onClick: () => zoomTo(scale / 1.25, undefined, undefined, true),
+    },
     { title: 'Zoom', el: zoomLabel },
-    { icon: 'zoomIn', title: 'Zoom in (+)', onClick: () => zoomTo(scale * 1.25, undefined, undefined, true) },
+    {
+      icon: 'zoomIn',
+      title: 'Zoom in (+)',
+      onClick: () => zoomTo(scale * 1.25, undefined, undefined, true),
+    },
     { separator: true, title: '' },
     { icon: 'fit', title: 'Fit to window (0)', onClick: () => fit(true) },
-    { label: '1:1', title: 'Actual size (1)', onClick: () => zoomTo(1, undefined, undefined, true) },
+    {
+      label: '1:1',
+      title: 'Actual size (1)',
+      onClick: () => zoomTo(1, undefined, undefined, true),
+    },
     { icon: 'rotate', title: 'Rotate (R)', onClick: () => rotate() },
     ...(alpha
-      ? [{ icon: 'grid', title: 'Transparency checkerboard', active: checker, onClick: (b: HTMLButtonElement) => {
-          checker = !checker;
-          stage.classList.toggle('checker', checker);
-          b.classList.toggle('active', checker);
-        } }]
+      ? [
+          {
+            icon: 'grid',
+            title: 'Transparency checkerboard',
+            active: checker,
+            onClick: (b: HTMLButtonElement) => {
+              checker = !checker;
+              stage.classList.toggle('checker', checker);
+              b.classList.toggle('active', checker);
+            },
+          },
+        ]
       : []),
   ]);
 
@@ -186,20 +235,20 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   }
 
   fit();
-  ctx.setStatus(`${natW.toLocaleString()} × ${natH.toLocaleString()}`);
+  ctx.setStatus(`${formatCount(natW)} × ${formatCount(natH)}`);
 
   // Metadata off the critical path.
   void api
     .imageInfo(info.path, info.format)
     .then((ii) => {
       if (ii.width && ii.height && (info.kind === 'image-raw' || info.kind === 'image-psd')) {
-        ctx.setStatus(`${ii.width.toLocaleString()} × ${ii.height.toLocaleString()}`);
+        ctx.setStatus(`${formatCount(ii.width)} × ${formatCount(ii.height)}`);
         natW = natW || ii.width;
         natH = natH || ii.height;
       }
       const mp = ((ii.width ?? natW) * (ii.height ?? natH)) / 1e6;
       ctx.setDetails([
-        ['Dimensions', `${(ii.width ?? natW).toLocaleString()} × ${(ii.height ?? natH).toLocaleString()} px`],
+        ['Dimensions', `${formatCount(ii.width ?? natW)} × ${formatCount(ii.height ?? natH)} px`],
         ['Megapixels', mp >= 0.1 ? mp.toFixed(1) : ''],
         ...ii.exif,
       ]);
@@ -210,11 +259,24 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     keydown(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
       switch (e.key) {
-        case '+': case '=': zoomTo(scale * 1.25, undefined, undefined, true); return true;
-        case '-': case '_': zoomTo(scale / 1.25, undefined, undefined, true); return true;
-        case '0': fit(true); return true;
-        case '1': zoomTo(1, undefined, undefined, true); return true;
-        case 'r': case 'R': rotate(); return true;
+        case '+':
+        case '=':
+          zoomTo(scale * 1.25, undefined, undefined, true);
+          return true;
+        case '-':
+        case '_':
+          zoomTo(scale / 1.25, undefined, undefined, true);
+          return true;
+        case '0':
+          fit(true);
+          return true;
+        case '1':
+          zoomTo(1, undefined, undefined, true);
+          return true;
+        case 'r':
+        case 'R':
+          rotate();
+          return true;
       }
       return false;
     },

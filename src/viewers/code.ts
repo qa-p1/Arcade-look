@@ -1,6 +1,8 @@
 import './code.css';
 import { api, type FileInfo, type TextData } from '../lib/backend';
 import { h } from '../lib/dom';
+import { copyText } from '../lib/clipboard';
+import { formatCount } from '../design/format';
 import * as fmt from '../lib/format';
 import { highlight, LANG_NAMES, resolveLang } from '../lib/highlight';
 import type { Mounted, ViewCtx } from './types';
@@ -16,7 +18,12 @@ function langFor(info: FileInfo): string {
 export function renderCode(host: HTMLElement, ctx: ViewCtx, t: TextData, lang: string): Mounted {
   const { signal } = ctx;
   if (t.truncated) {
-    host.append(h('div.notice', `Showing the first ${fmt.bytes(t.text.length)} of ${fmt.bytes(t.size)}. Open the file to see everything.`));
+    host.append(
+      h(
+        'div.notice',
+        `Showing the first ${fmt.bytes(t.text.length)} of ${fmt.bytes(t.size)}. Open the file to see everything.`,
+      ),
+    );
   }
   const lines = t.text.endsWith('\n') ? t.lines : Math.max(1, t.lines);
   const gutter = h('pre.gutter', { 'aria-hidden': 'true' });
@@ -28,10 +35,21 @@ export function renderCode(host: HTMLElement, ctx: ViewCtx, t: TextData, lang: s
   const scroll = h('div.code-scroll', view);
   host.append(scroll);
 
-  let size = 13;
+  const scale = [
+    'caption',
+    'small',
+    'control',
+    'body',
+    'heading',
+    'title-sm',
+    'launcher',
+    'title',
+    'display',
+  ];
+  let size = 3;
   const setSize = (s: number) => {
-    size = Math.min(28, Math.max(9, s));
-    view.style.setProperty('--code-size', `${size}px`);
+    size = Math.min(scale.length - 1, Math.max(0, s));
+    view.style.setProperty('--code-size', `var(--fs-${scale[size]})`);
   };
   let wrap = false;
   const setWrap = (on: boolean) => {
@@ -61,7 +79,14 @@ export function renderCode(host: HTMLElement, ctx: ViewCtx, t: TextData, lang: s
         { icon: 'wrap', title: 'Wrap lines (W)', onClick: () => setWrap(!wrap) },
         { icon: 'zoomOut', title: 'Smaller text (−)', onClick: () => setSize(size - 1) },
         { icon: 'zoomIn', title: 'Larger text (+)', onClick: () => setSize(size + 1) },
-        { icon: 'copy', title: 'Copy all text', onClick: () => void navigator.clipboard.writeText(t.text).then(() => ctx.toast('Copied to clipboard')) },
+        {
+          icon: 'copy',
+          title: 'Copy all text',
+          onClick: () =>
+            void copyText(t.text)
+              .then(() => ctx.toast('Copied'))
+              .catch(() => ctx.toast("Couldn't copy the text. Try again.")),
+        },
       ]);
   const wrapBtn = bar?.querySelectorAll('button')[0] ?? null;
 
@@ -70,8 +95,8 @@ export function renderCode(host: HTMLElement, ctx: ViewCtx, t: TextData, lang: s
     ctx.setStatus(`${fmt.plural(lines, 'line')}${enc}`);
     ctx.setDetails([
       ['Language', label],
-      ['Lines', lines.toLocaleString()],
-      ['Characters', t.text.length.toLocaleString()],
+      ['Lines', formatCount(lines)],
+      ['Characters', formatCount(t.text.length)],
       ['Encoding', t.encoding],
       ['Line endings', /\r\n/.test(t.text.slice(0, 65536)) ? 'Windows (CRLF)' : 'Unix (LF)'],
     ]);
@@ -83,12 +108,27 @@ export function renderCode(host: HTMLElement, ctx: ViewCtx, t: TextData, lang: s
     keydown(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
       switch (e.key) {
-        case 'w': case 'W': setWrap(!wrap); return true;
-        case '+': case '=': setSize(size + 1); return true;
-        case '-': case '_': setSize(size - 1); return true;
-        case '0': setSize(13); return true;
-        case 'Home': scroll.scrollTop = 0; return true;
-        case 'End': scroll.scrollTop = scroll.scrollHeight; return true;
+        case 'w':
+        case 'W':
+          setWrap(!wrap);
+          return true;
+        case '+':
+        case '=':
+          setSize(size + 1);
+          return true;
+        case '-':
+        case '_':
+          setSize(size - 1);
+          return true;
+        case '0':
+          setSize(3);
+          return true;
+        case 'Home':
+          scroll.scrollTop = 0;
+          return true;
+        case 'End':
+          scroll.scrollTop = scroll.scrollHeight;
+          return true;
       }
       return false;
     },

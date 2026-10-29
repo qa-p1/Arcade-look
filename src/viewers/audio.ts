@@ -21,7 +21,10 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     audio.load();
     throw e;
   }
-  const tags: AudioInfo | null = await Promise.race([tagsP, new Promise<null>((r) => setTimeout(() => r(null), 600))]);
+  const tags: AudioInfo | null = await Promise.race([
+    tagsP,
+    new Promise<null>((r) => setTimeout(() => r(null), 600)),
+  ]);
 
   const title = tags?.title || info.name.replace(/\.[^.]+$/, '');
   const sub = [tags?.artist, tags?.album].filter(Boolean).join(' — ');
@@ -29,9 +32,17 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     info.format.toUpperCase(),
     tags?.sampleRate ? fmt.hz(tags.sampleRate) : '',
     tags?.bitDepth ? `${tags.bitDepth}-bit` : '',
-    tags?.channels ? (tags.channels === 1 ? 'mono' : tags.channels === 2 ? 'stereo' : `${tags.channels} ch`) : '',
+    tags?.channels
+      ? tags.channels === 1
+        ? 'mono'
+        : tags.channels === 2
+          ? 'stereo'
+          : `${tags.channels} ch`
+      : '',
     tags?.bitrate ? `${tags.bitrate} kbps` : '',
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const art = h('div.audio-art', icon('audio', 64));
   const backdrop = h('div.audio-backdrop');
@@ -50,16 +61,22 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const wave = h('div.waveform-wrap', canvas);
   const controls = mediaControls(audio);
   host.append(
-    h('div.audio-view',
+    h(
+      'div.audio-view',
       backdrop,
-      h('div.audio-card',
+      h(
+        'div.audio-card',
         art,
-        h('div.audio-meta',
+        h(
+          'div.audio-meta',
           h('div.audio-title.selectable', title),
           sub ? h('div.audio-sub.selectable', sub) : null,
-          h('div.audio-tech', tech)),
+          h('div.audio-tech', tech),
+        ),
         wave,
-        controls.el)),
+        controls.el,
+      ),
+    ),
   );
 
   // ------------------------------------------------------------ waveform
@@ -82,7 +99,8 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     const bar = 3;
     const gap = 2;
     const n = Math.floor(w / (bar + gap));
-    const progress = isFinite(audio.duration) && audio.duration ? audio.currentTime / audio.duration : 0;
+    const progress =
+      isFinite(audio.duration) && audio.duration ? audio.currentTime / audio.duration : 0;
     for (let i = 0; i < n; i++) {
       let v = 0.08;
       if (peaks) {
@@ -110,7 +128,8 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   audio.addEventListener('pause', drawWave);
   wave.addEventListener('click', (e) => {
     const r = wave.getBoundingClientRect();
-    if (isFinite(audio.duration)) audio.currentTime = ((e.clientX - r.left) / r.width) * audio.duration;
+    if (isFinite(audio.duration))
+      audio.currentTime = ((e.clientX - r.left) / r.width) * audio.duration;
     drawWave();
   });
   const ro = new ResizeObserver(drawWave);
@@ -120,7 +139,9 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     void (async () => {
       try {
         const buf = await (await fetch(mediaUrl(info.path), { signal })).arrayBuffer();
-        const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const Ctor =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         const ac = new Ctor();
         const decoded = await ac.decodeAudioData(buf);
         void ac.close();
@@ -147,17 +168,28 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     })();
   }
 
-  ctx.setStatus([tags?.artist ?? '', isFinite(audio.duration) ? fmt.duration(audio.duration) : ''].filter(Boolean).join('  ·  '));
+  ctx.setStatus(
+    [tags?.artist ?? '', isFinite(audio.duration) ? fmt.duration(audio.duration) : '']
+      .filter(Boolean)
+      .join('  ·  '),
+  );
   void tagsP.then((t) => {
     if (!t) return;
     ctx.setDetails([
-      ['Title', t.title ?? ''], ['Artist', t.artist ?? ''], ['Album', t.album ?? ''], ['Album artist', t.albumArtist ?? ''],
-      ['Year', t.year ?? ''], ['Genre', t.genre ?? ''],
+      ['Title', t.title ?? ''],
+      ['Artist', t.artist ?? ''],
+      ['Album', t.album ?? ''],
+      ['Album artist', t.albumArtist ?? ''],
+      ['Year', t.year ?? ''],
+      ['Genre', t.genre ?? ''],
       ['Track', t.track ? `${t.track}${t.trackTotal ? ` of ${t.trackTotal}` : ''}` : ''],
-      ['Disc', t.disc ? String(t.disc) : ''], ['Composer', t.composer ?? ''],
+      ['Disc', t.disc ? String(t.disc) : ''],
+      ['Composer', t.composer ?? ''],
       ['Duration', t.durationMs ? fmt.duration(t.durationMs / 1000) : ''],
-      ['Sample rate', t.sampleRate ? fmt.hz(t.sampleRate) : ''], ['Bit depth', t.bitDepth ? `${t.bitDepth}-bit` : ''],
-      ['Channels', t.channels ? String(t.channels) : ''], ['Bitrate', t.bitrate ? `${t.bitrate} kbps` : ''],
+      ['Sample rate', t.sampleRate ? fmt.hz(t.sampleRate) : ''],
+      ['Bit depth', t.bitDepth ? `${t.bitDepth}-bit` : ''],
+      ['Channels', t.channels ? String(t.channels) : ''],
+      ['Bitrate', t.bitrate ? `${t.bitrate} kbps` : ''],
       ['Comment', t.comment ?? ''],
     ]);
   });

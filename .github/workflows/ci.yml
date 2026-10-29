@@ -6,6 +6,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
   workflow_dispatch:
 
 env:
@@ -32,7 +33,7 @@ jobs:
     env:
       CARGO_BUILD_JOBS: 3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: arcade-look
 
@@ -42,17 +43,18 @@ jobs:
         run: echo "ARCADE_HOME=$RUNNER_TEMP/arcade-look-registry" >> "$GITHUB_ENV"
 
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: arcade-look/package-lock.json
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolnay/rust-toolchain@360a4e93673de6630fac2478bc9e35244b01a759 # 1.88.0
         with:
+          toolchain: 1.88.0
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: arcade-look/src-tauri
 
@@ -64,26 +66,50 @@ jobs:
             libayatana-appindicator3-dev libxdo-dev libssl-dev
 
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
-
-      - name: Check formatting
+      - name: Install test dependencies before checks
+        run: python3 -m pip install -r requirements-dev.txt
+      - name: Arcade Link runner at the same immutable design-kit tag
         if: runner.os == 'Linux'
-        working-directory: arcade-look/src-tauri
-        run: cargo fmt --check
+        shell: bash
+        run: git clone --depth 1 --branch v0.4.3 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
+      - name: Install isolated UI-test prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y xvfb xdotool dbus-x11 imagemagick ffmpeg p7zip-full fonts-dejavu-core libgl1-mesa-dri \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+          npx playwright install --with-deps chromium
+      - name: Run the project check entry point
+        shell: bash
+        run: scripts/check
+      - name: Upload UI verification evidence
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: look-ui-checks
+          path: arcade-look/artifacts/ui
+          if-no-files-found: error
 
-      - name: Clippy
-        working-directory: arcade-look/src-tauri
-        run: cargo clippy --all-targets --locked -- -D warnings
-
-      - name: Documentation, shortcuts and vendored sources
-        run: python scripts/check-docs.py && python scripts/check-vendored.py
-
-      - name: Tests
-        working-directory: arcade-look/src-tauri
-        run: python ../scripts/isolate.py cargo test --locked
 
   installers:
     name: Installers
     needs: check
     uses: ./.github/workflows/build.yml
+
+  release-preview:
+    name: Beta package and metadata rehearsal (no publication)
+    needs: installers
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: arcade-look-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/built
+      - name: Prepare and verify the complete beta candidate
+        run: python3 scripts/prepare-release.py "$RUNNER_TEMP/built" "$RUNNER_TEMP/release" --channel beta --notes "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: look-release-preview
+          path: ${{ runner.temp }}/release/*
+          if-no-files-found: error

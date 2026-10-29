@@ -82,6 +82,7 @@ pub struct ConnectedApps {
     registry: String,
     endpoint: String,
     last_error: Option<String>,
+    activity: Vec<String>,
 }
 
 pub fn me() -> PeerInfo {
@@ -275,8 +276,8 @@ impl Consumer {
             .map(|id| {
                 let installed = registry.get(id).is_some();
                 let state = match client::app_state(&self.locations, &registry, id, &me()) {
-                    client::AppState::Running { version } => format!("Running · v{version}"),
-                    client::AppState::Installed { .. } => "Installed".into(),
+                    client::AppState::Running { .. } => "Connected".into(),
+                    client::AppState::Installed { .. } => "Not running".into(),
                     client::AppState::NotInstalled => "Not installed".into(),
                 };
                 ConnectedPeer {
@@ -844,6 +845,51 @@ pub async fn link_invoke(
             result
         });
         consumer.jobs.lock().unwrap().remove(&request_id);
+        {
+            let mut activity = ACTIVITY
+                .get_or_init(|| Mutex::new(Vec::new()))
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            activity.insert(
+                0,
+                format!(
+                    "{}: {}",
+                    arcade_link::manifest::app_name(&app_id),
+                    if result.is_ok() {
+                        "Completed"
+                    } else {
+                        "Couldn't complete the action."
+                    }
+                ),
+            );
+            activity.truncate(50);
+        }
+        let state = app.state::<crate::app::AppState>();
+        let any_window_visible = app
+            .webview_windows()
+            .values()
+            .any(|window| window.is_visible().unwrap_or(true));
+        if should_notify(
+            state.config().notifications,
+            any_window_visible,
+            cancel.load(Ordering::SeqCst),
+        ) {
+            use tauri_plugin_notification::NotificationExt;
+            let body = if result.is_ok() {
+                "Your connected app action finished."
+            } else {
+                "Couldn't finish the connected app action. Open Settings for details."
+            };
+            if let Err(error) = app
+                .notification()
+                .builder()
+                .title("Arcade Look")
+                .body(body)
+                .show()
+            {
+                eprintln!("Couldn't show the action notification: {error}");
+            }
+        }
         if let Err(error) = &result {
             *consumer.last_error.lock().unwrap() = Some(error.clone());
         }
@@ -883,6 +929,11 @@ pub async fn link_connected(app: AppHandle) -> Res<ConnectedApps> {
                 "Not listening".into()
             },
             last_error,
+            activity: ACTIVITY
+                .get_or_init(|| Mutex::new(Vec::new()))
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone(),
         })
     })
     .await
@@ -926,4 +977,47 @@ pub async fn link_save_shortcut(app: AppHandle, accelerator: String) -> Res<Conf
         serde_json::Map::from_iter([("globalShortcut".into(), json!(accelerator))]),
     )
     .await
+}
+
+static ACTIVITY: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+
+#[tauri::command]
+pub async fn link_open(app_id: String) -> Res<()> {
+    blocking(move || {
+        if !ids::APPS.contains(&app_id.as_str()) && app_id != ids::TOOLS {
+            return Err("Unknown Arcade app.".into());
+        }
+        let locations = Locations::discover();
+        let registry = arcade_link::Registry::load(&locations);
+        let manifest = registry
+            .get(&app_id)
+            .ok_or("This Arcade app isn't installed.")?;
+        let mut command = Command::new(&manifest.executable);
+        arcade_link::childenv::detach_from_image(&mut command)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("Couldn't open the app. {e}"))
+    })
+    .await
+}
+
+fn should_notify(enabled: bool, any_window_visible: bool, cancelled: bool) -> bool {
+    enabled && !any_window_visible && !cancelled
+}
+
+#[cfg(test)]
+mod notification_tests {
+    #[test]
+    fn notifications_require_opt_in_a_hidden_app_and_a_finished_action() {
+        for enabled in [false, true] {
+            for visible in [false, true] {
+                for cancelled in [false, true] {
+                    assert_eq!(
+                        super::should_notify(enabled, visible, cancelled),
+                        enabled && !visible && !cancelled
+                    );
+                }
+            }
+        }
+    }
 }

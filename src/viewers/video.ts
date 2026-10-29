@@ -41,7 +41,9 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const w = video.videoWidth;
   const hgt = video.videoHeight;
   const dur = isFinite(video.duration) ? video.duration : null;
-  ctx.setStatus([w && hgt ? `${w} × ${hgt}` : '', dur ? fmt.duration(dur) : ''].filter(Boolean).join('  ·  '));
+  ctx.setStatus(
+    [w && hgt ? `${w} × ${hgt}` : '', dur ? fmt.duration(dur) : ''].filter(Boolean).join('  ·  '),
+  );
   ctx.setDetails([
     ['Resolution', w && hgt ? `${w} × ${hgt}` : 'Audio only'],
     ['Duration', dur ? fmt.duration(dur) : ''],

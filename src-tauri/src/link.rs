@@ -490,7 +490,12 @@ pub fn update_config(
         }
     }
     crate::link_consumer::refresh(app);
-    let _ = app.emit_to(crate::app::MAIN, "config", saved.clone());
+    if saved.plugins != old.plugins {
+        if let Ok(mut plugins) = state.plugins.write() {
+            *plugins = crate::plugins::load_all(saved.plugins);
+        }
+    }
+    let _ = app.emit("config", saved.clone());
     Ok((saved, shortcut_result))
 }
 

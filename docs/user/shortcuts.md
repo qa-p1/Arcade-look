@@ -117,5 +117,5 @@
 
 | Action | Linux | Windows | macOS |
 | --- | --- | --- | --- |
-| Preview the current file-manager selection | — | Ctrl+Alt+Shift+Space | ⌃⌥Space |
+| Preview the current file-manager selection | Ctrl+Alt+Shift+Space | Ctrl+Alt+Shift+Space | ⌃⌥⇧Space |
 

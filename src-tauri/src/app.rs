@@ -1,6 +1,6 @@
 //! App state and window lifecycle.
 //!
-//! Preview and Settings share an on-demand webview, released 30 seconds after hiding.
+//! Preview and Settings use independent, on-demand webviews. Settings is destroyed on close.
 //! The resident Rust process keeps Link, the tray and file-manager shortcuts available.
 //! `idleMinutes` controls process exit when no service mode, tray or shortcut needs it.
 
@@ -96,6 +96,7 @@ impl FrontendState {
 
 pub struct AppState {
     frontend: Mutex<FrontendState>,
+    settings_frontend: Mutex<FrontendState>,
     pub config: RwLock<Config>,
     /// Modification time of config.json when it was last read or written.
     pub config_stamp: Mutex<Option<SystemTime>>,
@@ -120,6 +121,7 @@ impl AppState {
     pub fn new(config: Config, plugins: Vec<Plugin>, service: bool) -> Self {
         Self {
             frontend: Mutex::new(FrontendState::default()),
+            settings_frontend: Mutex::new(FrontendState::default()),
             config: RwLock::new(config),
             config_stamp: Mutex::new(crate::config::stamp()),
             plugins: RwLock::new(plugins),
@@ -146,6 +148,7 @@ impl AppState {
 }
 
 pub const MAIN: &str = "main";
+pub const SETTINGS: &str = "settings";
 
 /// Ask the UI to preview `path` (or show the welcome screen for `None`).
 pub fn open(app: &AppHandle, path: Option<PathBuf>, source: Source) {
@@ -194,15 +197,143 @@ pub fn batch_neighbor(
 
 /// Show the settings screen (tray icon, `--settings`, welcome screen link).
 pub fn open_settings(app: &AppHandle) {
-    crate::dbg_log!("open settings");
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        refresh_config(&handle);
+        let state = handle.state::<AppState>();
+        let window = handle.get_webview_window(SETTINGS);
+        let (ready, create) = {
+            let mut frontend = state
+                .settings_frontend
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            if window.is_none() {
+                frontend.ready = false;
+            }
+            let create = window.is_none() && !frontend.releasing;
+            (frontend.request(Request::Settings).is_some(), create)
+        };
+        if ready {
+            show_settings(&handle);
+        } else if create {
+            if let Err(error) = build_settings_window(&handle) {
+                eprintln!("arcade-look: couldn't create Settings: {error}");
+            }
+        }
+    });
+}
+
+fn background(app: &AppHandle, window: &WebviewWindow) -> tauri::window::Color {
+    use arcade_link::design::{palette, rgb, Theme};
+    let system_dark = window
+        .theme()
+        .is_ok_and(|theme| theme == tauri::Theme::Dark);
+    let theme = Theme::resolve(&app.state::<AppState>().config().theme, system_dark);
+    let [r, g, b] = rgb(palette(theme, arcade_link::ids::LOOK).bg);
+    tauri::window::Color(r, g, b, 255)
+}
+
+fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let window =
+        WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("index.html?settings".into()))
+            .title("Settings — Arcade Look")
+            .inner_size(760.0, 560.0)
+            .min_inner_size(720.0, 520.0)
+            .decorations(true)
+            .visible(false)
+            .resizable(true)
+            .data_directory(
+                arcade_link::paths::app_dirs(arcade_link::ids::LOOK)
+                    .data
+                    .join("webview"),
+            )
+            .build()?;
+    window.set_background_color(Some(background(app, &window)))?;
+    Ok(window)
+}
+
+pub fn settings_ready(app: &AppHandle) {
     let state = app.state::<AppState>();
-    if let Ok(mut s) = state.source.lock() {
-        *s = Source::Local;
+    let mut frontend = state
+        .settings_frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    frontend.ready();
+    drop(frontend);
+    let _ = app.emit_to(SETTINGS, "config", state.config());
+}
+
+pub fn show_settings(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let frontend = state
+        .settings_frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if !frontend.ready || frontend.releasing {
+        return;
     }
-    if let Ok(mut c) = state.current.lock() {
-        *c = None;
+    drop(frontend);
+    if let Some(window) = app.get_webview_window(SETTINGS) {
+        crate::window_geometry::place(app, &window);
+        let _ = window.show();
+        let _ = window.unminimize();
+        focus(&window);
     }
-    deliver(app, Request::Settings);
+}
+
+pub fn close_settings(app: &AppHandle) {
+    crate::integration::set_shortcut_recording(false);
+    let state = app.state::<AppState>();
+    let Some(window) = app.get_webview_window(SETTINGS) else {
+        return;
+    };
+    crate::window_geometry::remember(&window);
+    let mut frontend = state
+        .settings_frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    frontend.hide(Instant::now());
+    frontend.ready = false;
+    frontend.releasing = true;
+    drop(frontend);
+    if let Err(error) = window.destroy() {
+        let mut frontend = state
+            .settings_frontend
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        frontend.releasing = false;
+        frontend.ready = true;
+        eprintln!("arcade-look: couldn't close Settings: {error}");
+    }
+}
+
+pub fn settings_destroyed(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let pending = state
+        .settings_frontend
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .destroyed();
+    if pending {
+        if let Err(error) = build_settings_window(app) {
+            eprintln!("arcade-look: couldn't reopen Settings: {error}");
+        }
+        return;
+    }
+    // WebKit retains its network process after the last webview is destroyed.
+    // Use Look's existing lean restart to return an otherwise idle service to
+    // its pre-Settings memory level. A new preview cancels this timer, and an
+    // active peer job or another window prevents the restart.
+    if app.webview_windows().is_empty() {
+        let since = Instant::now();
+        let mut frontend = state.frontend.lock().unwrap_or_else(|e| e.into_inner());
+        if !frontend.pending.is_empty() {
+            return;
+        }
+        frontend.hide(since);
+        drop(frontend);
+        schedule_lean_restart(app, since, true);
+    }
 }
 
 /// Bring the window forward if it is showing; otherwise open the welcome screen.
@@ -329,14 +460,13 @@ pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .unwrap_or_else(|e| e.into_inner())
         .ready = false;
     let ws = state.window_state.lock().map(|s| *s).unwrap_or_default();
-    let dark = !matches!(state.config().theme.as_str(), "light");
     let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
         .title("Arcade Look")
         .inner_size(
-            ws.width.clamp(420.0, 6000.0),
-            ws.height.clamp(300.0, 4000.0),
+            ws.width.clamp(720.0, 6000.0),
+            ws.height.clamp(520.0, 4000.0),
         )
-        .min_inner_size(420.0, 300.0)
+        .min_inner_size(720.0, 520.0)
         // Test-only: WebKitGTK needs a mapped window to boot under Xvfb
         // without a window manager. Production still reveals after painting.
         .visible(
@@ -349,18 +479,20 @@ pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .on_page_load(|_, payload| {
             crate::dbg_log!("page load {:?}: {}", payload.event(), payload.url());
         })
-        .background_color(if dark {
-            tauri::window::Color(24, 24, 27, 255)
-        } else {
-            tauri::window::Color(246, 246, 248, 255)
-        });
+        .data_directory(
+            arcade_link::paths::app_dirs(arcade_link::ids::LOOK)
+                .data
+                .join("webview"),
+        );
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true);
     #[cfg(not(target_os = "macos"))]
     let builder = builder.decorations(false);
-    builder.build()
+    let window = builder.build()?;
+    window.set_background_color(Some(background(app, &window)))?;
+    Ok(window)
 }
 
 /// Show and focus the window (called by the UI once the preview has painted).
@@ -379,6 +511,7 @@ pub fn show(app: &AppHandle) {
     let was_visible = state.visible.swap(true, Ordering::SeqCst);
     if !was_visible {
         let (_width, _height) = place_on_cursor_monitor(app, &w);
+        crate::window_geometry::place(app, &w);
         #[cfg(target_os = "linux")]
         if let Some(token) = state
             .activation_token
@@ -440,6 +573,7 @@ pub fn hide(app: &AppHandle) {
             let _ = w.set_fullscreen(false);
         }
         remember_size(app, &w);
+        crate::window_geometry::remember(&w);
         let _ = w.hide();
         let _ = app.emit_to(MAIN, "hidden", ());
     }
@@ -496,8 +630,8 @@ fn place_on_cursor_monitor(app: &AppHandle, w: &WebviewWindow) -> (f64, f64) {
         .map(|s| *s)
         .unwrap_or_default();
     let (mut width, mut height) = (
-        ws.width.clamp(420.0, 6000.0),
-        ws.height.clamp(300.0, 4000.0),
+        ws.width.clamp(720.0, 6000.0),
+        ws.height.clamp(520.0, 4000.0),
     );
     let monitors = w.available_monitors().unwrap_or_default();
     let under_cursor = app.cursor_position().ok().and_then(|cursor| {
@@ -524,8 +658,8 @@ fn place_on_cursor_monitor(app: &AppHandle, w: &WebviewWindow) -> (f64, f64) {
     };
     let scale = m.scale_factor();
     let (mp, ms) = (m.position(), m.size());
-    let fit_width = (ms.width as f64 / scale * 0.92).max(420.0);
-    let fit_height = (ms.height as f64 / scale * 0.92).max(300.0);
+    let fit_width = (ms.width as f64 / scale * 0.92).max(720.0);
+    let fit_height = (ms.height as f64 / scale * 0.92).max(520.0);
     let shrunk = width > fit_width || height > fit_height;
     if shrunk {
         width = width.min(fit_width);
@@ -550,9 +684,10 @@ fn place_on_cursor_monitor(app: &AppHandle, w: &WebviewWindow) -> (f64, f64) {
 /// Whether service mode, shortcuts or the tray need the resident process. Link
 /// doesn't: a peer that finds Look stopped launches it (Link SPEC §7).
 pub fn keep_alive(app: &AppHandle) -> bool {
-    app.state::<AppState>().service.load(Ordering::SeqCst)
-        || crate::integration::has_listeners()
-        || crate::tray::active()
+    app.state::<AppState>().config().keep_ready
+        && (app.state::<AppState>().service.load(Ordering::SeqCst)
+            || crate::integration::has_listeners()
+            || crate::tray::active())
 }
 
 /// One-shot release, never a periodic idle poll. Retain only the app handle, so the
@@ -680,6 +815,11 @@ pub fn handle_args(app: &AppHandle, args: &crate::cli::Args, cwd: Option<&std::p
     match path {
         Some(p) => open(app, Some(p), Source::Local),
         None if args.settings => open_settings(app),
+        None if args.hide => hide(app),
+        None if args.toggle => {
+            crate::integration::toggle_selection(app);
+        }
+        None if args.show => open_main(app),
         None if args.service => {}
         // Launched again from the app menu: bring up what is already showing.
         None => open_main(app),

@@ -25,6 +25,8 @@ pub fn start(app: &AppHandle) {
     }
     let app = app.clone();
     std::thread::spawn(move || {
+        // A lean restart replaces the process in this same private test root.
+        let _ = std::fs::remove_file(&path);
         let Ok(listener) = UnixListener::bind(&path) else {
             return;
         };
@@ -45,12 +47,35 @@ fn evaluate(app: &AppHandle, stream: UnixStream) {
     {
         return;
     }
-    let Ok(script) = serde_json::from_str::<String>(&line) else {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) else {
         return;
     };
+    let (label, script) = if let Some(script) = value.as_str() {
+        (crate::app::MAIN, script.to_string())
+    } else {
+        let Some(label) = value.get("window").and_then(serde_json::Value::as_str) else {
+            return;
+        };
+        if ![crate::app::MAIN, crate::app::SETTINGS].contains(&label) {
+            return;
+        }
+        let Some(script) = value.get("script").and_then(serde_json::Value::as_str) else {
+            return;
+        };
+        (label, script.to_string())
+    };
+    let label = label.to_string();
+    let size = value
+        .get("size")
+        .and_then(|size| Some((size.get(0)?.as_f64()?, size.get(1)?.as_f64()?)));
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
-        if let Some(window) = handle.get_webview_window(crate::app::MAIN) {
+        if let Some(window) = handle.get_webview_window(&label) {
+            if let Some((width, height)) = size {
+                if (720.0..=1920.0).contains(&width) && (520.0..=1080.0).contains(&height) {
+                    let _ = window.set_size(tauri::LogicalSize::new(width, height));
+                }
+            }
             let _ = window.eval(&script);
         }
     });

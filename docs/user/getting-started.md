@@ -37,7 +37,7 @@ The default preview trigger depends on your platform:
 - **GNOME Files on Linux:** select a file and press **Space**. Look registers as a GNOME Files previewer; Wayland does not provide a general global shortcut for other file managers.
 - **Other Linux file managers:** use **Open With → Arcade Look** or configure that file manager to run `arcade-look` with the selected path.
 - **Windows:** use **Space** in File Explorer when the Explorer integration is enabled, or use **Ctrl+Alt+Shift+Space** to preview the current selection.
-- **macOS:** select a file in Finder and press **Control+Option+Space**. Finder's own Space preview remains available.
+- **macOS:** select a file in Finder and press **Control+Option+Shift+Space**. Finder's own Space preview remains available.
 
 ## Try this first
 

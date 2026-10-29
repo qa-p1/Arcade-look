@@ -8,7 +8,7 @@ since: 0.2.0
 
 ## Open a file or folder
 
-Open a file with Arcade Look from your file manager, use its preview shortcut, run `arcade-look path/to/file`, or drop a file or folder on the Look window. In GNOME Files, Space uses the GNOME previewer integration. On Windows, File Explorer can use Space when the integration is enabled. On macOS, Finder uses Control+Option+Space for Look so Apple's Space preview remains intact.
+Open a file with Arcade Look from your file manager, use its preview shortcut, run `arcade-look path/to/file`, or drop a file or folder on the Look window. In GNOME Files, Space uses the GNOME previewer integration. On Windows, File Explorer can use Space when the integration is enabled. On macOS, Finder uses Control+Option+Shift+Space for Look so Apple's Space preview remains intact.
 
 A folder opens as a browsable grid. Click a subfolder to enter it, then use the title-bar Back and Forward buttons, **Backspace**, **Alt+Left**, **Alt+Right**, or your mouse's Back and Forward buttons to move through navigation history. **Left** and **Right** move between files in the current folder. Hidden files are omitted by default; the `showHidden` setting includes them.
 
@@ -49,3 +49,18 @@ When a compatible peer is installed and enabled, press **A** or open the Actions
 ## Change settings
 
 Choose the theme, idle timeout, autoplay, file-manager integration, plugin loading and connected apps from Settings. Settings are stored in `config.json` in the platform's per-user configuration folder. When a preview or Settings is hidden, Look keeps its window warm for 30 seconds, then releases the webview. Background integrations, the tray and start-at-login keep the process available afterward. Otherwise the `idleMinutes` config option controls when the process exits (0 disables that exit, but still releases the webview); other Arcade apps start Look again when they need it.
+
+## Settings
+
+Open **Settings** from the tray, the preview title bar or **Ctrl/⌘+,**. The
+separate native window keeps your current preview in place. Sections are
+General, Shortcuts, Previews, File manager, Plugins, Connected apps and About.
+Themes apply immediately. **Start at login** starts in the background. System
+notifications are off until you enable them and only report completed actions
+while every Look window is hidden. The welcome screen can be opened again in
+General. About links to logs, diagnostics, the user guide and licences.
+
+Existing settings and custom shortcuts migrate automatically into the shared
+`arcade/look/` folders. Look copies and verifies before removing an old folder.
+If files conflict, it keeps both copies and reports the conflict rather than
+overwriting a preference.

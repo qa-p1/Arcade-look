@@ -1,3 +1,4 @@
+import { formatCount } from '../design/format';
 // Collapsible JSON tree with lazy expansion (children render only when opened).
 import './code.css';
 import { api } from '../lib/backend';
@@ -26,7 +27,8 @@ export function parseExact(text: string): J {
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
     if (c === 34 /* " */) {
-      for (i++; i < text.length && text.charCodeAt(i) !== 34; i++) if (text.charCodeAt(i) === 92) i++;
+      for (i++; i < text.length && text.charCodeAt(i) !== 34; i++)
+        if (text.charCodeAt(i) === 92) i++;
       continue;
     }
     if (c === 45 || (c >= 48 && c <= 57)) {
@@ -47,7 +49,8 @@ export function parseExact(text: string): J {
 function sameNumber(literal: string): boolean {
   const n = Number(literal);
   if (!Number.isFinite(n)) return false;
-  if (/^-?\d+$/.test(literal)) return BigInt(literal) === BigInt(Math.trunc(n)) && Number.isSafeInteger(n);
+  if (/^-?\d+$/.test(literal))
+    return BigInt(literal) === BigInt(Math.trunc(n)) && Number.isSafeInteger(n);
   return String(n) === literal;
 }
 
@@ -86,9 +89,17 @@ function node(key: string | null, v: J, depth: number, expandDepth: number): HTM
   const t = typeOf(v);
   const keyEl = key !== null ? h('span.jk', key) : null;
   if (t !== 'object' && t !== 'array') {
-    return h('div.jn', h('span.jcaret.leaf'), keyEl, keyEl ? h('span.jcolon', ': ') : null, primitive(v));
+    return h(
+      'div.jn',
+      h('span.jcaret.leaf'),
+      keyEl,
+      keyEl ? h('span.jcolon', ': ') : null,
+      primitive(v),
+    );
   }
-  const entries: [string, J][] = Array.isArray(v) ? v.map((x, i) => [String(i), x]) : Object.entries(v as Record<string, J>);
+  const entries: [string, J][] = Array.isArray(v)
+    ? v.map((x, i) => [String(i), x])
+    : Object.entries(v as Record<string, J>);
   const caret = h('span.jcaret');
   const summary = h('span.jsum', preview(v));
   const head = h('div.jn.jhead', caret, keyEl, keyEl ? h('span.jcolon', ': ') : null, summary);
@@ -100,12 +111,18 @@ function node(key: string | null, v: J, depth: number, expandDepth: number): HTM
   const renderMore = () => {
     const end = Math.min(entries.length, rendered + CHUNK);
     const frag = document.createDocumentFragment();
-    for (let i = rendered; i < end; i++) frag.append(node(Array.isArray(v) ? `${i}` : entries[i][0], entries[i][1], depth + 1, expandDepth));
+    for (let i = rendered; i < end; i++)
+      frag.append(
+        node(Array.isArray(v) ? `${i}` : entries[i][0], entries[i][1], depth + 1, expandDepth),
+      );
     rendered = end;
     kids.querySelector(':scope > .jmore')?.remove();
     kids.append(frag);
     if (rendered < entries.length) {
-      const more = h('button.jmore', `Show ${Math.min(CHUNK, entries.length - rendered)} more of ${entries.length - rendered}`);
+      const more = h(
+        'button.btn.ghost.jmore',
+        `Show ${Math.min(CHUNK, entries.length - rendered)} more of ${entries.length - rendered}`,
+      );
       more.addEventListener('click', (e) => {
         e.stopPropagation();
         renderMore();
@@ -132,7 +149,10 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   let data: J;
   const text = t.text.replace(/^﻿/, '');
   if (ctx.info.format === 'jsonl' || ctx.info.format === 'ndjson') {
-    data = text.split(/\r?\n/).filter((l) => l.trim()).map((l) => parseExact(l));
+    data = text
+      .split(/\r?\n/)
+      .filter((l) => l.trim())
+      .map((l) => parseExact(l));
   } else {
     data = parseExact(text);
   }
@@ -183,11 +203,20 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   ]);
 
   const kind = typeOf(data);
-  const count = Array.isArray(data) ? `${data.length.toLocaleString()} items` : data && typeof data === 'object' ? `${Object.keys(data).length.toLocaleString()} keys` : kind;
+  const count = Array.isArray(data)
+    ? `${formatCount(data.length)} items`
+    : data && typeof data === 'object'
+      ? `${formatCount(Object.keys(data).length)} keys`
+      : kind;
   ctx.setStatus(`${kind === 'array' ? 'Array' : kind === 'object' ? 'Object' : kind}  ·  ${count}`);
-  ctx.setDetails([['Root', kind], ['Size', count], ['Lines', t.lines.toLocaleString()]]);
+  ctx.setDetails([
+    ['Root', kind],
+    ['Size', count],
+    ['Lines', formatCount(t.lines)],
+  ]);
 
   return {
-    keydown: (e) => (!raw.classList.contains('hidden') ? (rawMounted?.keydown?.(e) ?? false) : false),
+    keydown: (e) =>
+      !raw.classList.contains('hidden') ? (rawMounted?.keydown?.(e) ?? false) : false,
   };
 }

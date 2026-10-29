@@ -1,5 +1,24 @@
 # Arcade Look: status
 
+## 2026-10-29: 0.4.0 candidate (unreleased)
+
+The overhaul retains every built-in viewer and fallback, plugin support, history,
+info panel, file-manager integration, idle release and connected actions. Settings
+is now a separate native window. Identifiers/folders migrate with verification;
+new shortcuts follow the standard without replacing saved ones. CI calls
+`scripts/check` and prepares installers plus beta metadata without publication.
+
+Local frontend type/build, format, docs/version/vendor validation, Python tests,
+Rust Clippy and unit tests pass. Native D-Bus/Xvfb, process-memory measurements,
+real Shelf/consumer checks and screenshot matrices are required in Linux CI:
+this local managed container refuses Unix sockets. Do not count the native
+checks as passed until the uploaded evidence and CI results are reviewed.
+
+The shared-kit contrast correction is tracked in
+[Arcade Link #18](https://github.com/qa-p1/Arcade-Link/pull/18). Look still pins
+v0.4.3 until a new immutable kit tag is available; its foreground contrast gate
+must be completed after syncing that tag. No official release is authorized.
+
 ## Release status (2026-10-18)
 
 - Latest release: [v0.3.5](https://github.com/qa-p1/Arcade-look/releases/tag/v0.3.5), published 2026-10-19 (a long day of previews no longer grows Look; see CHANGELOG.md). The CI and e2e notes below were recorded for the earlier v0.2.0.

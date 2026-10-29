@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use tauri::{AppHandle, Manager};
 
 const TOOLTIP: &str = "Arcade Look";
-const TOOLTIP_DETAIL: &str = "Running in the background. Select a file and press Space.";
+const TOOLTIP_DETAIL: &str = "Press Space, see anything.";
 static VISIBLE_STATE: AtomicU8 = AtomicU8::new(0);
 
 pub fn active() -> bool {
@@ -30,8 +30,8 @@ enum Action {
 }
 
 const ITEMS: [(&str, &str, Action); 4] = [
-    ("open", "Open Look", Action::Open),
-    ("settings", "Open Settings", Action::Settings),
+    ("open", "Open Arcade Look", Action::Open),
+    ("settings", "Settings", Action::Settings),
     ("restart", "Restart Arcade Look", Action::Restart),
     ("quit", "Quit Arcade Look", Action::Quit),
 ];
@@ -182,33 +182,29 @@ mod linux {
             ksni::Category::ApplicationStatus
         }
         fn activate(&mut self, _x: i32, _y: i32) {
-            app::open_settings(&self.app);
+            app::open_main(&self.app);
         }
         fn icon_pixmap(&self) -> Vec<ksni::Icon> {
             static ICONS: OnceLock<Vec<ksni::Icon>> = OnceLock::new();
             ICONS
                 .get_or_init(|| {
-                    [
-                        include_bytes!("../icons/32x32.png").as_slice(),
-                        include_bytes!("../icons/64x64.png").as_slice(),
-                        include_bytes!("../icons/128x128.png").as_slice(),
-                    ]
-                    .iter()
-                    .filter_map(|png| image::load_from_memory(png).ok())
-                    .map(|image| {
-                        let image = image.into_rgba8();
-                        let (width, height) = image.dimensions();
-                        let mut data = image.into_vec();
-                        for pixel in data.as_chunks_mut::<4>().0 {
-                            pixel.rotate_right(1);
-                        }
-                        ksni::Icon {
-                            width: width as i32,
-                            height: height as i32,
-                            data,
-                        }
-                    })
-                    .collect()
+                    [include_bytes!("../icons/tray-white.png").as_slice()]
+                        .iter()
+                        .filter_map(|png| image::load_from_memory(png).ok())
+                        .map(|image| {
+                            let image = image.into_rgba8();
+                            let (width, height) = image.dimensions();
+                            let mut data = image.into_vec();
+                            for pixel in data.as_chunks_mut::<4>().0 {
+                                pixel.rotate_right(1);
+                            }
+                            ksni::Icon {
+                                width: width as i32,
+                                height: height as i32,
+                                data,
+                            }
+                        })
+                        .collect()
                 })
                 .clone()
         }
@@ -233,7 +229,7 @@ mod linux {
                 .iter()
                 .map(|(_, label, action)| item(label, *action))
                 .collect();
-            items.insert(ITEMS.len() - 1, ksni::MenuItem::Separator);
+            items.insert(2, ksni::MenuItem::Separator);
             items
         }
     }
@@ -296,8 +292,8 @@ mod native {
             &[
                 &open?,
                 &settings?,
-                &restart?,
                 &PredefinedMenuItem::separator(app)?,
+                &restart?,
                 &quit?,
             ],
         )?;
@@ -321,13 +317,18 @@ mod native {
                 } = event
                 {
                     if !menu_on_left {
-                        app::open_settings(tray.app_handle());
+                        app::open_main(tray.app_handle());
                     }
                 }
             });
-        if let Some(icon) = app.default_window_icon() {
-            builder = builder.icon(icon.clone());
-        }
+        let decoded = image::load_from_memory(include_bytes!("../icons/tray-black.png"))
+            .map_err(|error| tauri::Error::Anyhow(error.into()))?
+            .into_rgba8();
+        let (width, height) = decoded.dimensions();
+        let image = tauri::image::Image::new_owned(decoded.into_raw(), width, height);
+        builder = builder
+            .icon(image)
+            .icon_as_template(cfg!(target_os = "macos"));
         Ok(builder)
     }
 

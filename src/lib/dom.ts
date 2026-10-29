@@ -62,7 +62,17 @@ export function svg(markup: string): SVGElement {
 }
 
 /** Inputs that don't take typing: once clicked they keep focus, but Space/Esc/arrows must still work. */
-const NON_TEXT_INPUTS = new Set(['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file', 'image']);
+const NON_TEXT_INPUTS = new Set([
+  'range',
+  'checkbox',
+  'radio',
+  'button',
+  'submit',
+  'reset',
+  'color',
+  'file',
+  'image',
+]);
 
 /** True for elements that take typed text (and so own Space, Esc and the arrow keys). */
 export function isEditable(t: EventTarget | null): boolean {

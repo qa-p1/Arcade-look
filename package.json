@@ -1,17 +1,21 @@
 {
   "name": "arcade-look",
   "private": true,
-  "version": "0.3.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
-    "fixtures": "python3 scripts/make-fixtures.py fixtures"
+    "fixtures": "python3 scripts/make-fixtures.py fixtures",
+    "format": "prettier --write src index.html vite.config.ts tsconfig.json package.json",
+    "format:check": "prettier --check src index.html vite.config.ts tsconfig.json package.json",
+    "test:ui": "node scripts/ui-checks/check.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/plugin-dialog": "2.7.3",
+    "@tauri-apps/plugin-notification": "2.4.0",
     "highlight.js": "11.12.0",
     "pdfjs-dist": "6.3.289",
     "three": "0.186.1"
@@ -19,9 +23,14 @@
   "devDependencies": {
     "@tauri-apps/cli": "2.12.1",
     "@types/three": "0.186.0",
+    "playwright": "1.64.1",
+    "prettier": "3.9.10",
     "typescript": "7.0.2",
     "vite": "8.3.2"
   },
-  "description": "Universal Quick Look: select a file, press Space, see it instantly.",
-  "license": "MIT"
+  "description": "Press Space, see anything.",
+  "license": "MIT",
+  "engines": {
+    "node": "22.x"
+  }
 }

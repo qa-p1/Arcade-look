@@ -18,7 +18,10 @@ use serde_json::{json, Value};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 static ENVIRONMENT: Mutex<()> = Mutex::new(());
 fn cli() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Arcade-link/target/debug/arcade-link")
+    std::env::var_os("ARCADE_LINK")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Arcade-Link"))
+        .join("target/debug/arcade-link")
 }
 
 struct Fixture {

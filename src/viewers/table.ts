@@ -1,3 +1,4 @@
+import { formatCount } from '../design/format';
 // CSV/TSV and spreadsheets in a virtualised grid (smooth with 100k+ cells).
 import './table.css';
 import { api, type TableData } from '../lib/backend';
@@ -72,7 +73,7 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     const grid = h('div.grid', { style: `--cols: ${template}` });
     const headRow = h('div.tr.th-row', { style: `width:${totalW}px` }, h('div.td.rn.corner'));
     for (let c = 0; c < cols; c++) {
-      const label = header ? header[c] ?? '' : colName(c);
+      const label = header ? (header[c] ?? '') : colName(c);
       headRow.append(h(`div.td.th${numeric[c] ? '.num' : ''}`, { title: label }, label));
     }
     const headWrap = h('div.thead', headRow);
@@ -80,9 +81,13 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     grid.append(headWrap, scroller);
     area.append(grid);
 
-    scroller.addEventListener('scroll', () => {
-      headRow.style.transform = `translateX(${-scroller.scrollLeft}px)`;
-    }, { passive: true });
+    scroller.addEventListener(
+      'scroll',
+      () => {
+        headRow.style.transform = `translateX(${-scroller.scrollLeft}px)`;
+      },
+      { passive: true },
+    );
 
     virt = virtualList({
       scroller,
@@ -112,9 +117,11 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     });
 
     const more = d.truncatedRows ? ' (first 10,000)' : '';
-    ctx.setStatus(`${rows.length.toLocaleString()} rows${more}  ·  ${cols} ${cols === 1 ? 'column' : 'columns'}`);
+    ctx.setStatus(
+      `${formatCount(rows.length)} rows${more}  ·  ${cols} ${cols === 1 ? 'column' : 'columns'}`,
+    );
     ctx.setDetails([
-      ['Rows', `${rows.length.toLocaleString()}${more}`],
+      ['Rows', `${formatCount(rows.length)}${more}`],
       ['Columns', `${cols}${d.truncatedCols ? ' (first 256)' : ''}`],
       ['Sheets', d.sheets.length > 1 ? String(d.sheets.length) : ''],
       ['Sheet', d.sheets[d.sheet] ?? ''],

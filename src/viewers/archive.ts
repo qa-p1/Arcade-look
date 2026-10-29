@@ -1,3 +1,4 @@
+import { formatCount } from '../design/format';
 // Archive browser: a collapsible tree on the left, a live preview of the selected entry
 // (extracted on demand into a temp cache) on the right — any viewer works nested.
 import './archive.css';
@@ -28,7 +29,8 @@ for (const [k, exts] of Object.entries({
   archive: 'zip tar gz 7z bz2 xz zst',
   font: 'ttf otf woff woff2',
   model: 'glb gltf obj stl fbx',
-})) for (const e of exts.split(' ')) EXT_KIND[e] = k;
+}))
+  for (const e of exts.split(' ')) EXT_KIND[e] = k;
 
 function extOf(name: string) {
   const i = name.lastIndexOf('.');
@@ -38,7 +40,10 @@ function extOf(name: string) {
 function buildTree(entries: ArchiveEntry[]): Node {
   const root: Node = { name: '', path: '', dir: true, children: new Map(), size: 0 };
   for (const e of entries) {
-    const clean = e.path.replace(/\\/g, '/').replace(/^(\.\/|\/)+/, '').replace(/\/+$/, '');
+    const clean = e.path
+      .replace(/\\/g, '/')
+      .replace(/^(\.\/|\/)+/, '')
+      .replace(/\/+$/, '');
     if (!clean) continue;
     const parts = clean.split('/');
     let node = root;
@@ -69,7 +74,10 @@ function buildTree(entries: ArchiveEntry[]): Node {
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-const sorted = (n: Node) => [...n.children.values()].sort((a, b) => Number(b.dir) - Number(a.dir) || collator.compare(a.name, b.name));
+const sorted = (n: Node) =>
+  [...n.children.values()].sort(
+    (a, b) => Number(b.dir) - Number(a.dir) || collator.compare(a.name, b.name),
+  );
 
 export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const { info } = ctx;
@@ -78,7 +86,8 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   if (ctx.signal.aborted) return {};
   const root = buildTree(listing.entries);
   const files = listing.entries.filter((e) => !e.dir);
-  const countDirs = (n: Node): number => [...n.children.values()].reduce((a, c) => a + (c.dir ? 1 + countDirs(c) : 0), 0);
+  const countDirs = (n: Node): number =>
+    [...n.children.values()].reduce((a, c) => a + (c.dir ? 1 + countDirs(c) : 0), 0);
   const dirs = countDirs(root);
 
   const list = h('div.arc-list');
@@ -86,18 +95,38 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   host.append(h('div.arc-split', list, preview));
 
   // ---------------------------------------------------------------- summary
-  const ratio = listing.totalSize > 0 && listing.packedSize > 0 ? Math.max(0, 1 - listing.packedSize / listing.totalSize) : 0;
+  const ratio =
+    listing.totalSize > 0 && listing.packedSize > 0
+      ? Math.max(0, 1 - listing.packedSize / listing.totalSize)
+      : 0;
   const summary = () =>
-    h('div.arc-summary',
+    h(
+      'div.arc-summary',
       kindBadge('archive', '', 34),
       h('div.arc-sum-title', info.name),
-      h('div.arc-sum-stats',
+      h(
+        'div.arc-sum-stats',
         stat(fmt.count(files.length, 'file'), dirs ? fmt.count(dirs, 'folder') : 'no folders'),
         stat(fmt.bytes(listing.totalSize), 'uncompressed'),
-        listing.packedSize ? stat(fmt.bytes(listing.packedSize), `compressed${ratio > 0.01 ? ` · ${Math.round(ratio * 100)}% saved` : ''}`) : null),
-      listing.truncated ? h('div.arc-note', icon('alert', 14), h('span', listing.note ?? 'Only the first 50,000 entries are listed.')) : null,
-      listing.note && !listing.truncated ? h('div.arc-note', icon('alert', 14), h('span', listing.note)) : null,
-      h('div.arc-hint', 'Select a file to preview it here.'));
+        listing.packedSize
+          ? stat(
+              fmt.bytes(listing.packedSize),
+              `compressed${ratio > 0.01 ? ` · ${Math.round(ratio * 100)}% saved` : ''}`,
+            )
+          : null,
+      ),
+      listing.truncated
+        ? h(
+            'div.arc-note',
+            icon('alert', 14),
+            h('span', listing.note ?? 'Only the first 50,000 entries are listed.'),
+          )
+        : null,
+      listing.note && !listing.truncated
+        ? h('div.arc-note', icon('alert', 14), h('span', listing.note))
+        : null,
+      h('div.arc-hint', 'Select a file to preview it here.'),
+    );
   preview.append(summary());
 
   // ---------------------------------------------------------------- tree
@@ -107,13 +136,19 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
 
   function row(n: Node, depth: number): HTMLElement {
     const ext = extOf(n.name);
-    const r = h('div.arc-row', { style: `--depth:${depth}`, title: n.path },
+    const r = h(
+      'div.arc-row',
+      { style: `--depth:${depth}`, title: n.path },
       h('span.arc-caret', n.dir ? '▸' : ''),
-      kindBadge(n.dir ? 'folder' : EXT_KIND[ext] ?? 'file', ext, 14),
+      kindBadge(n.dir ? 'folder' : (EXT_KIND[ext] ?? 'file'), ext, 14),
       h('span.arc-name', n.name),
       n.entry?.encrypted ? icon('lock', 13) : null,
-      h('span.arc-size', n.dir ? (n.size ? fmt.bytes(n.size) : '') : fmt.bytes(n.entry?.size ?? null)),
-      h('span.arc-date', fmt.shortDate(n.entry?.modified)));
+      h(
+        'span.arc-size',
+        n.dir ? (n.size ? fmt.bytes(n.size) : '') : fmt.bytes(n.entry?.size ?? null),
+      ),
+      h('span.arc-date', fmt.shortDate(n.entry?.modified)),
+    );
     const wrap = h('div.arc-node', r);
     let open = false;
     let kids: HTMLElement | null = null;
@@ -134,7 +169,9 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     r.addEventListener('dblclick', async () => {
       if (n.dir) return;
       try {
-        await api.openDefault(await api.extractEntry(info.path, info.format, n.entry?.path ?? n.path));
+        await api.openDefault(
+          await api.extractEntry(info.path, info.format, n.entry?.path ?? n.path),
+        );
       } catch (e) {
         ctx.toast(errorMessage(e));
       }
@@ -147,7 +184,10 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     const end = Math.min(kids.length, from + 1000);
     for (let i = from; i < end; i++) container.append(row(kids[i], depth));
     if (end < kids.length) {
-      const more = h('button.arc-more', `Show ${Math.min(1000, kids.length - end)} more of ${kids.length - end}`);
+      const more = h(
+        'button.btn.ghost.arc-more',
+        `Show ${Math.min(1000, kids.length - end)} more of ${kids.length - end}`,
+      );
       more.addEventListener('click', () => {
         more.remove();
         appendChildren(container, n, depth, end);
@@ -163,7 +203,9 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     const my = ++token;
     nested?.dispose?.();
     nested = null;
-    preview.replaceChildren(h('div.center-fill', h('div.spinner'), h('span', `Extracting ${n.name}…`)));
+    preview.replaceChildren(
+      h('div.center-fill', h('div.spinner'), h('span', `Extracting ${n.name}…`)),
+    );
     try {
       const tmp = await api.extractEntry(info.path, info.format, n.entry?.path ?? n.path);
       const childInfo = await api.inspect(tmp);
@@ -171,8 +213,14 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
       if (my !== token || ctx.signal.aborted) return;
       const sub = h('div.sub-host.arc-sub');
       preview.replaceChildren(
-        h('div.arc-sub-head', kindBadge(childInfo.kind, childInfo.ext, 14), h('span.arc-sub-name', n.path), h('span.arc-sub-size', fmt.bytes(childInfo.size))),
-        sub);
+        h(
+          'div.arc-sub-head',
+          kindBadge(childInfo.kind, childInfo.ext, 14),
+          h('span.arc-sub-name', n.path),
+          h('span.arc-sub-size', fmt.bytes(childInfo.size)),
+        ),
+        sub,
+      );
       nested = await ctx.mountNested(sub, childInfo);
       if (my !== token) nested.dispose?.();
     } catch (e) {
@@ -192,8 +240,8 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   ctx.setStatus(`${fmt.count(files.length, 'file')}  ·  ${fmt.bytes(listing.totalSize)}`);
   ctx.setDetails([
     ['Format', listing.format.toUpperCase()],
-    ['Files', files.length.toLocaleString()],
-    ['Folders', dirs.toLocaleString()],
+    ['Files', formatCount(files.length)],
+    ['Folders', formatCount(dirs)],
     ['Uncompressed', fmt.bytes(listing.totalSize, true)],
     ['Compressed', listing.packedSize ? fmt.bytes(listing.packedSize, true) : ''],
     ['Space saved', ratio > 0.01 ? `${Math.round(ratio * 100)}%` : ''],

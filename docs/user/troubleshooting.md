@@ -24,7 +24,7 @@ Legacy binary `.doc` and `.ppt` files require an optional plugin. Install and co
 
 ## Finder or Explorer does not respond to its shortcut
 
-Confirm the platform integration is enabled in Look's settings, then relaunch the file manager. On macOS, use **Control+Option+Space**; Finder's own Space shortcut remains Apple's Quick Look. Windows Explorer integration has been built and checked in CI but has **not been run interactively on a real Windows desktop**. macOS Finder integration likewise has **not been run interactively on a real Mac**. If it still fails, use **Open With** or open the file with Look directly.
+Confirm the platform integration is enabled in Look's settings, then relaunch the file manager. On macOS, use **Control+Option+Shift+Space**; Finder's own Space shortcut remains Apple's Quick Look. Windows Explorer integration has been built and checked in CI but has **not been run interactively on a real Windows desktop**. macOS Finder integration likewise has **not been run interactively on a real Mac**. If it still fails, use **Open With** or open the file with Look directly.
 
 ## Arcade actions are missing
 
