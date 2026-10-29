@@ -310,7 +310,12 @@ def main():
         old_pid = status()["pid"]
         until(lambda: status().get("phase", "ready") == "ready", "Find index not ready for Restart")
         click("Restart Arcade " + app.title())
-        until(lambda: status().get("pid", old_pid) != old_pid, "rebuilt tray Restart action did not restart", timeout=15)
+        try:
+            until(lambda: status().get("pid", old_pid) != old_pid, "rebuilt tray Restart action did not restart",
+                  timeout=15)
+        except AssertionError as error:
+            state = "still running" if process.poll() is None else f"exited with {process.returncode}"
+            raise AssertionError(f"{error}: old process {state}, status {status()}") from error
         process.wait(timeout=10)
         ownership("own")
         assert menu()[1] == original_menu

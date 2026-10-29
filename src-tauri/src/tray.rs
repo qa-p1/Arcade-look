@@ -79,9 +79,19 @@ pub fn wait_for_predecessor() {
     }
 }
 
+/// An exited process that its parent hasn't reaped yet (a zombie) still has a
+/// /proc entry, but it no longer holds the single-instance slot.
 #[cfg(target_os = "linux")]
 fn process_alive(pid: u32) -> bool {
-    std::path::Path::new(&format!("/proc/{pid}")).exists()
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return false;
+    };
+    // The state follows the parenthesised command name, which may contain spaces.
+    !matches!(
+        stat.rsplit_once(')')
+            .and_then(|(_, rest)| rest.trim_start().chars().next()),
+        Some('Z' | 'X')
+    )
 }
 
 #[cfg(target_os = "macos")]
@@ -355,5 +365,24 @@ mod native {
             TRAY.with(|slot| *slot.borrow_mut() = None);
             eprintln!("arcade-look: tray registration failed: {error}");
         }
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    #[test]
+    fn an_exited_unreaped_predecessor_is_not_alive() {
+        let mut child = std::process::Command::new("true").spawn().unwrap();
+        let pid = child.id();
+        // Leave the child unreaped: it stays a zombie with a /proc entry.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while super::process_alive(pid) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(std::path::Path::new(&format!("/proc/{pid}")).exists());
+        assert!(!super::process_alive(pid));
+        child.wait().unwrap();
+        assert!(!super::process_alive(pid));
+        assert!(super::process_alive(std::process::id()));
     }
 }

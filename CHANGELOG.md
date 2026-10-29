@@ -8,6 +8,7 @@
 - Pin development toolchains, format the frontend with Prettier, use Cargo.toml as the version source, check vendored hashes across line endings, and run the same scripts/check in CI.
 - Small text (metadata, hints, badges) meets 4.5:1 contrast in both themes (Arcade Link design kit `v0.4.4`), and file-type badge icons meet 3:1 on their tint.
 - Settings opens reliably from the tray and `--settings`, and a preview no longer closes on the brief focus change while its window appears.
+- Restart from the tray no longer waits five seconds, or fails, when the process that started Look hasn't yet reaped the old one (Linux).
 - Releases start from `tag.yml` and `release.yml`, like the other Arcade apps.
 
 ## 0.3.5 — 2026-10-19
