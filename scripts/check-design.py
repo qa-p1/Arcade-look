@@ -44,6 +44,24 @@ for theme, block, background in [('light',light,backgrounds[0]),('dark',dark,bac
     for name,colour in re.findall(r'--hl-([\w-]+):\s*(#[0-9a-f]{6})',block):
         if contrast(colour,background)<4.5:
             errors.append(f'{theme} syntax {name}: {contrast(colour,background):.2f}:1 on sunken, needs 4.5:1')
+# File-kind glyphs: the hue blended toward --text (app.css --kind-ink-mix), on the
+# hue's 16% tint over each kit surface, needs 3:1 (a UI part) in both themes.
+def rgb(colour):
+    return [int(colour[i:i+2],16) for i in (1,3,5)]
+def mix(a,b,share):
+    return '#'+''.join(f'{round(x*share+y*(1-share)):02x}' for x,y in zip(rgb(a),rgb(b)))
+app_css = (ROOT / 'src/styles/app.css').read_text()
+mixes = [int(m)/100 for m in re.findall(r'--kind-ink-mix:\s*(\d+)%',app_css)]
+hues = sorted(set(re.findall(r"color: '(#[0-9a-f]{6})'",(ROOT / 'src/lib/icons.ts').read_text())))
+light_kit,dark_kit = kit.split('@media (prefers-color-scheme: dark)',1)
+for theme, share, block in [('light',mixes[0],light_kit),('dark',mixes[1],dark_kit)]:
+    text = re.search(r'--text:\s*(#[0-9a-f]{6})',block)[1]
+    for surface in ('bg','panel','sunken'):
+        background = re.search(rf'--{surface}:\s*(#[0-9a-f]{{6}})',block)[1]
+        for hue in hues:
+            ratio = contrast(mix(hue,text,share),mix(hue,background,.16))
+            if ratio < 3:
+                errors.append(f'{theme} kind badge {hue}: {ratio:.2f}:1 on its tint over {surface}, needs 3:1')
 if errors:
     raise SystemExit('\n'.join(errors))
-print('App colour/type inventory and syntax contrast passed in both themes.')
+print('App colour/type inventory, syntax contrast and file-type badge contrast passed in both themes.')

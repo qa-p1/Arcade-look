@@ -12,7 +12,7 @@ design kit is Arcade Link `v0.4.4` (readable small text, 4.5:1 in both themes).
 Checked on Linux in Link's isolated D-Bus/Xvfb runner (`scripts/check`):
 
 - formatting, TypeScript, build, docs, version, vendored hashes, the design
-  inventory and syntax contrast, 12 Python tests, Clippy and 77 Rust unit tests;
+  inventory, syntax contrast (4.5:1) and file-type badge contrast (3:1), 12 Python tests, Clippy and 77 Rust unit tests;
 - the Settings UI matrix: 28 states at minimum size in light and dark, at 100 %
   and 125 % text;
 - the nine real-peer Link consumer tests and the real Shelf test;

@@ -208,6 +208,19 @@ button {
   color: var(--on-fill);
 }
 
+/* File-kind hues (src/lib/icons.ts) are blended toward the text colour so the
+   glyph keeps 3:1 on its own tint in each theme (checked by scripts/check-design.py). */
+:root {
+  --kind-ink-mix: 60%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --kind-ink-mix: 80%;
+  }
+}
+:root[data-theme='dark'] {
+  --kind-ink-mix: 80%;
+}
 .kind-badge {
   width: 26px;
   height: 26px;
@@ -215,7 +228,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--kind);
+  color: color-mix(in srgb, var(--kind) var(--kind-ink-mix), var(--text));
   background: color-mix(in srgb, var(--kind) 16%, transparent);
   flex: none;
 }
