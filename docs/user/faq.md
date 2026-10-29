@@ -20,7 +20,7 @@ Playback uses the codecs provided by the operating system's web engine and media
 
 ## Where are settings and plugins stored?
 
-Settings are in `config.json` in Look's per-user configuration folder. The welcome screen links to the plugin folder; exact plugin locations and the plugin format are in the [plugin reference](../PLUGINS.md).
+Settings are in `config.json` in Look's per-user configuration folder. The welcome screen links to the plugin folder; exact plugin locations and the plugin format are in the [plugin reference](https://github.com/qa-p1/Arcade-look/blob/main/docs/dev/plugins.md).
 
 ## Does Look register a global shortcut on Linux?
 
@@ -28,4 +28,4 @@ No. Wayland does not let Look register a general global shortcut or read another
 
 ## Are Windows and macOS integrations tested on a desktop?
 
-The Windows Explorer hook and macOS Finder integration are built and tested in CI, but they have **not been run interactively on a real Windows or macOS desktop**. The Linux path has been exercised end to end. See [current project status](../STATUS.md).
+The Windows Explorer hook and macOS Finder integration are built and tested in CI, but they have **not been run interactively on a real Windows or macOS desktop**. The Linux path has been exercised end to end. See [current project status](https://github.com/qa-p1/Arcade-look/blob/main/docs/STATUS.md).

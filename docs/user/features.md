@@ -40,7 +40,7 @@ Press **Enter** to open the current file in its default application. Use **Ctrl+
 
 Plugins add preview support for formats that Look does not handle directly. A command plugin runs a program and can return HTML, text, Markdown, an image, or a file that Look opens with a built-in viewer. A script plugin is an ES module that renders into the preview pane.
 
-Place plugin definitions in Look's plugins directory and restart Look to load them. Command plugins are launched as an argument list rather than through a shell; use a command such as `sh -c` explicitly when a pipeline is needed. Script plugins run with the same privileges as built-in viewers, so install only scripts you trust. See the [plugin reference](../PLUGINS.md) for supported fields and paths.
+Place plugin definitions in Look's plugins directory and restart Look to load them. Command plugins are launched as an argument list rather than through a shell; use a command such as `sh -c` explicitly when a pipeline is needed. Script plugins run with the same privileges as built-in viewers, so install only scripts you trust. See the [plugin reference](https://github.com/qa-p1/Arcade-look/blob/main/docs/dev/plugins.md) for supported fields and paths.
 
 ## Use connected Arcade actions
 

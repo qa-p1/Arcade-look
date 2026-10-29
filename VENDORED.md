@@ -6,6 +6,10 @@ from [Arcade Link](https://github.com/qa-p1/Arcade-link/tree/3bbbc5d0d7d383e18c7
 Run `python3 scripts/check-vendored.py` to verify the SHA-256 inventory.
 Refresh the source pin and hashes together.
 
+One file is adapted, not copied unchanged: in `src-tauri/windows/README.md` the two
+links to Link's `SPEC.md` and `spec/vectors/` point at Link on GitHub, because the
+relative links only resolve inside the Link repository.
+
 | App path | Link source |
 | --- | --- |
 | `assets/strings/install.json` | `assets/strings/install.json` |
@@ -42,7 +46,7 @@ a3c5796e067e4e0d71dad453e1be141a873b0999cba6fe9616c866be0906e2e5  spec/vectors/m
 aebde82ca97adebe6c4fdd5d0dea338d1134db5ccddf0678ec4cb6d836f94198  spec/vectors/receipts.json
 2691d5b60314b7060bac5c219ada25edbfdc30829ea8a22d7496714afe2d4cc5  spec/vectors/shortcuts.json
 4e1ce6155a2fbff13cfb5878ed66ee691843ecc36b631693914d5d893b2e8204  spec/vectors/trayhost.json
-c0b052a5165ab43390d4cd4f19c05e1a9f9e6ff65e5a64c978087c91331c6c68  src-tauri/windows/README.md
+49eeca7ca6582dae31b9714b3e1c5e910c8040581bf7484b07c91741f3698874  src-tauri/windows/README.md
 2b2a8b699dc1e6c81c02bb9ad9be1ddf2f8a5447541eb1dfe886056aa5dc4fd6  src-tauri/windows/arcade-integration.ps1
 fe152028ff674fdacdef4aed8970bb0a7afeb2dd67d2a3af075d7d95683bf96b  src-tauri/windows/arcade.iss
 1f548b420bc08b479d6c65801a208aa67dc80fef851b5e2a49696d307562831e  src-tauri/windows/arcade.nsh

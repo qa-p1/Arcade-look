@@ -119,4 +119,4 @@ export async function render(host, ctx) {
 
 Script plugins run inside the app with the same privileges as the built-in viewers, so only install plugins you trust.
 
-More examples are in [`examples/plugins`](../examples/plugins).
+More examples are in [`examples/plugins`](../../examples/plugins).

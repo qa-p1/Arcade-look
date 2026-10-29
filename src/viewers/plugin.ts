@@ -9,7 +9,7 @@ import { renderCode } from './code';
 import { sandboxedFrame } from './html';
 import type { Mounted, ViewCtx } from './types';
 
-/** What script plugins receive. Kept small and stable: see docs/PLUGINS.md. */
+/** What script plugins receive. Kept small and stable: see docs/dev/plugins.md. */
 export interface PluginContext {
   file: ViewCtx['info'];
   fileUrl(path: string): string;

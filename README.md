@@ -45,7 +45,7 @@ See [Install and start Arcade Look](docs/user/getting-started.md).
 - **Media, fonts, models:** playback controls, cover art, tags and waveform; editable font samples with variable-axis sliders and a glyph grid; 3D orbit, wireframe, PBR lighting and animations.
 - **Browse folders:** a folder opens as a grid; Back/Forward history and Left/Right to move between files.
 - **Fallback:** if a format has no viewer or its decoder fails, Look shows a file information card and a hex view.
-- **Plugins:** command plugins turn a CLI into a previewer; script plugins are ES modules that render into the preview pane. Examples in [examples/plugins](examples/plugins) (LibreOffice, Pandoc, ffmpeg transcoding fallback, SQLite schema, color palettes); reference in [docs/PLUGINS.md](docs/PLUGINS.md).
+- **Plugins:** command plugins turn a CLI into a previewer; script plugins are ES modules that render into the preview pane. Examples in [examples/plugins](examples/plugins) (LibreOffice, Pandoc, ffmpeg transcoding fallback, SQLite schema, color palettes); reference in [docs/dev/plugins.md](docs/dev/plugins.md).
 - **Fast:** after you close a preview the window stays warm so the next one is instant; after 30 seconds hidden, the web view is released.
 
 More in [Preview, browse and extend files](docs/user/features.md).
@@ -68,7 +68,7 @@ Previews never execute content, whoever asked.
 
 When Arcade Tools is running, its tray icon hosts Look's menu. When Tools quits, crashes or turns hosting off, Look's own icon returns at once. With "Connect with other Arcade apps" off, Look always shows its own icon.
 
-See [Use Arcade Look with other apps](docs/user/with-other-apps.md) and the [Arcade Link reference](docs/arcade-link.md).
+See [Use Arcade Look with other apps](docs/user/with-other-apps.md) and the [Arcade Link reference](docs/dev/link.md).
 
 ## Usage
 
@@ -198,7 +198,7 @@ file manager ──Space──▶ OS integration ──▶ Rust core ──IPC /
 - **Web UI** (`src/`): vanilla TypeScript with no framework runtime. Each viewer is its own lazily loaded chunk with `mount()`/`dispose()`. A viewer that throws falls through to the next one.
 - On Linux, `<video>`/`<audio>` stream from a token-protected loopback HTTP server, because WebKitGTK's media stack cannot stream from custom URL schemes.
 
-The full design rationale is in [docs/PLAN.md](docs/PLAN.md).
+The full design rationale is in [docs/dev/history/PLAN.md](docs/dev/history/PLAN.md).
 
 ### Releases
 
@@ -207,9 +207,9 @@ CI (`.github/workflows`) checks every pull request, and packages every push to `
 ## Documentation
 
 - [User guide](docs/user/): [getting started](docs/user/getting-started.md), [features](docs/user/features.md), [shortcuts](docs/user/shortcuts.md), [FAQ](docs/user/faq.md), [troubleshooting](docs/user/troubleshooting.md)
-- [Arcade Link](docs/arcade-link.md): actions Look exposes and uses
-- [Plugins](docs/PLUGINS.md)
-- [Design plan](docs/PLAN.md)
+- [Arcade Link](docs/dev/link.md): actions Look exposes and uses
+- [Plugins](docs/dev/plugins.md)
+- [Design plan](docs/dev/history/PLAN.md)
 - [Status](docs/STATUS.md)
 - [Changelog](CHANGELOG.md)
 

@@ -63,6 +63,6 @@ Look runs daily on the owner's Hyprland desktop.
 | Document | Contents |
 |---|---|
 | [README](../README.md) | Formats, install, shortcuts, configuration, plugins, building |
-| [PLAN](PLAN.md) | Design rationale, budgets, decisions made during the build |
-| [PLUGINS](PLUGINS.md) | Command and script plugin reference |
-| [arcade-link](arcade-link.md) | Exposed actions, connected actions, isolated UI tests, CI dependency |
+| [PLAN](dev/history/PLAN.md) | Design rationale, budgets, decisions made during the build |
+| [plugins](dev/plugins.md) | Command and script plugin reference |
+| [link](dev/link.md) | Exposed actions, connected actions, isolated UI tests, CI dependency |
