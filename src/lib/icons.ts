@@ -66,7 +66,10 @@ export function icon(name: IconName | string, size = 18): SVGElement {
   );
 }
 
-/** Visual identity (icon + hue) for a file kind; used by badges and folder listings. */
+/**
+ * Visual identity (icon + hue) for a file kind; used by badges and folder listings.
+ * The hues are Look's content palette for file kinds (LOOK.md §1), not UI colours.
+ */
 export function kindStyle(kind: Kind | string, ext = ''): { icon: string; color: string } {
   switch (kind) {
     case 'folder': return { icon: 'folder', color: '#60a5fa' };

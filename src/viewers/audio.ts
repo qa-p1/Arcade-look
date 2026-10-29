@@ -75,8 +75,10 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     if (!g) return;
     g.scale(dpr, dpr);
     const css = getComputedStyle(wave);
-    const base = css.getPropertyValue('--wave').trim() || '#888';
-    const accent = css.getPropertyValue('--accent').trim() || '#7c6cff';
+    // --wave and --accent are always defined (media.css, the kit); the text colour
+    // is only a fallback for a stylesheet that failed to load.
+    const base = css.getPropertyValue('--wave').trim() || css.color;
+    const accent = css.getPropertyValue('--accent').trim() || css.color;
     const bar = 3;
     const gap = 2;
     const n = Math.floor(w / (bar + gap));
