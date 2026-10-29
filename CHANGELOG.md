@@ -1,12 +1,14 @@
 # Changelog
 
-## 0.4.0 — 2026-10-29 (unreleased)
+## 0.4.0 — 2026-10-29
 
 - Adopt the Arcade kit’s Inter, blue accent, controls, viewer chrome, welcome, actions menu and Connected apps page. Keep all viewers, plugins, navigation, metadata and file-manager integrations.
 - Open Settings in a separate native window with live themes, shortcut controls, previews, integration repair, plugins, diagnostics, notifications and About. Destroy it on close and reuse the guarded idle restart to reclaim WebKit memory.
 - Migrate to `dev.arcade.Look` and Link’s `arcade/look/` folders with copy/verify/remove and conflict preservation. Keep saved shortcuts; standardize new-install defaults and the CLI/tray/desktop entry.
 - Pin development toolchains, format the frontend with Prettier, use Cargo.toml as the version source, check vendored hashes across line endings, and run the same scripts/check in CI.
-- Prepare three-platform installers and beta metadata as CI artifacts. Publishing remains manual; this candidate has not been officially released.
+- Small text (metadata, hints, badges) meets 4.5:1 contrast in both themes (Arcade Link design kit `v0.4.4`).
+- Settings opens reliably from the tray and `--settings`, and a preview no longer closes on the brief focus change while its window appears.
+- Releases start from `tag.yml` and `release.yml`, like the other Arcade apps.
 
 ## 0.3.5 — 2026-10-19
 

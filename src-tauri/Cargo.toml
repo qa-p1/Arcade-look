@@ -44,7 +44,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 kamadak-exif = "0.6"
 imagesize = "0.15"
 # Arcade Link (the shared protocol and install/tray runtime).
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.4.3", features = ["install", "trayhost", "design"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.4.4", features = ["install", "trayhost", "design"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 

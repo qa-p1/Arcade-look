@@ -1,7 +1,7 @@
 //! macOS: read Finder's selection for the global shortcut. (Finder's own Space key keeps
 //! opening Apple's Quick Look; our shortcut, Ctrl+Alt+Shift+Space on new installs, opens Arcade Look.)
 
-use crate::util::Res;
+use crate::util::{OrStr, Res};
 use std::path::PathBuf;
 use std::process::Command;
 

@@ -110,7 +110,7 @@ pub fn render(path: &Path, kind: &str, max: u32) -> Res<(String, Vec<u8>)> {
                 .or_str()?;
             let mut img = img;
             img.no_limits();
-            let decoded = img.decode().ctx("Could not decode image")?;
+            let decoded = img.decode().ctx("Couldn't decode image")?;
             encode_png(decoded, max)
         }
     }
@@ -148,8 +148,7 @@ fn encode_png(img: image::DynamicImage, max: u32) -> Res<(String, Vec<u8>)> {
         image::codecs::png::CompressionType::Fast,
         image::codecs::png::FilterType::Adaptive,
     );
-    img.write_with_encoder(enc)
-        .ctx("Could not encode preview")?;
+    img.write_with_encoder(enc).ctx("Couldn't encode preview")?;
     Ok(("image/png".into(), out))
 }
 

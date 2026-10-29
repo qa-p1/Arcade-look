@@ -105,7 +105,7 @@ async function loadModel(
     case 'dae': {
       const { ColladaLoader } = await import('three/examples/jsm/loaders/ColladaLoader.js');
       const c = await new ColladaLoader().loadAsync(url);
-      if (!c) throw new Error('Could not parse Collada file');
+      if (!c) throw new Error("Couldn't parse Collada file");
       return { object: c.scene, animations: c.scene.animations ?? [] };
     }
     case '3mf': {

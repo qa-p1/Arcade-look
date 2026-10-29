@@ -4,7 +4,7 @@ import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notif
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { api, errorMessage, type Bootstrap, type Config, type Plugin } from './backend';
-import { h, nextFrame } from './dom';
+import { h } from './dom';
 import { copyText } from './clipboard';
 import { icon } from './icons';
 import { arcadeGlyph } from './arcade-glyphs';
@@ -23,6 +23,17 @@ const sections = [
   ['Connected apps', 'link'],
   ['About', 'info'],
 ] as const;
+
+/** The one-line description under each page title (Template A). */
+const descriptions: Record<(typeof sections)[number][0], string> = {
+  General: 'Theme, start at login and notifications.',
+  Shortcuts: 'The global shortcut and the keys that work in a preview.',
+  Previews: 'How media plays and which files folder previews show.',
+  'File manager': 'Open Arcade Look from your file manager with Space.',
+  Plugins: 'Previewers you add for more file types.',
+  'Connected apps': 'Send the file you are previewing to other Arcade apps.',
+  About: 'Version, updates, logs and help.',
+};
 
 export class Settings {
   private boot!: Bootstrap;
@@ -88,7 +99,10 @@ export class Settings {
             h('span.brand-name', 'Arcade Look'),
           ),
           this.nav,
-          h('div.sidebar-foot', h('div.sidebar-meta.selectable', `Version ${this.boot.version}`)),
+          h(
+            'div.sidebar-foot',
+            h('div.sidebar-meta.selectable', h('span', 'Version'), this.boot.version),
+          ),
         ),
         this.page,
         this.toastEl,
@@ -115,7 +129,8 @@ export class Settings {
       });
       await this.show('General');
       await document.fonts.ready;
-      await nextFrame();
+      // No requestAnimationFrame before the first show: WebKit doesn't run it
+      // while the window is hidden, so Settings would never appear.
       await api.frontendReady();
       await api.showWindow();
     } catch (error) {
@@ -215,7 +230,10 @@ export class Settings {
     }
     const content = h(
       'div.page-main',
-      h('header.page-head', h('div', h('h1', name), h('p.sub', 'Press Space, see anything.'))),
+      h(
+        'header.page-head',
+        h('div', h('h1', name), h('p.sub', descriptions[name as keyof typeof descriptions])),
+      ),
     );
     this.page.replaceChildren(content);
     this.page.scrollTop = 0;

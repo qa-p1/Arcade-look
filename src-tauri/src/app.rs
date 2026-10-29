@@ -104,6 +104,8 @@ pub struct AppState {
     pub window_state: Mutex<WindowState>,
     pub service: AtomicBool,
     pub visible: AtomicBool,
+    /// When the preview was last shown; focus loss right after that is ignored.
+    pub shown_at: Mutex<Option<Instant>>,
     pub source: Mutex<Source>,
     pub current: Mutex<Option<PathBuf>>,
     pub activation_token: Mutex<Option<String>>,
@@ -128,6 +130,7 @@ impl AppState {
             window_state: Mutex::new(crate::config::load_state()),
             service: AtomicBool::new(service),
             visible: AtomicBool::new(false),
+            shown_at: Mutex::new(None),
             source: Mutex::new(Source::Local),
             current: Mutex::new(None),
             activation_token: Mutex::new(None),
@@ -144,6 +147,15 @@ impl AppState {
 
     pub fn is_visible(&self) -> bool {
         self.visible.load(Ordering::SeqCst)
+    }
+
+    /// Mapping or raising the window can deliver a brief focus-out (no window
+    /// manager, some compositors); that one must not close the preview.
+    pub fn just_shown(&self) -> bool {
+        self.shown_at
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some_and(|at| at.elapsed() < Duration::from_millis(400))
     }
 }
 
@@ -237,6 +249,13 @@ fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let window =
         WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("index.html?settings".into()))
             .title("Settings — Arcade Look")
+            .on_page_load(|_, payload| {
+                crate::dbg_log!(
+                    "settings page load {:?}: {}",
+                    payload.event(),
+                    payload.url()
+                );
+            })
             .inner_size(760.0, 560.0)
             .min_inner_size(720.0, 520.0)
             .decorations(true)
@@ -253,6 +272,8 @@ fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
 }
 
 pub fn settings_ready(app: &AppHandle) {
+    // scripts/check-native.py waits for this, as for the preview's "frontend ready".
+    crate::dbg_log!("settings frontend ready");
     let state = app.state::<AppState>();
     let mut frontend = state
         .settings_frontend
@@ -508,6 +529,7 @@ pub fn show(app: &AppHandle) {
         return;
     }
     drop(frontend);
+    *state.shown_at.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
     let was_visible = state.visible.swap(true, Ordering::SeqCst);
     if !was_visible {
         let (_width, _height) = place_on_cursor_monitor(app, &w);

@@ -79,7 +79,7 @@ pub fn read_csv(path: &Path, format: &str) -> Res<TableData> {
             Ok(false) => break,
             Err(e) => {
                 if t.rows.is_empty() {
-                    return Err(format!("Could not parse as CSV: {e}"));
+                    return Err(format!("Couldn't parse as CSV: {e}"));
                 }
                 break;
             }
@@ -195,7 +195,7 @@ fn count_outside_quotes(line: &str, d: char) -> usize {
 
 pub fn read_sheet(path: &Path, index: usize) -> Res<TableData> {
     use calamine::{open_workbook_auto, Reader, Sheets};
-    let mut wb = open_workbook_auto(path).ctx("Could not open spreadsheet")?;
+    let mut wb = open_workbook_auto(path).ctx("Couldn't open spreadsheet")?;
     let sheets = wb.sheet_names();
     if sheets.is_empty() {
         return Err("The workbook has no sheets".into());
@@ -212,8 +212,8 @@ pub fn read_sheet(path: &Path, index: usize) -> Res<TableData> {
     let mut grid = Grid::default();
     match &mut wb {
         Sheets::Xlsx(x) => {
-            let mut cells = x.worksheet_cells_reader(name).ctx("Could not read sheet")?;
-            while let Some(cell) = cells.next_cell().ctx("Could not read sheet")? {
+            let mut cells = x.worksheet_cells_reader(name).ctx("Couldn't read sheet")?;
+            while let Some(cell) = cells.next_cell().ctx("Couldn't read sheet")? {
                 let ((row, col), value) = (cell.get_position(), cell.get_value().clone());
                 if !grid.put(row as usize, col as usize, &value.into()) {
                     break;
@@ -221,8 +221,8 @@ pub fn read_sheet(path: &Path, index: usize) -> Res<TableData> {
             }
         }
         Sheets::Xlsb(x) => {
-            let mut cells = x.worksheet_cells_reader(name).ctx("Could not read sheet")?;
-            while let Some(cell) = cells.next_cell().ctx("Could not read sheet")? {
+            let mut cells = x.worksheet_cells_reader(name).ctx("Couldn't read sheet")?;
+            while let Some(cell) = cells.next_cell().ctx("Couldn't read sheet")? {
                 let ((row, col), value) = (cell.get_position(), cell.get_value().clone());
                 if !grid.put(row as usize, col as usize, &value.into()) {
                     break;
@@ -230,7 +230,7 @@ pub fn read_sheet(path: &Path, index: usize) -> Res<TableData> {
             }
         }
         _ => {
-            let range = wb.worksheet_range(name).ctx("Could not read sheet")?;
+            let range = wb.worksheet_range(name).ctx("Couldn't read sheet")?;
             // Positions stay absolute: a sheet that starts at C5 still shows from A1.
             for (row, col, value) in range.used_cells() {
                 let (r0, c0) = range.start().unwrap_or((0, 0));

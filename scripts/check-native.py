@@ -88,8 +88,13 @@ def text_scale(factor, window='main'):
 
 
 def capture(name, window, size):
-    evaluate('return true;', window, size)
-    time.sleep(.25)
+    # Opening a file can restore the remembered window size after it mounts;
+    # apply the requested size until the window reports it.
+    for _ in range(12):
+        evaluate('return true;', window, size)
+        time.sleep(.25)
+        if evaluate('return [innerWidth, innerHeight];', window) == size:
+            break
     result = evaluate('''await document.fonts.ready;
       const bad = [];
       if (document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth) bad.push('window horizontal overflow');
@@ -103,13 +108,32 @@ def capture(name, window, size):
         viewer: document.querySelector('[data-viewer]')?.dataset.viewer};''', window)
     assert not result['bad'], (name, result)
     assert 'Inter' in result['font'], result
-    assert [result['width'], result['height']] == size, (name, result, size)
+    assert [result['width'], result['height']] == size, (name, result, size, log.read_text(errors='replace')[-4000:])
     title = 'Settings.*Arcade Look' if window == 'settings' else 'Arcade Look'
     found = subprocess.check_output(['xdotool', 'search', '--onlyvisible', '--name', title], env=env, text=True).splitlines()
     assert found, (name, 'No native window')
     window_id = found[-1]
     subprocess.run(['import', '-window', window_id, str(SHOTS / (name + '.png'))], env=env, check=True, timeout=20)
     return result
+
+
+def settled_rss(seconds=30):
+    # Startup work (webview warm-up, Link discovery) finishes over a few
+    # seconds; compare steady states, not a sample taken mid-startup.
+    deadline = time.monotonic() + seconds
+    previous = rss()
+    while time.monotonic() < deadline:
+        time.sleep(1)
+        current = rss()
+        if abs(current - previous) < 1024 * 1024:
+            return current
+        previous = current
+    return previous
+
+
+def close_settings():
+    # Answer first, then close: a window that is gone can't report back.
+    evaluate("setTimeout(() => window.__TAURI_INTERNALS__.invoke('plugin:window|close'), 100); return true;", 'settings')
 
 
 def current_pid():
@@ -129,8 +153,7 @@ try:
     with log.open('wb') as stream:
         process = subprocess.Popen([str(exe), '--background'], env=env, stdout=stream, stderr=stream, start_new_session=True)
     wait_for(lambda: endpoint.exists() and control.exists(), 'Look never became ready')
-    time.sleep(1)
-    measurements['baseline'] = rss()
+    measurements['baseline'] = settled_rss()
     # Repeated create/destroy must return the entire process tree to its idle RSS.
     for attempt in range(2):
         old_pid = current_pid()
@@ -155,12 +178,17 @@ try:
                         time.sleep(.15)
                         wait_for(lambda: ready('settings'), 'Settings section did not paint')
                         capture('settings-' + section.lower().replace(' ', '-') + '-' + theme + '-' + str(factor), 'settings', [720, 520])
-        evaluate("await window.__TAURI_INTERNALS__.invoke('plugin:window|close');", 'settings')
+        close_settings()
         wait_for(lambda: current_pid() not in (None, old_pid), 'Closing Settings did not return to a fresh idle service', seconds=40)
         wait_for(control.exists, 'Restarted service did not expose its private test driver')
-        time.sleep(1)
-        measurements['after_close_' + str(attempt)] = rss()
-        assert abs(measurements['after_close_' + str(attempt)] - measurements['baseline']) <= 5 * 1024 * 1024, measurements
+        measurements['after_close_' + str(attempt)] = settled_rss()
+        # Closing Settings restarts the idle service, which is leaner than a
+        # first start (that one also ran migration and integration setup), so
+        # memory must not grow past the pre-open level; repeated open/close
+        # cycles must then land on the same idle level within 5 MB.
+        assert measurements['after_close_' + str(attempt)] <= measurements['baseline'] + 5 * 1024 * 1024, measurements
+        if attempt:
+            assert abs(measurements['after_close_1'] - measurements['after_close_0']) <= 5 * 1024 * 1024, measurements
     samples = SANDBOX / 'real-files'
     subprocess.run(['python3', str(ROOT / 'scripts/make-fixtures.py'), str(samples)], check=True)
     (samples / 'command.lookcommand').write_text('command plugin input')
@@ -187,7 +215,7 @@ try:
             assert path.exists(), 'Fixture generator omitted ' + name
             offset = log.stat().st_size
             second(path)
-            wait_for(lambda: f'mounted with {viewer}' in log.read_text(errors='replace')[offset:], 'Wrong viewer for ' + name)
+            wait_for(lambda: f'mounted with {viewer}' in log.read_bytes()[offset:].decode(errors='replace'), 'Wrong viewer for ' + name)
             for size in ([720,520],[1920,1080]):
                 result = capture(name.replace('.','-')[:160] + '-' + theme + '-' + str(size[0]), 'main', size)
                 assert result['viewer'] == viewer, (name, result)
@@ -196,7 +224,7 @@ try:
             text_scale(1)
         offset = log.stat().st_size
         second(ROOT / 'docs/user/getting-started.md')
-        wait_for(lambda: 'mounted with markdown' in log.read_text(errors='replace')[offset:], 'User guide did not mount')
+        wait_for(lambda: 'mounted with markdown' in log.read_bytes()[offset:].decode(errors='replace'), 'User guide did not mount')
         capture('readme-preview-' + theme, 'main', [1100,760])
         # Settings must leave the active preview intact, and live theme changes reach both windows.
         original = evaluate('return document.title;')
@@ -205,7 +233,7 @@ try:
         assert evaluate('return document.title;') == original
         evaluate("await window.__TAURI_INTERNALS__.invoke('set_config', {patch: {theme: 'system'}});", 'settings')
         assert evaluate('return !document.documentElement.dataset.theme;')
-        evaluate("await window.__TAURI_INTERNALS__.invoke('plugin:window|close');", 'settings')
+        close_settings()
     (SHOTS / 'measurements.json').write_text(json.dumps(measurements, indent=2) + '\n')
     (SHOTS / 'matrix.json').write_text(json.dumps(matrix, indent=2) + '\n')
     print('PASS: native Settings lifecycle/RSS, live themes, all viewer types, minimum/full-size layout; screenshots saved.')

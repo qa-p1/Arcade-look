@@ -17,7 +17,10 @@ Arcade Look is a quick file previewer. Preview images, media, documents, code, a
 
 It runs on **Linux** (x86_64; X11 and Wayland), **Windows** (x64) and **macOS** (universal: Apple Silicon and Intel). It is used daily on Hyprland; the Windows Explorer hook and macOS Finder integration are built and tested in CI but have not been run interactively.
 
-<p align="center"><img src="docs/user/images/preview.png" width="720" alt="Arcade Look previewing the getting-started guide as a Markdown document"></p>
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/user/images/preview-dark.png">
+  <img src="docs/user/images/preview.png" width="720" alt="Arcade Look previewing the getting-started guide as a Markdown document">
+</picture></p>
 
 ## Download and install
 

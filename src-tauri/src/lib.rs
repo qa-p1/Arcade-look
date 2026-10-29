@@ -145,6 +145,7 @@ pub fn run() {
             if matches!(event, WindowEvent::Focused(false))
                 && window.label() == app::MAIN
                 && window.app_handle().state::<app::AppState>().is_visible()
+                && !window.app_handle().state::<app::AppState>().just_shown()
                 && !window
                     .app_handle()
                     .get_webview_window(app::SETTINGS)

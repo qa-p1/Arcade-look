@@ -80,7 +80,7 @@ jobs:
       - name: Arcade Link runner at the same immutable design-kit tag
         if: runner.os == 'Linux'
         shell: bash
-        run: git clone --depth 1 --branch v0.4.3 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
+        run: git clone --depth 1 --branch v0.4.4 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
       - name: Install isolated UI-test prerequisites
         if: runner.os == 'Linux'
         run: |
