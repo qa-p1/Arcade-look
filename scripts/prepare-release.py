@@ -24,8 +24,12 @@ def main():
         if not path.is_file(): continue
         name = path.name.replace(' ', '-')
         shutil.copyfile(path, args.output/name)
+    # arcade-release.json knows only stable and nightly (Link's schema, read by
+    # Tools); a beta rehearsal is a pre-release, so its manifest says nightly.
+    channel = 'stable' if args.channel == 'stable' else 'nightly'
     subprocess.run([sys.executable, str(ROOT/'scripts/arcade-release.py'), '--id','arcade.look','--version',version,
-                    '--channel',args.channel,'--notes',args.notes,str(args.output)], check=True)
+                    '--channel',channel,'--notes',args.notes,str(args.output)], check=True)
+    assert json.loads((args.output/'arcade-release.json').read_text(encoding='utf-8'))['channel'] == channel
     manifest = json.loads((args.output/'arcade-release.json').read_text(encoding='utf-8'))
     assets = manifest['assets']
     assert len(assets)==3, f'Expected all 3 platform installers, found {len(assets)}'

@@ -65,8 +65,13 @@ jobs:
         run: python3 scripts/prepare-release.py "$RUNNER_TEMP/built" "$RUNNER_TEMP/release" --channel "$CHANNEL" --notes "https://github.com/$GH_REPO/releases/tag/$TAG"
       - name: Publish only the explicitly requested release
         run: |
+          # This version's CHANGELOG section, not the whole file.
+          version=$(python3 scripts/check-version.py --print)
+          awk -v head="## $version " 'index($0, head) == 1 { on = 1; next } on && /^## / { exit } on' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          [ -s "$RUNNER_TEMP/notes.md" ] || { echo "CHANGELOG.md has no section for $version"; exit 1; }
           if [ "$DRAFT" = true ]; then
-            gh release create "$TAG" "$RUNNER_TEMP"/release/* --draft --target "$GITHUB_SHA" --title "Arcade Look $TAG" --notes-file CHANGELOG.md
+            prerelease=$([ "$CHANNEL" = stable ] || echo --prerelease)
+            gh release create "$TAG" "$RUNNER_TEMP"/release/* --draft $prerelease --target "$GITHUB_SHA" --title "Arcade Look $TAG" --notes-file "$RUNNER_TEMP/notes.md"
           else
-            gh release create "$TAG" "$RUNNER_TEMP"/release/* --verify-tag --latest --title "Arcade Look $TAG" --notes-file CHANGELOG.md
+            gh release create "$TAG" "$RUNNER_TEMP"/release/* --verify-tag --latest --title "Arcade Look $TAG" --notes-file "$RUNNER_TEMP/notes.md"
           fi
