@@ -39,6 +39,9 @@ jobs:
         working-directory: arcade-look
     env:
       CARGO_BUILD_JOBS: 3
+      # rust-toolchain.toml pins the 1.88 MSRV for checks; installers build with
+      # the toolchain below, and this override wins over that file.
+      RUSTUP_TOOLCHAIN: 1.99.1
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
