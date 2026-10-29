@@ -1,0 +1,34 @@
+# Run only when the owner chooses to ship an already merged commit.
+name: Tag a release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag, for example v0.4.0
+        required: true
+      sha:
+        description: Full SHA of a commit on main
+        required: true
+permissions:
+  contents: write
+jobs:
+  tag:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, verified with git ls-remote
+        with:
+          fetch-depth: 0
+      - name: Validate and create the annotated tag
+        env:
+          TAG: ${{ inputs.tag }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Expected v1.2.3"; exit 1; }
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Expected a full commit SHA"; exit 1; }
+          git merge-base --is-ancestor "$SHA" origin/main
+          version=$(git show "$SHA:src-tauri/Cargo.toml" | python3 -c 'import sys,tomllib; print(tomllib.loads(sys.stdin.read())["package"]["version"])')
+          [ "$TAG" = "v$version" ] || { echo "Tag and app version differ"; exit 1; }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" "$SHA" -m "Arcade Look $version"
+          git push origin "refs/tags/$TAG"

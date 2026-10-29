@@ -200,6 +200,10 @@ pub fn has_listeners() -> bool {
     SHORTCUT_ACTIVE.load(Ordering::SeqCst)
 }
 
+pub fn toggle_selection(app: &AppHandle) {
+    on_global_shortcut(app);
+}
+
 fn on_global_shortcut(app: &AppHandle) {
     if SHORTCUT_RECORDING.load(Ordering::SeqCst) {
         return;
@@ -323,7 +327,7 @@ pub fn set_autostart(enabled: bool) -> Res<()> {
     #[allow(unreachable_code)]
     {
         let _ = enabled;
-        Err("Start on login is not available on this platform.".into())
+        Err("Start at login is not available on this platform.".into())
     }
 }
 
@@ -540,5 +544,124 @@ mod login_receipt_tests {
         .unwrap();
         assert!(fixture.set(false).is_err());
         assert_eq!(fs::read(&fixture.path).unwrap(), original);
+    }
+}
+
+/// Copy, verify and only then retire an owned legacy desktop/login entry.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn migrate_entry(
+    old: &std::path::Path,
+    new: &std::path::Path,
+    text: String,
+    field: &str,
+) -> Res<()> {
+    migrate_entry_using(
+        old,
+        new,
+        text,
+        field,
+        &arcade_link::receipt::Store::discover(),
+    )
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn migrate_entry_using(
+    old: &std::path::Path,
+    new: &std::path::Path,
+    text: String,
+    field: &str,
+    store: &arcade_link::receipt::Store,
+) -> Res<()> {
+    if !old.is_file() {
+        return Ok(());
+    }
+    if std::fs::symlink_metadata(old)
+        .or_str()?
+        .file_type()
+        .is_symlink()
+    {
+        return Err(format!("{} is a link; it was kept", old.display()));
+    }
+    if new.exists() && std::fs::read(new).or_str()? != text.as_bytes() {
+        return Err(format!(
+            "{} already exists; both entries were kept",
+            new.display()
+        ));
+    }
+    if let Some(parent) = new.parent() {
+        std::fs::create_dir_all(parent).or_str()?;
+    }
+    arcade_link::paths::write_atomic(new, text.as_bytes(), true).or_str()?;
+    if std::fs::read(new).or_str()? != text.as_bytes() {
+        return Err("Entry verification failed; the old entry was kept.".into());
+    }
+    let receipt_path = store.path(arcade_link::ids::LOOK).or_str()?;
+    if receipt_path.is_file() {
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&receipt_path).or_str()?).or_str()?;
+        if document["integration"][field].as_str() == old.to_str() {
+            document["integration"][field] = new.to_string_lossy().into_owned().into();
+            let bytes = serde_json::to_vec_pretty(&document).or_str()?;
+            arcade_link::paths::write_atomic(&receipt_path, &bytes, true).or_str()?;
+            if std::fs::read(&receipt_path).or_str()? != bytes {
+                return Err("Receipt verification failed; the old entry was kept.".into());
+            }
+        }
+    }
+    std::fs::remove_file(old).or_str()
+}
+
+pub fn migrate_entries() -> Res<()> {
+    #[cfg(target_os = "linux")]
+    linux::migrate_entries()?;
+    #[cfg(target_os = "macos")]
+    macos::migrate_entries()?;
+    Ok(())
+}
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+mod entry_migration_tests {
+    use super::*;
+    #[test]
+    fn login_entry_migration_preserves_exec_receipt_and_conflicting_copies() {
+        let root = std::env::temp_dir().join(format!(
+            "look-entry-{}",
+            arcade_link::endpoint::new_token().unwrap()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let environment = arcade_link::install::Environment::under(&root);
+        let store = environment.receipts();
+        let receipt = store.path(arcade_link::ids::LOOK).unwrap();
+        std::fs::create_dir_all(receipt.parent().unwrap()).unwrap();
+        let old = root.join("old.desktop");
+        let new = root.join("dev.arcade.Look.desktop");
+        let text = "[Desktop Entry]\nExec=\"/saved/custom binary.AppImage\" --service\n";
+        std::fs::write(&old, text).unwrap();
+        let document = serde_json::json!({"integration":{"autostart":old,"futureEntry":"keep"},"futureField":17});
+        std::fs::write(&receipt, serde_json::to_vec(&document).unwrap()).unwrap();
+        migrate_entry_using(&old, &new, text.into(), "autostart", &store).unwrap();
+        assert!(!old.exists());
+        assert_eq!(std::fs::read_to_string(&new).unwrap(), text);
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&receipt).unwrap()).unwrap();
+        assert_eq!(saved["integration"]["autostart"], serde_json::json!(new));
+        assert_eq!(saved["integration"]["futureEntry"], "keep");
+        assert_eq!(saved["futureField"], 17);
+        migrate_entry_using(&old, &new, text.into(), "autostart", &store).unwrap();
+        std::fs::write(&old, "conflicting legacy entry").unwrap();
+        assert!(migrate_entry_using(
+            &old,
+            &new,
+            "different replacement".into(),
+            "autostart",
+            &store
+        )
+        .is_err());
+        assert_eq!(
+            std::fs::read_to_string(&old).unwrap(),
+            "conflicting legacy entry"
+        );
+        assert_eq!(std::fs::read_to_string(&new).unwrap(), text);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

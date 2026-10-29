@@ -1,0 +1,7 @@
+src/design/
+node_modules/
+dist/
+public/vendor/
+src-tauri/
+assets/
+docs/

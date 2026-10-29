@@ -31,25 +31,65 @@ export function chainFor(info: FileInfo): string[] {
   const c: string[] = [];
   if (info.plugin) c.push('plugin');
   switch (info.kind) {
-    case 'image': case 'image-decode': case 'image-raw': case 'image-psd': case 'svg':
-      c.push('image'); break;
-    case 'video': c.push('video'); break;
-    case 'audio': c.push('audio'); break;
-    case 'pdf': c.push('pdf'); break;
-    case 'markdown': c.push('markdown', 'code'); break;
-    case 'code': case 'text': c.push('code'); break;
-    case 'json': c.push('json', 'code'); break;
-    case 'notebook': c.push('notebook', 'json'); break;
-    case 'csv': c.push('table', 'code'); break;
-    case 'spreadsheet': c.push('table'); break;
-    case 'document': case 'epub': c.push('document'); break;
-    case 'presentation': c.push('slides'); break;
-    case 'archive': c.push('archive'); break;
-    case 'font': c.push('font'); break;
-    case 'model': c.push('model'); break;
-    case 'html': c.push('html', 'code'); break;
-    case 'folder': c.push('folder'); break;
-    default: break;
+    case 'image':
+    case 'image-decode':
+    case 'image-raw':
+    case 'image-psd':
+    case 'svg':
+      c.push('image');
+      break;
+    case 'video':
+      c.push('video');
+      break;
+    case 'audio':
+      c.push('audio');
+      break;
+    case 'pdf':
+      c.push('pdf');
+      break;
+    case 'markdown':
+      c.push('markdown', 'code');
+      break;
+    case 'code':
+    case 'text':
+      c.push('code');
+      break;
+    case 'json':
+      c.push('json', 'code');
+      break;
+    case 'notebook':
+      c.push('notebook', 'json');
+      break;
+    case 'csv':
+      c.push('table', 'code');
+      break;
+    case 'spreadsheet':
+      c.push('table');
+      break;
+    case 'document':
+    case 'epub':
+      c.push('document');
+      break;
+    case 'presentation':
+      c.push('slides');
+      break;
+    case 'archive':
+      c.push('archive');
+      break;
+    case 'font':
+      c.push('font');
+      break;
+    case 'model':
+      c.push('model');
+      break;
+    case 'html':
+      c.push('html', 'code');
+      break;
+    case 'folder':
+      c.push('folder');
+      break;
+    default:
+      break;
   }
   if (info.fallbackPlugin) c.push('fallback-plugin');
   c.push('info');

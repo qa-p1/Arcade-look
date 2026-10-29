@@ -1,5 +1,38 @@
 # Arcade Look: status
 
+## 2026-10-29: 0.4.0
+
+The overhaul retains every built-in viewer and fallback, plugin support, history,
+info panel, file-manager integration, idle release and connected actions. Settings
+is a separate native window (760×560, minimum 720×520), created on demand and
+destroyed on close. Identifiers and folders move to `dev.arcade.Look` and
+`arcade/look/` with copy, verify, then remove; saved shortcuts are kept. The
+design kit is Arcade Link `v0.4.4` (readable small text, 4.5:1 in both themes).
+
+Checked on Linux in Link's isolated D-Bus/Xvfb runner (`scripts/check`):
+
+- formatting, TypeScript, build, docs, version, vendored hashes, the design
+  inventory, syntax contrast (4.5:1) and file-type badge contrast (3:1), 12 Python tests, Clippy and 77 Rust unit tests;
+- the Settings UI matrix: 28 states at minimum size in light and dark, at 100 %
+  and 125 % text;
+- the nine real-peer Link consumer tests and the real Shelf test;
+- `scripts/check-native.py` on the real app: Settings opens from the CLI and
+  closes back to a lean idle service; two open/close cycles leave the same
+  idle memory (64.3 MB both times, below the 113 MB first start). Live themes,
+  and every viewer type with real sample files at 720×520 and 1920×1080 in
+  both themes, with no overflow.
+
+Fixed while checking: Settings never appeared (it waited for an animation
+frame, which WebKit doesn't run in a hidden window); the preview could close
+itself on the focus-out that mapping a window delivers (focus loss is now
+ignored for 400 ms after showing); error messages read "Couldn't …"; each
+Settings page has its own description.
+
+Not checkable here: a real Hyprland desktop (global shortcut, file-manager
+Space key, focus-loss timing, tray clicks), Windows/macOS login items, the
+macOS permission re-grant after the bundle id change, and Tools updating a
+real 0.3.5 install.
+
 ## Release status (2026-10-18)
 
 - Latest release: [v0.3.5](https://github.com/qa-p1/Arcade-look/releases/tag/v0.3.5), published 2026-10-19 (a long day of previews no longer grows Look; see CHANGELOG.md). The CI and e2e notes below were recorded for the earlier v0.2.0.
@@ -63,6 +96,6 @@ Look runs daily on the owner's Hyprland desktop.
 | Document | Contents |
 |---|---|
 | [README](../README.md) | Formats, install, shortcuts, configuration, plugins, building |
-| [PLAN](PLAN.md) | Design rationale, budgets, decisions made during the build |
-| [PLUGINS](PLUGINS.md) | Command and script plugin reference |
-| [arcade-link](arcade-link.md) | Exposed actions, connected actions, isolated UI tests, CI dependency |
+| [PLAN](dev/history/PLAN.md) | Design rationale, budgets, decisions made during the build |
+| [plugins](dev/plugins.md) | Command and script plugin reference |
+| [link](dev/link.md) | Exposed actions, connected actions, isolated UI tests, CI dependency |

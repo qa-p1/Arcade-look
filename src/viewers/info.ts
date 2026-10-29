@@ -1,9 +1,11 @@
+import { formatCount } from '../design/format';
 // The universal fallback: a file card plus a virtualised hex view that reads on demand,
 // so even a 100 GB disk image previews instantly.
 import './info.css';
 import { kindLabel } from '../lib/kinds';
 import { api } from '../lib/backend';
 import { h } from '../lib/dom';
+import { copyText } from '../lib/clipboard';
 import * as fmt from '../lib/format';
 import { icon, kindBadge } from '../lib/icons';
 import { virtualList, type Virtual } from '../lib/virtual';
@@ -16,17 +18,66 @@ const MAX_CHUNKS = 64;
 export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
   const { info } = ctx;
   const exists = !!info.dir || info.size > 0 || info.modified !== null;
-  const card = h('div.info-card',
+  const card = h(
+    'div.info-card',
     kindBadge(info.kind, info.ext, 34),
-    h('div.info-card-text',
+    h(
+      'div.info-card-text',
       h('div.info-card-name.selectable', info.name),
-      h('div.info-card-meta', exists ? `${kindLabel(info)}  ·  ${fmt.bytes(info.size, true)}  ·  Modified ${fmt.date(info.modified)}` : info.path)),
-    exists ? h('div.info-card-actions',
-      h('button.btn', { onclick: () => void api.openDefault(info.path).catch((e) => ctx.toast(String(e))) }, icon('open', 15), 'Open'),
-      h('button.btn', { onclick: () => void api.reveal(info.path).catch((e) => ctx.toast(String(e))) }, icon('reveal', 15), 'Show in folder')) : null);
+      h(
+        'div.info-card-meta',
+        exists
+          ? `${kindLabel(info)}  ·  ${fmt.bytes(info.size, true)}  ·  Modified ${fmt.date(info.modified)}`
+          : info.path,
+      ),
+    ),
+    exists
+      ? h(
+          'div.info-card-actions',
+          h(
+            'button.btn',
+            {
+              onclick: () =>
+                void api
+                  .openDefault(info.path)
+                  .catch(() => ctx.toast("Couldn't open the file. Try again.")),
+            },
+            icon('open', 15),
+            'Open',
+          ),
+          h(
+            'button.btn',
+            {
+              onclick: () =>
+                void api
+                  .reveal(info.path)
+                  .catch(() => ctx.toast("Couldn't open the file. Try again.")),
+            },
+            icon('reveal', 15),
+            'Show in folder',
+          ),
+        )
+      : null,
+  );
 
   const err = ctx.previousError
-    ? h('div.info-error', icon('alert', 16), h('span', ctx.info.kind === 'binary' || !exists ? ctx.previousError : `Couldn't render a rich preview: ${ctx.previousError}`))
+    ? h(
+        'div.notice.danger.info-error',
+        icon('alert', 16),
+        h('span', "Couldn't render a rich preview. Retry or open the file in another app."),
+        h(
+          'button.btn.ghost',
+          {
+            type: 'button',
+            onclick: () =>
+              void copyText(ctx.previousError ?? '')
+                .then(() => ctx.toast('Copied'))
+                .catch(() => ctx.toast("Couldn't copy the details. Try again.")),
+          },
+          'Copy details',
+        ),
+        h('button.btn', { type: 'button', onclick: () => ctx.open(info.path) }, 'Retry'),
+      )
     : null;
   host.append(h('div.info-top', card, err));
 
@@ -47,7 +98,8 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
   const load = (chunk: number) => {
     if (cache.has(chunk) || pending.has(chunk)) return;
     pending.add(chunk);
-    api.readBytes(info.path, chunk * CHUNK, CHUNK)
+    api
+      .readBytes(info.path, chunk * CHUNK, CHUNK)
       .then((buf) => {
         pending.delete(chunk);
         if (disposed) return;
@@ -62,7 +114,15 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
   const printable = (b: number) => (b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : '·');
 
   const scroller = h('div.hex-scroll.selectable');
-  host.append(h('div.hex-head', h('span.hex-off', 'Offset'), h('span.hex-bytes', '00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F'), h('span.hex-ascii', 'ASCII')), scroller);
+  host.append(
+    h(
+      'div.hex-head',
+      h('span.hex-off', 'Offset'),
+      h('span.hex-bytes', '00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F'),
+      h('span.hex-ascii', 'ASCII'),
+    ),
+    scroller,
+  );
 
   virt = virtualList({
     scroller,
@@ -77,7 +137,11 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
       const offEl = h('span.hex-off', off.toString(16).padStart(offsetDigits, '0'));
       if (!data) {
         load(chunk);
-        row.append(offEl, h('span.hex-bytes.loading', '·· '.repeat(16).trim()), h('span.hex-ascii'));
+        row.append(
+          offEl,
+          h('span.hex-bytes.loading', '·· '.repeat(16).trim()),
+          h('span.hex-ascii'),
+        );
         return row;
       }
       const start = off - chunk * CHUNK;
@@ -98,11 +162,17 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
     },
   });
 
-  ctx.setStatus(`${rows.toLocaleString()} rows of 16 bytes`);
+  ctx.setStatus(`${formatCount(rows)} rows of 16 bytes`);
   return {
     keydown(e) {
-      if (e.key === 'Home') { virt?.scrollToRow(0); return true; }
-      if (e.key === 'End') { virt?.scrollToRow(rows); return true; }
+      if (e.key === 'Home') {
+        virt?.scrollToRow(0);
+        return true;
+      }
+      if (e.key === 'End') {
+        virt?.scrollToRow(rows);
+        return true;
+      }
       return false;
     },
     dispose() {

@@ -18,7 +18,10 @@ use serde_json::{json, Value};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 static ENVIRONMENT: Mutex<()> = Mutex::new(());
 fn cli() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Arcade-link/target/debug/arcade-link")
+    std::env::var_os("ARCADE_LINK")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Arcade-Link"))
+        .join("target/debug/arcade-link")
 }
 
 struct Fixture {
@@ -153,13 +156,15 @@ fn peers_first_later_missing_disabled_and_featured_limit() {
             .len(),
         4
     );
-    assert!(consumer
-        .connected_peers(&config)
-        .iter()
-        .find(|peer| peer.id == ids::BOX)
-        .unwrap()
-        .state
-        .starts_with("Running · v"));
+    assert!(
+        consumer
+            .connected_peers(&config)
+            .iter()
+            .find(|peer| peer.id == ids::BOX)
+            .unwrap()
+            .state
+            == "Connected"
+    );
     let disabled = Config {
         link_disabled_peers: vec![ids::BOX.into()],
         ..config.clone()
@@ -205,7 +210,7 @@ fn peers_first_later_missing_disabled_and_featured_limit() {
             .find(|peer| peer.id == ids::BOX)
             .unwrap()
             .state,
-        "Installed"
+        "Not running"
     );
     println!("missing peers: no entries; peers first/later: 3 featured + More; disabled: no IPC; wrong kind: presets hidden");
 }

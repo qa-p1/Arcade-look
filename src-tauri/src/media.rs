@@ -39,7 +39,7 @@ pub fn info(path: &Path) -> Res<AudioInfo> {
         .guess_file_type()
         .or_str()?
         .read()
-        .ctx("Could not read audio metadata")?;
+        .ctx("Couldn't read audio metadata")?;
     let p = f.properties();
     let mut ai = AudioInfo {
         duration_ms: Some(p.duration().as_millis() as u64).filter(|d| *d > 0),

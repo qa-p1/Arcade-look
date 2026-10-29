@@ -9,11 +9,11 @@ import * as fmt from './lib/format';
 import { kindLabel } from './lib/kinds';
 import { setMediaBase } from './lib/urls';
 import { icon, kindBadge } from './lib/icons';
+import { copyText } from './lib/clipboard';
 import { mountChain, preload } from './viewers/registry';
 import type { Mounted, ToolItem, ViewCtx } from './viewers/types';
 
 const SWAP_GRACE_MS = 180;
-
 
 export class App {
   private boot!: Bootstrap;
@@ -30,7 +30,6 @@ export class App {
   private shown = false;
   private peers = false;
   private strip: import('./lib/actions-strip').ActionsStrip | null = null;
-  private connected: import('./lib/connected-apps').ConnectedApps | null = null;
 
   private titleName = h('div.title-name');
   private titleMeta = h('div.title-meta');
@@ -41,9 +40,12 @@ export class App {
   private actions = h('div.title-actions');
   private stage = h('main.stage');
   private info = h('aside.info-panel');
-  private loading = h('div.loading-bar');
-  private toastEl = h('div.toast');
-  private dropOverlay = h('div.drop-overlay', h('div.drop-card', icon('open', 28), h('span', 'Drop to preview')));
+  private loading = h('progress.progress.loading-bar', { max: 1, 'aria-label': 'Loading preview' });
+  private toastEl = h('div.toast', { hidden: true, role: 'status', 'aria-live': 'polite' });
+  private dropOverlay = h(
+    'div.drop-overlay',
+    h('div.drop-card', icon('open', 28), h('span', 'Drop to preview')),
+  );
   private helpEl: HTMLElement | null = null;
   private toastTimer = 0;
 
@@ -60,7 +62,24 @@ export class App {
     try {
       this.boot = await api.bootstrap();
     } catch (e) {
-      this.root.append(h('div.fatal', h('h1', 'Arcade Look'), h('p', `Could not reach the app backend: ${errorMessage(e)}`)));
+      this.root.append(
+        h(
+          'div.fatal',
+          h('h1', 'Arcade Look'),
+          h('p', "Couldn't reach Arcade Look. Try again."),
+          h(
+            'button.btn',
+            {
+              onclick: () => {
+                this.root.replaceChildren();
+                void this.start();
+              },
+            },
+            'Retry',
+          ),
+          h('button.btn', { onclick: () => void copyText(errorMessage(e)) }, 'Copy details'),
+        ),
+      );
       return;
     }
     setMediaBase(this.boot.mediaBase);
@@ -74,8 +93,14 @@ export class App {
     await listen('hidden', () => this.teardown());
     await listen('settings', () => void this.openSettings());
     await listen<Config>('config', (e) => this.applyConfig(e.payload));
-    await listen<boolean>('link-changed', (e) => { this.peers = e.payload; void this.updatePeers(); void this.connected?.refresh(); });
-    void invoke<boolean>('link_available').then((available) => { this.peers = available; void this.updatePeers(); });
+    await listen<boolean>('link-changed', (e) => {
+      this.peers = e.payload;
+      void this.updatePeers();
+    });
+    void invoke<boolean>('link_available').then((available) => {
+      this.peers = available;
+      void this.updatePeers();
+    });
 
     // Bootstrap supplies config only. Requests remain queued in Rust until all
     // listeners exist, including on a cold reopen after the idle release.
@@ -97,7 +122,11 @@ export class App {
     if (this.peers && info && !this.strip) {
       const { ActionsStrip } = await import('./lib/actions-strip');
       if (gen !== this.gen || !this.peers) return;
-      this.strip ??= new ActionsStrip(this.actions, (path) => this.open(path), (message) => this.toast(message));
+      this.strip ??= new ActionsStrip(
+        this.actions,
+        (path) => this.open(path),
+        (message) => this.toast(message),
+      );
     }
     await this.strip?.update(this.peers ? info : null, this.mounted);
   }
@@ -107,7 +136,9 @@ export class App {
     // The window title is what task bars, Alt+Tab and screen readers show.
     if (title === this.windowTitle) return;
     this.windowTitle = title;
-    void getCurrentWindow().setTitle(title).catch(() => {});
+    void getCurrentWindow()
+      .setTitle(title)
+      .catch(() => {});
   }
 
   // ------------------------------------------------------------------ layout
@@ -116,20 +147,40 @@ export class App {
     const isMac = this.boot.platform === 'macos';
     const winControls = isMac
       ? null
-      : h('div.win-controls',
-          this.button('maximize', 'Maximize', () => getCurrentWindow().toggleMaximize(), 'win-btn'),
-          this.button('close', 'Close (Space / Esc)', () => this.close(), 'win-btn win-close'));
+      : h(
+          'div.win-controls',
+          this.button(
+            'maximize',
+            'Maximize',
+            () => getCurrentWindow().toggleMaximize(),
+            'btn ghost icon-only',
+          ),
+          this.button(
+            'close',
+            'Close (Space / Esc)',
+            () => this.close(),
+            'btn ghost icon-only win-close',
+          ),
+        );
 
-    const titleText = h('div.title-text', { 'data-tauri-drag-region': true }, this.titleName, this.titleMeta);
+    const titleText = h(
+      'div.title-text',
+      { 'data-tauri-drag-region': true },
+      this.titleName,
+      this.titleMeta,
+    );
     this.titleName.setAttribute('data-tauri-drag-region', '');
     this.titleMeta.setAttribute('data-tauri-drag-region', '');
-    const bar = h('header.titlebar', { 'data-tauri-drag-region': true },
+    const bar = h(
+      'header.titlebar',
+      { 'data-tauri-drag-region': true },
       isMac ? h('div.traffic-spacer', { 'data-tauri-drag-region': true }) : null,
       this.navigation,
       this.titleBadge,
       titleText,
       h('div.title-fill', { 'data-tauri-drag-region': true }),
       this.actions,
+      this.button('settings', 'Settings', () => void this.openSettings()),
       winControls,
     );
     bar.addEventListener('dblclick', (e) => {
@@ -141,16 +192,38 @@ export class App {
       this.button('open', 'Open with default app (Enter)', () => this.openDefault()),
       this.button('reveal', 'Show in folder (Ctrl+R)', () => this.reveal()),
       this.button('copy', 'Copy path (Ctrl+C)', () => this.copyPath()),
-      this.button('info', 'Info (I)', () => this.toggleInfo(), 'icon-btn info-toggle'),
+      this.button('info', 'Info (I)', () => this.toggleInfo(), 'btn ghost icon-only info-toggle'),
     );
 
-    this.root.append(bar, h('div.body', this.stage, this.info), this.loading, this.toastEl, this.dropOverlay);
+    this.root.append(
+      bar,
+      h('div.body', this.stage, this.info),
+      this.loading,
+      this.toastEl,
+      this.dropOverlay,
+    );
     this.root.classList.toggle('info-open', this.infoOpen);
   }
 
-  private button(name: string, title: string, onClick: () => void, cls = 'icon-btn'): HTMLButtonElement {
-    const b = h('button', { class: cls, title, 'aria-label': title, onclick: (e: Event) => { e.stopPropagation(); onClick(); } }, icon(name, 17));
-    b.tabIndex = -1;
+  private button(
+    name: string,
+    title: string,
+    onClick: () => void,
+    cls = 'btn ghost icon-only',
+  ): HTMLButtonElement {
+    const b = h(
+      'button',
+      {
+        class: cls,
+        title,
+        'aria-label': title,
+        onclick: (e: Event) => {
+          e.stopPropagation();
+          onClick();
+        },
+      },
+      icon(name, 16),
+    );
     return b;
   }
 
@@ -162,9 +235,9 @@ export class App {
     clear(this.titleBadge);
     if (!i) {
       this.titleName.textContent = 'Arcade Look';
-      this.titleMeta.textContent = 'Press Space, see anything';
+      this.titleMeta.textContent = 'Press Space, see anything.';
       this.actions.classList.add('hidden');
-      this.setTitle('Arcade Look');
+      this.setTitle('Preview — Arcade Look');
       return;
     }
     this.actions.classList.remove('hidden');
@@ -188,15 +261,13 @@ export class App {
     if (!info || !this.infoOpen) return;
     const { renderInfo } = await import('./lib/info-panel');
     if (info !== this.current || !this.infoOpen) return;
-    renderInfo(this.info, info, this.details);
+    renderInfo(this.info, info, this.details, (message) => this.toast(message));
   }
 
   // ------------------------------------------------------------------ navigation
 
   async open(path: string | null, opts: { drill?: boolean; traversal?: 'back' | 'forward' } = {}) {
     const gen = ++this.gen;
-    this.connected?.dispose();
-    this.connected = null;
     this.abort?.abort();
     const ac = new AbortController();
     this.abort = ac;
@@ -224,7 +295,9 @@ export class App {
       inspectError = errorMessage(e);
     }
     if (gen !== this.gen) return clearTimeout(loadingTimer);
-    this.trace(`inspected: ${info.kind}/${info.format}${inspectError ? ` error=${inspectError}` : ''}`);
+    this.trace(
+      `inspected: ${info.kind}/${info.format}${inspectError ? ` error=${inspectError}` : ''}`,
+    );
 
     // Commit history only for the request that actually becomes the current preview.
     if (opts.traversal === 'back') {
@@ -256,9 +329,18 @@ export class App {
 
     const mountP = mountChain(host, ctx);
     // Keep the old preview on screen briefly so fast switches don't flash.
-    const quick = await Promise.race([mountP.then(() => true, () => true), sleep(SWAP_GRACE_MS).then(() => false)]);
+    const quick = await Promise.race([
+      mountP.then(
+        () => true,
+        () => true,
+      ),
+      sleep(SWAP_GRACE_MS).then(() => false),
+    ]);
     if (gen !== this.gen) {
-      mountP.then((r) => r.mounted.dispose?.(), () => {});
+      mountP.then(
+        (r) => r.mounted.dispose?.(),
+        () => {},
+      );
       host.remove();
       return clearTimeout(loadingTimer);
     }
@@ -303,7 +385,13 @@ export class App {
     await api.showWindow();
   }
 
-  private makeCtx(info: FileInfo, signal: AbortSignal, gen: number, host: HTMLElement, nested: boolean): ViewCtx {
+  private makeCtx(
+    info: FileInfo,
+    signal: AbortSignal,
+    gen: number,
+    host: HTMLElement,
+    nested: boolean,
+  ): ViewCtx {
     const live = () => gen === this.gen && !signal.aborted;
     return {
       info,
@@ -325,7 +413,10 @@ export class App {
       open: (path) => void this.open(path, { drill: true }),
       toast: (t) => this.toast(t),
       mountNested: async (nestedHost, nestedInfo) => {
-        const r = await mountChain(nestedHost, this.makeCtx(nestedInfo, signal, gen, nestedHost, true));
+        const r = await mountChain(
+          nestedHost,
+          this.makeCtx(nestedInfo, signal, gen, nestedHost, true),
+        );
         return r.mounted;
       },
     };
@@ -339,8 +430,12 @@ export class App {
       } else if (it.el) {
         bar.append(it.el);
       } else {
-        const b = h('button.tb-btn', { title: it.title, 'aria-label': it.title }, it.icon ? icon(it.icon, 17) : null, it.label ? h('span', it.label) : null);
-        b.tabIndex = -1;
+        const b = h(
+          'button.btn.ghost.tb-btn',
+          { title: it.title, 'aria-label': it.title },
+          it.icon ? icon(it.icon, 16) : null,
+          it.label ? h('span', it.label) : null,
+        );
         if (it.active) b.classList.add('active');
         b.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -382,7 +477,7 @@ export class App {
       if (next) await this.open(next);
       else this.bump(delta);
     } catch (e) {
-      this.toast(errorMessage(e));
+      this.report(e);
     }
   }
 
@@ -408,8 +503,6 @@ export class App {
   /** Stop media and free memory: the window is hidden. */
   teardown() {
     this.strip?.cancel();
-    this.connected?.dispose();
-    this.connected = null;
     this.gen++;
     this.abort?.abort();
     this.history = [];
@@ -433,26 +526,22 @@ export class App {
   // ------------------------------------------------------------------ actions
 
   private openDefault() {
-    if (this.current) api.openDefault(this.current.path).catch((e) => this.toast(errorMessage(e)));
+    if (this.current) api.openDefault(this.current.path).catch((e) => this.report(e));
   }
 
   private reveal() {
-    if (this.current) api.reveal(this.current.path).catch((e) => this.toast(errorMessage(e)));
+    if (this.current) api.reveal(this.current.path).catch((e) => this.report(e));
   }
 
   private async copyPath() {
     if (!this.current) return;
-    const text = this.current.path;
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(this.current.path);
     } catch {
-      const ta = h('textarea', { value: text, style: 'position:fixed;opacity:0' });
-      document.body.append(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
+      this.toast("Couldn't copy the path. Try again.");
+      return;
     }
-    this.toast('Path copied');
+    this.toast('Copied');
   }
 
   private toggleInfo() {
@@ -467,11 +556,47 @@ export class App {
     await w.setFullscreen(!(await w.isFullscreen()));
   }
 
-  toast(text: string) {
-    this.toastEl.textContent = text;
-    this.toastEl.classList.add('on');
+  private report(error: unknown) {
+    const details = errorMessage(error);
+    void api.log('error', details).catch(() => {});
+    this.toast("Couldn't finish the action. Try again.", details);
+  }
+
+  toast(text: string, details?: string) {
+    this.toastEl.replaceChildren(
+      h('span.message-text', text),
+      details
+        ? h(
+            'button.btn.ghost.sm',
+            {
+              onclick: () =>
+                void copyText(details)
+                  .then(() => this.toast('Copied'))
+                  .catch((e) => this.report(e)),
+            },
+            'Copy details',
+          )
+        : document.createTextNode(''),
+      h(
+        'button.btn.ghost.sm',
+        {
+          type: 'button',
+          onclick: () => {
+            this.toastEl.hidden = true;
+          },
+        },
+        'Close',
+      ),
+    );
+    this.toastEl.hidden = false;
     clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('on'), 2200);
+    if (!text.startsWith("Couldn't"))
+      this.toastTimer = window.setTimeout(
+        () => {
+          this.toastEl.hidden = true;
+        },
+        text === 'Copied' ? 1500 : 5000,
+      );
   }
 
   // ------------------------------------------------------------------ welcome & help
@@ -480,48 +605,38 @@ export class App {
     const gen = this.gen;
     const { showWelcome } = await import('./lib/welcome');
     if (gen !== this.gen) return;
-    showWelcome(this.stage, this.boot, (title, body) => this.showMessage(title, body),
-      (message) => this.toast(message), () => { void this.openSettings(); });
+    showWelcome(
+      this.stage,
+      this.boot,
+      (title, body) => this.showMessage(title, body),
+      (message) => this.toast(message),
+      () => {
+        void this.openSettings();
+      },
+      (path) => this.open(path),
+    );
   }
 
   async openSettings() {
-    this.teardown();
-    this.current = null;
-    this.renderTitle();
-    this.renderInfo();
-    this.titleName.textContent = 'Settings';
-    this.titleMeta.textContent = 'Arcade Look';
-    this.setTitle('Settings — Arcade Look');
-    const gen = this.gen;
-    const [autostart, integration] = await Promise.all([
-      api.getAutostart().catch(() => false),
-      api.integrationStatus().catch(() => this.boot.integration),
-    ]);
-    if (gen !== this.gen) return;
-    this.boot.integration = integration;
-    const [{ showSettings }, { ConnectedApps }] = await Promise.all([import('./lib/settings'), import('./lib/connected-apps')]);
-    if (gen !== this.gen) return;
-    showSettings(this.stage, this.boot, autostart, (patch) => this.setConfig(patch),
-      (message) => this.toast(message), (title, body) => this.showMessage(title, body));
-    if (gen !== this.gen) return;
-    this.connected = new ConnectedApps(this.stage.querySelector<HTMLElement>('#connected-apps')!,
-      () => this.boot.config, (patch) => this.setConfig(patch), (message) => this.toast(message),
-      this.boot.shortcutSupported, (config) => this.applyConfig(config));
-    await this.reveal_window();
-  }
-
-  private async setConfig(patch: Partial<Config>): Promise<Config> {
-    const config = await api.setConfig(patch);
-    this.applyConfig(config);
-    return config;
+    await invoke('open_settings');
   }
 
   private showMessage(title: string, body: string) {
     this.closeHelp();
-    this.helpEl = h('div.modal-backdrop', { onclick: () => this.closeHelp() },
-      h('div.modal', { onclick: (e: Event) => e.stopPropagation() },
-        h('h2', title), h('pre.modal-text', body),
-        h('button.btn', { onclick: () => this.closeHelp() }, 'OK')));
+    this.helpEl = h(
+      'div.modal-backdrop',
+      { onclick: () => this.closeHelp() },
+      h(
+        'div.dialog',
+        { onclick: (e: Event) => e.stopPropagation() },
+        h('h2', title),
+        h('pre.modal-text', body),
+        h(
+          'div.dialog-actions',
+          h('button.btn.primary', { onclick: () => this.closeHelp() }, 'Close'),
+        ),
+      ),
+    );
     this.root.append(this.helpEl);
   }
 
@@ -579,8 +694,30 @@ export class App {
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key;
     // Never let the webview reload or open its own UI.
-    if (k === 'F5' || (mod && (k === 'r' || k === 'R' || k === 'p' || k === 'f' || k === 'g' || k === 'u' || k === 'j' || k === 'n' || k === 's'))) {
+    if (
+      k === 'F5' ||
+      (mod &&
+        (k === 'r' ||
+          k === 'R' ||
+          k === 'p' ||
+          k === 'f' ||
+          k === 'g' ||
+          k === 'u' ||
+          k === 'j' ||
+          k === 'n' ||
+          k === 's'))
+    ) {
       e.preventDefault();
+    }
+    if (mod && k === ',') {
+      e.preventDefault();
+      void this.openSettings();
+      return;
+    }
+    if (k === 'F1') {
+      e.preventDefault();
+      void api.openUrl('https://github.com/qa-p1/Arcade-look/blob/main/docs/user/index.md');
+      return;
     }
     if (mod && (k === 'q' || k === 'Q')) {
       e.preventDefault();
@@ -606,7 +743,11 @@ export class App {
       return;
     }
     // On the settings screen, Space and Enter operate the focused switch or button.
-    if ((k === ' ' || k === 'Enter') && (e.target as Element | null)?.closest?.('.settings :is(button, input)')) return;
+    if (
+      (k === ' ' || k === 'Enter') &&
+      (e.target as Element | null)?.closest?.('.settings :is(button, input)')
+    )
+      return;
     if (this.helpEl && (k === 'Escape' || k === '?' || k === ' ' || k === 'Enter')) {
       e.preventDefault();
       this.closeHelp();
@@ -618,8 +759,15 @@ export class App {
       e.preventDefault();
       return;
     }
-    if (k === 'Escape' && this.strip?.close()) { e.preventDefault(); return; }
-    if ((k === ' ' || k === 'Enter') && (e.target as Element | null)?.closest?.('.arcade-actions button')) return;
+    if (k === 'Escape' && this.strip?.close()) {
+      e.preventDefault();
+      return;
+    }
+    if (
+      (k === ' ' || k === 'Enter') &&
+      (e.target as Element | null)?.closest?.('.arcade-actions button')
+    )
+      return;
     if (!mod && e.altKey && (k === 'ArrowLeft' || k === 'ArrowRight')) {
       e.preventDefault();
       void (k === 'ArrowLeft' ? this.back() : this.forward());
@@ -638,7 +786,9 @@ export class App {
         // auto-repeat must not close the preview it just opened.
         if (e.repeat) break;
         if (k === 'Escape') {
-          void getCurrentWindow().isFullscreen().then((fs) => (fs ? getCurrentWindow().setFullscreen(false) : this.close()));
+          void getCurrentWindow()
+            .isFullscreen()
+            .then((fs) => (fs ? getCurrentWindow().setFullscreen(false) : this.close()));
         } else {
           this.close();
         }

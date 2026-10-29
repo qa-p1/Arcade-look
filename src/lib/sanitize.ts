@@ -4,18 +4,103 @@
 import { fileUrl, isExternalUrl, resolveRelative } from './urls';
 
 const TAGS = new Set([
-  'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'cite', 'code', 'col', 'colgroup', 'dd', 'del',
-  'details', 'dfn', 'div', 'dl', 'dt', 'em', 'figcaption', 'figure', 'footer', 'h1', 'h2', 'h3', 'h4',
-  'h5', 'h6', 'header', 'hr', 'i', 'img', 'ins', 'kbd', 'li', 'mark', 'ol', 'p', 'pre', 'q', 's', 'samp',
-  'section', 'small', 'span', 'strong', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th',
-  'thead', 'tr', 'u', 'ul', 'var', 'article', 'aside', 'nav', 'main', 'time', 'center', 'tt', 'big', 'strike',
+  'a',
+  'abbr',
+  'b',
+  'blockquote',
+  'br',
+  'caption',
+  'cite',
+  'code',
+  'col',
+  'colgroup',
+  'dd',
+  'del',
+  'details',
+  'dfn',
+  'div',
+  'dl',
+  'dt',
+  'em',
+  'figcaption',
+  'figure',
+  'footer',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'header',
+  'hr',
+  'i',
+  'img',
+  'ins',
+  'kbd',
+  'li',
+  'mark',
+  'ol',
+  'p',
+  'pre',
+  'q',
+  's',
+  'samp',
+  'section',
+  'small',
+  'span',
+  'strong',
+  'sub',
+  'summary',
+  'sup',
+  'table',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'tr',
+  'u',
+  'ul',
+  'var',
+  'article',
+  'aside',
+  'nav',
+  'main',
+  'time',
+  'center',
+  'tt',
+  'big',
+  'strike',
 ]);
 
 /** Elements removed together with everything inside them. */
 const DROP = new Set([
-  'script', 'style', 'iframe', 'object', 'embed', 'noscript', 'template', 'form', 'button', 'select',
-  'textarea', 'link', 'meta', 'base', 'frame', 'frameset', 'applet', 'svg', 'math', 'audio', 'video',
-  'canvas', 'title', 'head', 'dialog', 'portal',
+  'script',
+  'style',
+  'iframe',
+  'object',
+  'embed',
+  'noscript',
+  'template',
+  'form',
+  'button',
+  'select',
+  'textarea',
+  'link',
+  'meta',
+  'base',
+  'frame',
+  'frameset',
+  'applet',
+  'svg',
+  'math',
+  'audio',
+  'video',
+  'canvas',
+  'title',
+  'head',
+  'dialog',
+  'portal',
 ]);
 
 const ATTRS: Record<string, string[]> = {
@@ -133,7 +218,11 @@ function safeSrc(raw: string, opts: SanitizeOptions): string | null {
   if (!u) return null;
   const s = scheme(u);
   if (s === 'https' || s === 'http') return u;
-  if (s === 'data') return opts.allowDataImages && /^data:image\/(png|jpe?g|gif|webp|bmp|svg\+xml|avif)[;,]/i.test(u) ? u : null;
+  if (s === 'data')
+    return opts.allowDataImages &&
+      /^data:image\/(png|jpe?g|gif|webp|bmp|svg\+xml|avif)[;,]/i.test(u)
+      ? u
+      : null;
   if (s === 'alook') return u;
   if (s && !/^[a-z]$/i.test(s)) return null;
   if (opts.baseDir) return fileUrl(resolveRelative(opts.baseDir, u));
@@ -144,7 +233,10 @@ function safeSrc(raw: string, opts: SanitizeOptions): string | null {
  * Handle clicks inside rendered documents: in-page anchors scroll, local links preview the
  * target file, web links open in the browser. The webview itself never navigates.
  */
-export function wireLinks(root: HTMLElement, handlers: { openLocal(path: string): void; openExternal(url: string): void }) {
+export function wireLinks(
+  root: HTMLElement,
+  handlers: { openLocal(path: string): void; openExternal(url: string): void },
+) {
   root.addEventListener('click', (e) => {
     const a = (e.target as Element | null)?.closest?.('a');
     if (!a || !root.contains(a)) return;

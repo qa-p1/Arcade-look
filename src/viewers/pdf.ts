@@ -1,3 +1,4 @@
+import { formatCount, formatRelative } from '../design/format';
 // PDF via pdf.js (legacy build for older WebKit). Pages render lazily as they scroll into
 // view, far-away pages are released, and text is selectable.
 import './pdf.css';
@@ -50,7 +51,15 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   scroller.append(pagesEl);
   host.append(scroller);
 
-  type PageSlot = { el: HTMLElement; w: number; h: number; page?: PDFPageProxy; task?: RenderTask; rendered: number; text?: HTMLElement };
+  type PageSlot = {
+    el: HTMLElement;
+    w: number;
+    h: number;
+    page?: PDFPageProxy;
+    task?: RenderTask;
+    rendered: number;
+    text?: HTMLElement;
+  };
   const slots: PageSlot[] = [];
   for (let i = 0; i < n; i++) {
     const el = h('div.pdf-page', { 'data-n': String(i + 1) });
@@ -62,7 +71,11 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   let scale = 1;
   const fitScale = () => Math.max(0.25, Math.min((scroller.clientWidth - 56) / base.width, 1.75));
   const zoomLabel = h('span.tb-label', '100%');
-  const pageInput = h('input.tb-input', { type: 'text', value: '1', title: 'Page' }) as HTMLInputElement;
+  const pageInput = h('input.input.tb-input', {
+    type: 'text',
+    value: '1',
+    title: 'Page',
+  }) as HTMLInputElement;
   const pageTotal = h('span.tb-label', `/ ${n}`);
 
   function layout() {
@@ -116,7 +129,11 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
       live.add(i);
       evict(i);
       try {
-        await new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container: text, viewport: vp }).render();
+        await new pdfjs.TextLayer({
+          textContentSource: page.streamTextContent(),
+          container: text,
+          viewport: vp,
+        }).render();
       } catch {
         /* text selection is a bonus */
       }
@@ -196,7 +213,9 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
 
   function setScale(next: number, keepMode = false) {
     const anchor = currentPage();
-    const within = (scroller.scrollTop - slots[anchor].el.offsetTop) / Math.max(1, slots[anchor].el.offsetHeight);
+    const within =
+      (scroller.scrollTop - slots[anchor].el.offsetTop) /
+      Math.max(1, slots[anchor].el.offsetHeight);
     scale = Math.min(5, Math.max(0.2, next));
     if (!keepMode) mode = 'custom';
     renderGen++;
@@ -238,24 +257,38 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     { icon: 'zoomOut', title: 'Zoom out (−)', onClick: () => setScale(scale / 1.2) },
     { title: 'Zoom', el: zoomLabel },
     { icon: 'zoomIn', title: 'Zoom in (+)', onClick: () => setScale(scale * 1.2) },
-    { icon: 'fit', title: 'Fit width (0)', onClick: () => { mode = 'fit'; setScale(fitScale(), true); } },
+    {
+      icon: 'fit',
+      title: 'Fit width (0)',
+      onClick: () => {
+        mode = 'fit';
+        setScale(fitScale(), true);
+      },
+    },
   ]);
 
-  ctx.setStatus(`${n.toLocaleString()} ${n === 1 ? 'page' : 'pages'}`);
-  void doc.getMetadata().then((m) => {
-    const i = (m.info ?? {}) as Record<string, unknown>;
-    const s = (k: string) => (typeof i[k] === 'string' ? (i[k] as string).trim() : '');
-    const mm = (pt: number) => Math.round((pt / 72) * 25.4);
-    ctx.setDetails([
-      ['Title', s('Title')], ['Author', s('Author')], ['Subject', s('Subject')],
-      ['Pages', String(n)],
-      ['Page size', `${mm(base.width)} × ${mm(base.height)} mm`],
-      ['Creator', s('Creator')], ['Producer', s('Producer')],
-      ['Created', pdfDate(s('CreationDate'))], ['Modified', pdfDate(s('ModDate'))],
-      ['PDF version', s('PDFFormatVersion')],
-      ['Encrypted', i.IsEncrypted ? 'Yes' : ''],
-    ]);
-  }).catch(() => {});
+  ctx.setStatus(`${formatCount(n)} ${n === 1 ? 'page' : 'pages'}`);
+  void doc
+    .getMetadata()
+    .then((m) => {
+      const i = (m.info ?? {}) as Record<string, unknown>;
+      const s = (k: string) => (typeof i[k] === 'string' ? (i[k] as string).trim() : '');
+      const mm = (pt: number) => Math.round((pt / 72) * 25.4);
+      ctx.setDetails([
+        ['Title', s('Title')],
+        ['Author', s('Author')],
+        ['Subject', s('Subject')],
+        ['Pages', String(n)],
+        ['Page size', `${mm(base.width)} × ${mm(base.height)} mm`],
+        ['Creator', s('Creator')],
+        ['Producer', s('Producer')],
+        ['Created', pdfDate(s('CreationDate'))],
+        ['Modified', pdfDate(s('ModDate'))],
+        ['PDF version', s('PDFFormatVersion')],
+        ['Encrypted', i.IsEncrypted ? 'Yes' : ''],
+      ]);
+    })
+    .catch(() => {});
 
   return {
     async capturePage() {
@@ -266,14 +299,23 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.floor(vp.width));
       canvas.height = Math.max(1, Math.floor(vp.height));
-      const rendering = page.render({ canvas, canvasContext: canvas.getContext('2d', { alpha: false })!, viewport: vp });
+      const rendering = page.render({
+        canvas,
+        canvasContext: canvas.getContext('2d', { alpha: false })!,
+        viewport: vp,
+      });
       const cancel = () => rendering.cancel();
       ctx.signal.addEventListener('abort', cancel, { once: true });
       try {
         await rendering.promise;
         if (ctx.signal.aborted) throw new Error('This PDF is no longer open.');
-        const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
-          (blob) => blob ? resolve(blob) : reject(new Error('This PDF page could not be rendered.')), 'image/png'));
+        const blob = await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(
+            (blob) =>
+              blob ? resolve(blob) : reject(new Error('This PDF page could not be rendered.')),
+            'image/png',
+          ),
+        );
         if (blob.size > 16 * 1024 * 1024) throw new Error('This PDF page is too large to analyze.');
         return new Uint8Array(await blob.arrayBuffer());
       } finally {
@@ -284,11 +326,24 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     keydown(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
       switch (e.key) {
-        case '+': case '=': setScale(scale * 1.2); return true;
-        case '-': case '_': setScale(scale / 1.2); return true;
-        case '0': mode = 'fit'; setScale(fitScale(), true); return true;
-        case 'Home': goTo(0); return true;
-        case 'End': goTo(n - 1); return true;
+        case '+':
+        case '=':
+          setScale(scale * 1.2);
+          return true;
+        case '-':
+        case '_':
+          setScale(scale / 1.2);
+          return true;
+        case '0':
+          mode = 'fit';
+          setScale(fitScale(), true);
+          return true;
+        case 'Home':
+          goTo(0);
+          return true;
+        case 'End':
+          goTo(n - 1);
+          return true;
       }
       return false;
     },
@@ -307,7 +362,7 @@ function pdfDate(s: string): string {
   if (!m) return s;
   const [, y, mo = '01', d = '01', hh = '00', mi = '00'] = m;
   try {
-    return new Date(`${y}-${mo}-${d}T${hh}:${mi}:00`).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    return formatRelative(new Date(`${y}-${mo}-${d}T${hh}:${mi}:00`).getTime());
   } catch {
     return s;
   }

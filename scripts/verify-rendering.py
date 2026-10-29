@@ -10,7 +10,7 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LINK = ROOT.parent / "Arcade-link"
+LINK = Path(os.environ.get("ARCADE_LINK", str(ROOT.parent / "Arcade-Link"))).resolve()
 
 
 def load(name, path, **injected):
@@ -31,6 +31,7 @@ def main():
     runner = load("look_runner", LINK / "tools/e2e.py")
     fixtures = load("look_fixtures", LINK / "tools/e2e_checks/look.py",
                     check=lambda group: lambda f: f, APPS=runner.APPS, CLI=runner.CLI)
+    runner.APPS["arcade.look"]["dir"] = ROOT
     runner.APPS["arcade.look"]["bin"] = "src-tauri/target/debug/arcade-look"
     runner.APPS["arcade.look"]["args"] = ["--service"]
     session = runner.Session(Path(os.environ["ARCADE_E2E_ROOT"]))

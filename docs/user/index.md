@@ -10,6 +10,10 @@ Arcade Look opens a fast preview for a file or folder without launching a full e
 
 ![Arcade Look previewing the getting-started guide as a Markdown document](images/preview.png)
 
+The same preview in the dark theme:
+
+![The getting-started guide previewed in the dark theme](images/preview-dark.png)
+
 ## What Look is best at
 
 - **Previewing a file in place.** Use your file manager's preview shortcut, open a file with Look, or drop it on the window.

@@ -46,13 +46,18 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const nb = JSON.parse(t.text.replace(/^﻿/, '')) as {
     cells?: Cell[];
     worksheets?: { cells: Cell[] }[];
-    metadata?: { language_info?: { name?: string }; kernelspec?: { language?: string; display_name?: string } };
+    metadata?: {
+      language_info?: { name?: string };
+      kernelspec?: { language?: string; display_name?: string };
+    };
   };
   const cells: Cell[] = nb.cells ?? nb.worksheets?.[0]?.cells ?? [];
   if (!Array.isArray(cells)) throw new Error('Not a Jupyter notebook');
   const lang = nb.metadata?.language_info?.name ?? nb.metadata?.kernelspec?.language ?? 'python';
 
-  const mdSources = cells.filter((c) => c.cell_type === 'markdown').map((c) => join(c.source ?? c.input));
+  const mdSources = cells
+    .filter((c) => c.cell_type === 'markdown')
+    .map((c) => join(c.source ?? c.input));
   const mdHtml = mdSources.length ? await api.markdownBatch(mdSources) : [];
   let mdIdx = 0;
 
@@ -76,9 +81,11 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     const outputs = h('div.nb-outputs');
     for (const o of c.outputs ?? []) outputs.append(renderOutput(o, info.dir));
     doc.append(
-      h('div.nb-cell.nb-code',
+      h(
+        'div.nb-cell.nb-code',
         h('div.nb-prompt', `[${n ?? ' '}]:`),
-        h('div.nb-main', h('pre.nb-src', code), outputs.childElementCount ? outputs : null)),
+        h('div.nb-main', h('pre.nb-src', code), outputs.childElementCount ? outputs : null),
+      ),
     );
   }
   const scroll = h('div.prose-scroll', h('div.notebook-wrap.selectable', doc));
@@ -137,11 +144,20 @@ function renderOutput(o: Output, dir: string | null): HTMLElement {
   const d = outputData(o);
   for (const mime of ['image/png', 'image/jpeg', 'image/gif']) {
     if (d[mime]) {
-      return h('div.nb-image', h('img', { src: `data:${mime};base64,${join(d[mime]).replace(/\s/g, '')}`, alt: '' }));
+      return h(
+        'div.nb-image',
+        h('img', { src: `data:${mime};base64,${join(d[mime]).replace(/\s/g, '')}`, alt: '' }),
+      );
     }
   }
   if (d['image/svg+xml']) {
-    return h('div.nb-image', h('img', { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(join(d['image/svg+xml']))}`, alt: '' }));
+    return h(
+      'div.nb-image',
+      h('img', {
+        src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(join(d['image/svg+xml']))}`,
+        alt: '',
+      }),
+    );
   }
   if (d['text/html']) {
     const el = h('div.nb-html.prose');
@@ -150,6 +166,7 @@ function renderOutput(o: Output, dir: string | null): HTMLElement {
   }
   if (d['text/markdown']) return h('pre.nb-stream', join(d['text/markdown']));
   if (d['text/plain']) return h('pre.nb-stream', stripAnsi(join(d['text/plain'])));
-  if (d['application/json']) return h('pre.nb-stream', JSON.stringify(d['application/json'], null, 2));
+  if (d['application/json'])
+    return h('pre.nb-stream', JSON.stringify(d['application/json'], null, 2));
   return h('div');
 }

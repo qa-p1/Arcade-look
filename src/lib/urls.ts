@@ -31,7 +31,8 @@ export function setMediaBase(b: string | null) {
   mediaBase = b;
 }
 /** URL for <video>/<audio>: the loopback media server on Linux, the custom protocol elsewhere. */
-export const mediaUrl = (path: string) => (mediaBase ? `${mediaBase}f/${encodePath(path)}` : fileUrl(path));
+export const mediaUrl = (path: string) =>
+  mediaBase ? `${mediaBase}f/${encodePath(path)}` : fileUrl(path);
 export const dirUrl = (dir: string) => `${fileUrl(dir)}/`;
 export const imageUrl = (path: string, kind: 'decode' | 'raw' | 'psd', max: number) =>
   `${protocolBase()}img/${kind}/${Math.round(max)}/${encodePath(path)}`;

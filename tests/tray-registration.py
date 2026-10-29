@@ -221,7 +221,9 @@ def main():
         exported = dbus.Interface(watcher.bus.get_object(name, str(properties.Get(ITEM, "Menu"))), MENU)
         _, layout = exported.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature="s"))
         labels = {str(node[1]["label"]): int(node[0]) for node in layout[2] if "label" in node[1]}
-        assert {"Open Settings", "Restart Arcade " + app.title(), "Quit Arcade " + app.title()} <= labels.keys()
+        # "Settings" from the 0.4 overhaul (STANDARD §8); older apps say "Open Settings".
+        assert {"Restart Arcade " + app.title(), "Quit Arcade " + app.title()} <= labels.keys()
+        assert labels.keys() & {"Settings", "Open Settings"}
         return exported, labels
 
     def click(label):
@@ -299,7 +301,7 @@ def main():
         assert watcher.registrations == registered_before, "icon flashed during Tools restart grace"
         recovery(tools)
 
-        click("Open Settings")
+        click("Settings" if "Settings" in menu()[1] else "Open Settings")
         def settings_visible():
             result = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "Arcade " + app.title()],
                                     env=env, capture_output=True, timeout=3)
@@ -308,7 +310,12 @@ def main():
         old_pid = status()["pid"]
         until(lambda: status().get("phase", "ready") == "ready", "Find index not ready for Restart")
         click("Restart Arcade " + app.title())
-        until(lambda: status().get("pid", old_pid) != old_pid, "rebuilt tray Restart action did not restart", timeout=15)
+        try:
+            until(lambda: status().get("pid", old_pid) != old_pid, "rebuilt tray Restart action did not restart",
+                  timeout=15)
+        except AssertionError as error:
+            state = "still running" if process.poll() is None else f"exited with {process.returncode}"
+            raise AssertionError(f"{error}: old process {state}, status {status()}") from error
         process.wait(timeout=10)
         ownership("own")
         assert menu()[1] == original_menu

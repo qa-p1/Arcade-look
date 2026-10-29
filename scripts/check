@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# ci.yml runs this exact entry point after fetching dependencies.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+python=$(command -v python || command -v python3)
+npm run format:check
+npm run typecheck
+npm run build
+"$python" scripts/check-version.py
+"$python" scripts/check-docs.py
+"$python" scripts/check-vendored.py
+"$python" scripts/check-design.py
+"$python" -m unittest discover -s scripts -p 'test_*.py'
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+"$python" scripts/isolate.py cargo test --manifest-path src-tauri/Cargo.toml --locked
+if [ "$(uname -s)" = Linux ]; then
+  link=${ARCADE_LINK:-../Arcade-Link}
+  [ -f "$link/tools/e2e.py" ] || { echo "No Arcade-Link checkout at $link (set ARCADE_LINK)."; exit 1; }
+  # The isolated runner gives tests a fresh HOME, so Playwright would look for
+  # its browser in an empty cache; resolve the installed one first.
+  PLAYWRIGHT_CHROMIUM=${PLAYWRIGHT_CHROMIUM:-$(node -e "console.log(require('playwright').chromium.executablePath())")}
+  export PLAYWRIGHT_CHROMIUM
+  "$python" "$link/tools/e2e.py" run -- node scripts/ui-checks/check.mjs
+  "$python" "$link/tools/e2e.py" run -- cargo test --manifest-path src-tauri/Cargo.toml --locked --test link_consumer -- --ignored --test-threads=1
+  ARCADE_SHELF_BIN=$("$python" scripts/fetch-test-peer.py)
+  export ARCADE_SHELF_BIN APPIMAGE_EXTRACT_AND_RUN=1
+  "$python" "$link/tools/e2e.py" run -- cargo test --manifest-path src-tauri/Cargo.toml --locked --test real_shelf -- --ignored --test-threads=1
+  npx tauri build --debug --no-bundle --features e2e -- --locked
+  "$python" "$link/tools/e2e.py" run -- "$python" scripts/check-native.py
+fi

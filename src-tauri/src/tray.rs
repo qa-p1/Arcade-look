@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use tauri::{AppHandle, Manager};
 
 const TOOLTIP: &str = "Arcade Look";
-const TOOLTIP_DETAIL: &str = "Running in the background. Select a file and press Space.";
+const TOOLTIP_DETAIL: &str = "Press Space, see anything.";
 static VISIBLE_STATE: AtomicU8 = AtomicU8::new(0);
 
 pub fn active() -> bool {
@@ -30,8 +30,8 @@ enum Action {
 }
 
 const ITEMS: [(&str, &str, Action); 4] = [
-    ("open", "Open Look", Action::Open),
-    ("settings", "Open Settings", Action::Settings),
+    ("open", "Open Arcade Look", Action::Open),
+    ("settings", "Settings", Action::Settings),
     ("restart", "Restart Arcade Look", Action::Restart),
     ("quit", "Quit Arcade Look", Action::Quit),
 ];
@@ -79,9 +79,19 @@ pub fn wait_for_predecessor() {
     }
 }
 
+/// An exited process that its parent hasn't reaped yet (a zombie) still has a
+/// /proc entry, but it no longer holds the single-instance slot.
 #[cfg(target_os = "linux")]
 fn process_alive(pid: u32) -> bool {
-    std::path::Path::new(&format!("/proc/{pid}")).exists()
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return false;
+    };
+    // The state follows the parenthesised command name, which may contain spaces.
+    !matches!(
+        stat.rsplit_once(')')
+            .and_then(|(_, rest)| rest.trim_start().chars().next()),
+        Some('Z' | 'X')
+    )
 }
 
 #[cfg(target_os = "macos")]
@@ -182,33 +192,29 @@ mod linux {
             ksni::Category::ApplicationStatus
         }
         fn activate(&mut self, _x: i32, _y: i32) {
-            app::open_settings(&self.app);
+            app::open_main(&self.app);
         }
         fn icon_pixmap(&self) -> Vec<ksni::Icon> {
             static ICONS: OnceLock<Vec<ksni::Icon>> = OnceLock::new();
             ICONS
                 .get_or_init(|| {
-                    [
-                        include_bytes!("../icons/32x32.png").as_slice(),
-                        include_bytes!("../icons/64x64.png").as_slice(),
-                        include_bytes!("../icons/128x128.png").as_slice(),
-                    ]
-                    .iter()
-                    .filter_map(|png| image::load_from_memory(png).ok())
-                    .map(|image| {
-                        let image = image.into_rgba8();
-                        let (width, height) = image.dimensions();
-                        let mut data = image.into_vec();
-                        for pixel in data.as_chunks_mut::<4>().0 {
-                            pixel.rotate_right(1);
-                        }
-                        ksni::Icon {
-                            width: width as i32,
-                            height: height as i32,
-                            data,
-                        }
-                    })
-                    .collect()
+                    [include_bytes!("../icons/tray-white.png").as_slice()]
+                        .iter()
+                        .filter_map(|png| image::load_from_memory(png).ok())
+                        .map(|image| {
+                            let image = image.into_rgba8();
+                            let (width, height) = image.dimensions();
+                            let mut data = image.into_vec();
+                            for pixel in data.as_chunks_mut::<4>().0 {
+                                pixel.rotate_right(1);
+                            }
+                            ksni::Icon {
+                                width: width as i32,
+                                height: height as i32,
+                                data,
+                            }
+                        })
+                        .collect()
                 })
                 .clone()
         }
@@ -233,7 +239,7 @@ mod linux {
                 .iter()
                 .map(|(_, label, action)| item(label, *action))
                 .collect();
-            items.insert(ITEMS.len() - 1, ksni::MenuItem::Separator);
+            items.insert(2, ksni::MenuItem::Separator);
             items
         }
     }
@@ -296,8 +302,8 @@ mod native {
             &[
                 &open?,
                 &settings?,
-                &restart?,
                 &PredefinedMenuItem::separator(app)?,
+                &restart?,
                 &quit?,
             ],
         )?;
@@ -321,13 +327,18 @@ mod native {
                 } = event
                 {
                     if !menu_on_left {
-                        app::open_settings(tray.app_handle());
+                        app::open_main(tray.app_handle());
                     }
                 }
             });
-        if let Some(icon) = app.default_window_icon() {
-            builder = builder.icon(icon.clone());
-        }
+        let decoded = image::load_from_memory(include_bytes!("../icons/tray-black.png"))
+            .map_err(|error| tauri::Error::Anyhow(error.into()))?
+            .into_rgba8();
+        let (width, height) = decoded.dimensions();
+        let image = tauri::image::Image::new_owned(decoded.into_raw(), width, height);
+        builder = builder
+            .icon(image)
+            .icon_as_template(cfg!(target_os = "macos"));
         Ok(builder)
     }
 
@@ -354,5 +365,24 @@ mod native {
             TRAY.with(|slot| *slot.borrow_mut() = None);
             eprintln!("arcade-look: tray registration failed: {error}");
         }
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    #[test]
+    fn an_exited_unreaped_predecessor_is_not_alive() {
+        let mut child = std::process::Command::new("true").spawn().unwrap();
+        let pid = child.id();
+        // Leave the child unreaped: it stays a zombie with a /proc entry.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while super::process_alive(pid) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(std::path::Path::new(&format!("/proc/{pid}")).exists());
+        assert!(!super::process_alive(pid));
+        child.wait().unwrap();
+        assert!(!super::process_alive(pid));
+        assert!(super::process_alive(std::process::id()));
     }
 }

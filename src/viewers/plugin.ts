@@ -9,7 +9,7 @@ import { renderCode } from './code';
 import { sandboxedFrame } from './html';
 import type { Mounted, ViewCtx } from './types';
 
-/** What script plugins receive. Kept small and stable: see docs/PLUGINS.md. */
+/** What script plugins receive. Kept small and stable: see docs/dev/plugins.md. */
 export interface PluginContext {
   file: ViewCtx['info'];
   fileUrl(path: string): string;
@@ -31,7 +31,9 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     };
     const render = mod.render ?? mod.default?.render;
     if (!render) throw new Error(`Plugin "${p.name}" does not export render()`);
-    const box = h('div.plugin-host', { style: 'flex:1;min-height:0;position:relative;overflow:auto' });
+    const box = h('div.plugin-host', {
+      style: 'flex:1;min-height:0;position:relative;overflow:auto',
+    });
     host.append(box);
     const result = (await render(box, {
       file: ctx.info,
@@ -55,13 +57,20 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
       const [html] = await api.markdownBatch([out.text ?? '']);
       const article = h('article.prose.selectable');
       article.append(sanitize(html, { baseDir: ctx.info.dir, allowDataImages: true }));
-      wireLinks(article, { openLocal: (x) => ctx.open(x), openExternal: (u) => void api.openUrl(u) });
+      wireLinks(article, {
+        openLocal: (x) => ctx.open(x),
+        openExternal: (u) => void api.openUrl(u),
+      });
       host.append(h('div.prose-scroll', article));
       void highlightBlocks(article, ctx.signal);
       return {};
     }
     case 'image': {
-      const img = h('img', { src: fileUrl(out.path ?? ''), alt: '', style: 'max-width:100%;max-height:100%;object-fit:contain;margin:auto' });
+      const img = h('img', {
+        src: fileUrl(out.path ?? ''),
+        alt: '',
+        style: 'max-width:100%;max-height:100%;object-fit:contain;margin:auto',
+      });
       await img.decode();
       host.append(h('div.center-fill', img));
       return {};
@@ -76,7 +85,18 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     }
     default: {
       const text = out.text ?? '';
-      return renderCode(host, ctx, { text, encoding: 'UTF-8', truncated: false, size: text.length, lines: text.split('\n').length }, out.language ?? 'plaintext');
+      return renderCode(
+        host,
+        ctx,
+        {
+          text,
+          encoding: 'UTF-8',
+          truncated: false,
+          size: text.length,
+          lines: text.split('\n').length,
+        },
+        out.language ?? 'plaintext',
+      );
     }
   }
 }

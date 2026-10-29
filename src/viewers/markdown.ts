@@ -1,3 +1,4 @@
+import { formatCount } from '../design/format';
 import './code.css';
 import { api } from '../lib/backend';
 import { h } from '../lib/dom';
@@ -26,7 +27,7 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const minutes = Math.max(1, Math.round(words / 230));
   ctx.setStatus(`${fmt.plural(words, 'word')}  ·  ${minutes} min read`);
   ctx.setDetails([
-    ['Words', words.toLocaleString()],
+    ['Words', formatCount(words)],
     ['Headings', String(article.querySelectorAll('h1,h2,h3,h4,h5,h6').length)],
     ['Links', String(article.querySelectorAll('a').length)],
     ['Images', String(article.querySelectorAll('img').length)],

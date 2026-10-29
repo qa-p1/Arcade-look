@@ -27,6 +27,7 @@ pub mod table;
 pub mod text;
 pub mod tray;
 pub mod util;
+pub mod window_geometry;
 pub mod xml;
 
 #[cfg(all(feature = "e2e", unix))]
@@ -37,6 +38,12 @@ use tauri::{Manager, RunEvent, WindowEvent};
 pub fn run() {
     let argv: Vec<String> = std::env::args().collect();
     let args = cli::parse(&argv);
+
+    if args.status {
+        integration::attach_console();
+        cli::print_status();
+        return;
+    }
 
     if args.invoke {
         std::process::exit(link::serve_oneshot());
@@ -83,6 +90,11 @@ pub fn run() {
         return;
     }
 
+    if let Err(error) = config::migrate() {
+        eprintln!("arcade-look: could not migrate settings; original files were kept: {error}");
+        std::process::exit(1);
+    }
+
     if installer::first_run_prompt(&argv) {
         return;
     }
@@ -92,8 +104,14 @@ pub fn run() {
     let user_dir = std::env::current_dir().ok();
     arcade_link::childenv::enter_image_dir();
 
+    #[cfg(target_os = "linux")]
+    gtk::glib::set_prgname(Some("dev.arcade.Look"));
     tray::wait_for_predecessor();
     std::thread::spawn(util::clean_temp);
+    if let Err(error) = integration::migrate_entries() {
+        eprintln!("arcade-look: old integration entries were kept: {error}");
+        std::process::exit(1);
+    }
     let config = config::load();
     let plugins = plugins::load_all(config.plugins);
     let start_args = args.clone();
@@ -107,6 +125,8 @@ pub fn run() {
             app::handle_args(app, &args, Some(std::path::Path::new(&cwd)));
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(app::AppState::new(config, plugins, args.service))
         .register_asynchronous_uri_scheme_protocol("alook", |_ctx, request, responder| {
             tauri::async_runtime::spawn_blocking(move || {
@@ -116,12 +136,30 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
+                if window.label() == app::SETTINGS {
+                    app::close_settings(window.app_handle());
+                } else {
+                    app::hide(window.app_handle());
+                }
+            }
+            if matches!(event, WindowEvent::Focused(false))
+                && window.label() == app::MAIN
+                && window.app_handle().state::<app::AppState>().is_visible()
+                && !window.app_handle().state::<app::AppState>().just_shown()
+                && !window
+                    .app_handle()
+                    .get_webview_window(app::SETTINGS)
+                    .is_some_and(|settings| settings.is_visible().unwrap_or(false))
+            {
                 app::hide(window.app_handle());
             }
             // The window may get focus after `show` returned (it maps asynchronously): hand
             // keyboard focus to the web view so Space/Esc/arrows work without a click.
             #[cfg(target_os = "linux")]
             if let WindowEvent::Focused(true) = event {
+                if window.label() != app::MAIN {
+                    return;
+                }
                 if let Some(w) = window.app_handle().get_webview_window(app::MAIN) {
                     integration::linux::unpin_size(&w);
                     app::focus_webview(&w);
@@ -130,6 +168,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
+            commands::open_settings,
+            commands::open_welcome,
+            commands::list_plugins,
+            commands::about_info,
+            commands::diagnostics,
+            link_consumer::link_open,
             commands::frontend_ready,
             commands::inspect,
             commands::read_text,
@@ -185,7 +229,7 @@ pub fn run() {
             // Started from the menu, at login or by Tools, stderr goes nowhere:
             // keep it next to the settings instead.
             if let Err(error) =
-                arcade_link::logs::capture_stderr(&config::dir().join("logs"), "arcade-look")
+                arcade_link::logs::capture_stderr(&commands::logs_dir(), "arcade-look")
             {
                 eprintln!("arcade-look: log unavailable: {error}");
             }
@@ -229,6 +273,8 @@ pub fn run() {
         {
             if label == app::MAIN {
                 app::window_destroyed(app);
+            } else if label == app::SETTINGS {
+                app::settings_destroyed(app);
             }
         }
         if let RunEvent::Exit = event {

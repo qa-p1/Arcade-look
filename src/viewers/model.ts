@@ -1,3 +1,4 @@
+import { formatCount } from '../design/format';
 // 3D models with three.js (loaded only when a model is opened). Renders on demand, so an
 // idle model costs no CPU/GPU.
 import type * as THREE_NS from 'three';
@@ -16,11 +17,16 @@ let shared: { renderer: THREE_NS.WebGLRenderer; env: THREE_NS.Texture } | null =
 async function sharedRenderer(THREE: Three) {
   if (shared) return shared;
   const { RoomEnvironment } = await import('three/examples/jsm/environments/RoomEnvironment.js');
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true,
+    powerPreference: 'high-performance',
+  });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;outline:none;touch-action:none';
+  renderer.domElement.style.cssText =
+    'display:block;width:100%;height:100%;outline:none;touch-action:none';
   const pmrem = new THREE.PMREMGenerator(renderer);
   const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
@@ -28,7 +34,10 @@ async function sharedRenderer(THREE: Three) {
   return shared;
 }
 
-async function loadModel(THREE: Three, ctx: ViewCtx): Promise<{ object: THREE_NS.Object3D; animations: THREE_NS.AnimationClip[] }> {
+async function loadModel(
+  THREE: Three,
+  ctx: ViewCtx,
+): Promise<{ object: THREE_NS.Object3D; animations: THREE_NS.AnimationClip[] }> {
   const { info } = ctx;
   const url = fileUrl(info.path);
   const fmt = info.format;
@@ -37,9 +46,21 @@ async function loadModel(THREE: Three, ctx: ViewCtx): Promise<{ object: THREE_NS
     if (fmt === 'stl' || !geo.attributes.normal) geo.computeVertexNormals();
     const hasColor = !!geo.attributes.color;
     if (!geo.index && geo.attributes.position && fmt === 'ply' && !geo.attributes.normal) {
-      return new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.01, vertexColors: hasColor }));
+      return new THREE.Points(
+        geo,
+        new THREE.PointsMaterial({ size: 0.01, vertexColors: hasColor }),
+      );
     }
-    return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: hasColor ? 0xffffff : 0xb8bcc8, vertexColors: hasColor, metalness: 0.1, roughness: 0.55, side: THREE.DoubleSide }));
+    return new THREE.Mesh(
+      geo,
+      new THREE.MeshStandardMaterial({
+        color: hasColor ? 0xffffff : 0xb8bcc8,
+        vertexColors: hasColor,
+        metalness: 0.1,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+      }),
+    );
   };
   switch (fmt) {
     case 'glb':
@@ -84,7 +105,7 @@ async function loadModel(THREE: Three, ctx: ViewCtx): Promise<{ object: THREE_NS
     case 'dae': {
       const { ColladaLoader } = await import('three/examples/jsm/loaders/ColladaLoader.js');
       const c = await new ColladaLoader().loadAsync(url);
-      if (!c) throw new Error('Could not parse Collada file');
+      if (!c) throw new Error("Couldn't parse Collada file");
       return { object: c.scene, animations: c.scene.animations ?? [] };
     }
     case '3mf': {
@@ -102,7 +123,9 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const { object, animations } = await loadModel(THREE, ctx);
   if (ctx.signal.aborted) throw new DOMException('aborted', 'AbortError');
 
-  const wrap = h('div.model-wrap', { style: 'flex:1;position:relative;min-height:0;overflow:hidden' });
+  const wrap = h('div.model-wrap', {
+    style: 'flex:1;position:relative;min-height:0;overflow:hidden',
+  });
   host.append(wrap);
   let renderer: THREE_NS.WebGLRenderer;
   let env: THREE_NS.Texture;
@@ -139,8 +162,10 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const camera = new THREE.PerspectiveCamera(40, 1, radius / 1000, radius * 1000);
   const target = new THREE.Vector3(0, size.y / 2, 0);
   const home = () => {
-    const dist = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.1;
-    camera.position.copy(target).add(new THREE.Vector3(1, 0.65, 1.2).normalize().multiplyScalar(dist));
+    const dist = (radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.1;
+    camera.position
+      .copy(target)
+      .add(new THREE.Vector3(1, 0.65, 1.2).normalize().multiplyScalar(dist));
     camera.lookAt(target);
     controls.target.copy(target);
     controls.update();
@@ -208,12 +233,12 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
       (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => materials.add(x));
     }
   });
-  ctx.setStatus(`${Math.round(tris).toLocaleString()} triangles`);
+  ctx.setStatus(`${formatCount(Math.round(tris))} triangles`);
   ctx.setDetails([
-    ['Triangles', Math.round(tris).toLocaleString()],
-    ['Vertices', verts.toLocaleString()],
-    ['Meshes', meshes.toLocaleString()],
-    ['Materials', materials.size.toLocaleString()],
+    ['Triangles', formatCount(Math.round(tris))],
+    ['Vertices', formatCount(verts)],
+    ['Meshes', formatCount(meshes)],
+    ['Materials', formatCount(materials.size)],
     ['Animations', animations.length ? animations.map((a) => a.name || 'unnamed').join(', ') : ''],
     ['Size', `${size.x.toPrecision(3)} × ${size.y.toPrecision(3)} × ${size.z.toPrecision(3)}`],
   ]);
@@ -232,8 +257,24 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const bar = ctx.toolbar([
     { icon: 'orbit', title: 'Auto-rotate (A)', active: true, onClick: toggleRotate },
     { icon: 'cube', title: 'Wireframe (W)', onClick: () => setWire(!wire) },
-    { icon: 'grid', title: 'Grid', active: true, onClick: (b) => { grid.visible = !grid.visible; b.classList.toggle('active', grid.visible); dirty = true; } },
-    { icon: 'reset', title: 'Reset view (0)', onClick: () => { home(); dirty = true; } },
+    {
+      icon: 'grid',
+      title: 'Grid',
+      active: true,
+      onClick: (b) => {
+        grid.visible = !grid.visible;
+        b.classList.toggle('active', grid.visible);
+        dirty = true;
+      },
+    },
+    {
+      icon: 'reset',
+      title: 'Reset view (0)',
+      onClick: () => {
+        home();
+        dirty = true;
+      },
+    },
   ]);
   const [rotateBtn, wireBtn] = Array.from(bar.querySelectorAll('button'));
 
@@ -241,9 +282,18 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     keydown(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
       switch (e.key) {
-        case 'w': case 'W': setWire(!wire); return true;
-        case 'a': case 'A': toggleRotate(); return true;
-        case '0': home(); dirty = true; return true;
+        case 'w':
+        case 'W':
+          setWire(!wire);
+          return true;
+        case 'a':
+        case 'A':
+          toggleRotate();
+          return true;
+        case '0':
+          home();
+          dirty = true;
+          return true;
       }
       return false;
     },
@@ -255,7 +305,8 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
         const m = o as THREE_NS.Mesh;
         m.geometry?.dispose?.();
         for (const mat of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) {
-          for (const v of Object.values(mat)) if (v && (v as THREE_NS.Texture).isTexture) (v as THREE_NS.Texture).dispose();
+          for (const v of Object.values(mat))
+            if (v && (v as THREE_NS.Texture).isTexture) (v as THREE_NS.Texture).dispose();
           mat.dispose();
         }
       });

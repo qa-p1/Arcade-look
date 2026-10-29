@@ -56,8 +56,8 @@ const INTROSPECT: &str = r#"<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Obj
 
 /// The single-instance plugin's D-Bus name: Tauri's identifier plus
 /// ".SingleInstance" (the plugin's `semver` feature is off).
-const SINGLE_INSTANCE: &str = "app.arcadelook.SingleInstance";
-const SINGLE_INSTANCE_PATH: &str = "/app/arcadelook/SingleInstance";
+const SINGLE_INSTANCE: &str = "dev.arcade.Look.SingleInstance";
+const SINGLE_INSTANCE_PATH: &str = "/dev/arcade/Look/SingleInstance";
 
 /// A second launch hands its arguments to the running Look before loading
 /// config, plugins and GTK. The single-instance plugin makes the same call,
@@ -71,22 +71,35 @@ pub fn forward_to_running(argv: &[String]) -> bool {
         let Ok(dbus) = zbus::fdo::DBusProxy::new(&conn).await else {
             return false;
         };
-        let Ok(name) = zbus::names::BusName::try_from(SINGLE_INSTANCE) else {
-            return false;
-        };
-        if !dbus.name_has_owner(name).await.unwrap_or(false) {
-            return false;
-        }
         let cwd = std::env::current_dir().unwrap_or_default();
-        conn.call_method(
-            Some(SINGLE_INSTANCE),
-            SINGLE_INSTANCE_PATH,
-            Some("org.SingleInstance.DBus"),
-            "ExecuteCallback",
-            &(argv.to_vec(), cwd.to_string_lossy().into_owned()),
-        )
-        .await
-        .is_ok()
+        for (bus, path) in [
+            (SINGLE_INSTANCE, SINGLE_INSTANCE_PATH),
+            (
+                "app.arcadelook.SingleInstance",
+                "/app/arcadelook/SingleInstance",
+            ),
+        ] {
+            let Ok(name) = zbus::names::BusName::try_from(bus) else {
+                continue;
+            };
+            if !dbus.name_has_owner(name).await.unwrap_or(false) {
+                continue;
+            }
+            if conn
+                .call_method(
+                    Some(bus),
+                    path,
+                    Some("org.SingleInstance.DBus"),
+                    "ExecuteCallback",
+                    &(argv.to_vec(), cwd.to_string_lossy().into_owned()),
+                )
+                .await
+                .is_ok()
+            {
+                return true;
+            }
+        }
+        false
     })
 }
 
@@ -383,7 +396,7 @@ struct Files {
 fn files() -> Files {
     let d = data_home();
     Files {
-        desktop: d.join("applications/arcade-look.desktop"),
+        desktop: d.join("applications/dev.arcade.Look.desktop"),
         dbus: d.join("dbus-1/services/org.gnome.NautilusPreviewer.service"),
         dolphin: d.join("kio/servicemenus/arcade-look.desktop"),
         nemo: d.join("nemo/actions/arcade-look.nemo_action"),
@@ -397,7 +410,7 @@ fn autostart_file() -> PathBuf {
         .map(|e| e.config)
         .or_else(dirs::config_dir)
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"))
-        .join("autostart/arcade-look.desktop")
+        .join("autostart/dev.arcade.Look.desktop")
 }
 
 /// Quote a path as one argument of a desktop entry's `Exec` key. The spec applies string
@@ -454,7 +467,7 @@ fn exec_program(exec: &str) -> Option<PathBuf> {
 
 fn autostart_entry(exe: &std::path::Path) -> String {
     format!(
-        "[Desktop Entry]\nType=Application\nName=Arcade Look\nComment=Keep Arcade Look ready in the background\nExec={} --service\nIcon=arcade-look\nTerminal=false\nX-Arcade-Id=arcade.look\nX-GNOME-Autostart-enabled=true\nX-GNOME-Autostart-Delay=2\n",
+        "[Desktop Entry]\nType=Application\nName=Arcade Look\nComment=Press Space, see anything.\nStartupWMClass=dev.arcade.Look\nExec={} --service\nIcon=arcade-look\nTerminal=false\nX-Arcade-Id=arcade.look\nX-GNOME-Autostart-enabled=true\nX-GNOME-Autostart-Delay=2\n",
         exec_quote(exe)
     )
 }
@@ -476,7 +489,7 @@ pub fn set_autostart(enabled: bool) -> Res<()> {
     {
         return Err(format!(
             "Arcade Look is running from a temporary folder ({}). Move it somewhere permanent, \
-            then turn on Start on login again.",
+            then turn on Start at login again.",
             exe.display()
         ));
     }
@@ -517,7 +530,7 @@ pub fn status() -> Vec<(String, bool)> {
         (
             "Open With menu".into(),
             f.desktop.exists()
-                || PathBuf::from("/usr/share/applications/arcade-look.desktop").exists(),
+                || PathBuf::from("/usr/share/applications/dev.arcade.Look.desktop").exists(),
         ),
     ]
 }
@@ -544,7 +557,7 @@ pub fn install() -> Res<String> {
     write(
         &f.desktop,
         &format!(
-            "[Desktop Entry]\nType=Application\nName=Arcade Look\nGenericName=File Previewer\nComment=Preview any file instantly\nExec={exec} %U\nIcon=arcade-look\nTerminal=false\nCategories=Utility;Viewer;\nMimeType={MIME_TYPES}\nStartupNotify=true\nInitialPreference=1\nActions=settings;\n\n[Desktop Action settings]\nName=Settings\nExec={exec} --settings\n"
+            "[Desktop Entry]\nType=Application\nName=Arcade Look\nGenericName=File Previewer\nComment=Press Space, see anything.\nKeywords=preview;files;images;documents;space;\nStartupWMClass=dev.arcade.Look\nExec={exec} %U\nIcon=arcade-look\nTerminal=false\nCategories=Utility;Viewer;\nMimeType={MIME_TYPES}\nStartupNotify=true\nInitialPreference=1\nActions=settings;\n\n[Desktop Action settings]\nName=Settings\nExec={exec} --settings\n"
         ),
         false,
     )?;
@@ -584,7 +597,7 @@ pub fn install() -> Res<String> {
     // Like on Windows: stay ready in the background (with a tray icon) from the next login.
     let autostart = match set_autostart(true) {
         Ok(()) => "  • Arcade Look now starts in the background when you log in (change this in Settings).\n".to_string(),
-        Err(e) => format!("  • Start on login could not be turned on: {e}\n"),
+        Err(e) => format!("  • Start at login could not be turned on: {e}\n"),
     };
     Ok(format!(
         "Installed:\n  • GNOME Files: press Space on any file (restart Files once: `nautilus -q`).\n    If GNOME Sushi is installed and running, Arcade Look takes over the next time it starts.\n  • Dolphin: right-click → Quick Look\n  • Nemo: right-click → Quick Look\n  • \"Open With → Arcade Look\" in any file manager\n{autostart}Files written under {}",
@@ -607,7 +620,7 @@ pub fn write_installed_entries(
         write(
             desktop,
             &format!(
-                "# Generated by Arcade Link\n[Desktop Entry]\nType=Application\nName=Arcade Look\nGenericName=File Previewer\nComment=Preview any file instantly\nExec={exec} %U\nIcon=arcade-look\nTerminal=false\nCategories=Utility;Viewer;\nMimeType={MIME_TYPES}\nStartupNotify=true\nInitialPreference=1\nX-Arcade-Id=arcade.look\nActions=Settings;Quit;Uninstall;\n\n[Desktop Action Settings]\nName=Open Settings\nExec={exec} --settings\n\n[Desktop Action Quit]\nName=Quit\nExec={exec} --quit\n\n[Desktop Action Uninstall]\nName=Uninstall\nExec={exec} --uninstall\n"
+                "# Generated by Arcade Link\n[Desktop Entry]\nType=Application\nName=Arcade Look\nGenericName=File Previewer\nComment=Press Space, see anything.\nKeywords=preview;files;images;documents;space;\nStartupWMClass=dev.arcade.Look\nExec={exec} %U\nIcon=arcade-look\nTerminal=false\nCategories=Utility;Viewer;\nMimeType={MIME_TYPES}\nStartupNotify=true\nInitialPreference=1\nX-Arcade-Id=arcade.look\nActions=Settings;Quit;Uninstall;\n\n[Desktop Action Settings]\nName=Settings\nExec={exec} --settings\n\n[Desktop Action Quit]\nName=Quit Arcade Look\nExec={exec} --quit\n\n[Desktop Action Uninstall]\nName=Uninstall\nExec={exec} --uninstall\n"
             ),
             false,
         )?;
@@ -661,6 +674,59 @@ pub fn uninstall() -> Res<String> {
         let _ = std::fs::remove_file(p);
     }
     Ok("Removed Arcade Look file manager integration and start on login.".into())
+}
+
+/// Preserve existing Exec arguments and file-manager actions while changing the id.
+pub fn migrate_entries() -> Res<()> {
+    let config = dirs::config_dir().unwrap_or_else(std::env::temp_dir);
+    for (old, new, field) in [
+        (
+            data_home().join("applications/arcade-look.desktop"),
+            files().desktop,
+            "desktopEntry",
+        ),
+        (
+            config.join("autostart/arcade-look.desktop"),
+            autostart_file(),
+            "autostart",
+        ),
+    ] {
+        if !old.is_file() {
+            continue;
+        }
+        let original = std::fs::read_to_string(&old).or_str()?;
+        if !original.contains("Name=Arcade Look") {
+            continue;
+        }
+        let mut text = String::new();
+        for line in original.lines() {
+            if line.starts_with("Comment=") {
+                text.push_str("Comment=Press Space, see anything.\n");
+            } else if line.starts_with("StartupWMClass=") {
+                text.push_str("StartupWMClass=dev.arcade.Look\n");
+            } else {
+                text.push_str(line);
+                text.push('\n');
+            }
+        }
+        // Insert metadata in the Desktop Entry section, before any action section.
+        if !text.contains("StartupWMClass=") {
+            text = text.replacen(
+                "[Desktop Entry]\n",
+                "[Desktop Entry]\nStartupWMClass=dev.arcade.Look\n",
+                1,
+            );
+        }
+        if !text.contains("Keywords=") {
+            text = text.replacen(
+                "[Desktop Entry]\n",
+                "[Desktop Entry]\nKeywords=preview;files;images;documents;space;\n",
+                1,
+            );
+        }
+        super::migrate_entry(&old, &new, text, field)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

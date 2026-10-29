@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 pub const ME: &str = arcade_link::ids::LOOK;
 pub const NAME: &str = "Arcade Look";
 pub const CLI_NAME: &str = "arcade-look";
-pub const DESKTOP_ID: &str = "arcade-look";
+pub const DESKTOP_ID: &str = "dev.arcade.Look";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn app_info() -> AppInfo {
@@ -29,7 +29,7 @@ pub fn app_info() -> AppInfo {
         desktop_id: DESKTOP_ID.into(),
         cli_name: CLI_NAME.into(),
         background_args: vec!["--service".into()],
-        legacy_desktop_ids: vec![DESKTOP_ID.into()],
+        legacy_desktop_ids: vec!["arcade-look".into(), "app.arcadelook".into()],
         autostart_id: DESKTOP_ID.into(),
     }
 }
@@ -597,6 +597,13 @@ pub fn uninstall(environment: &Environment, remove_data: bool) -> io::Result<boo
         cache.join("arcade-look"),
         cache.join(IDENTIFIER),
     ];
+    let dirs = arcade_link::paths::app_dirs(ME);
+    data_folders.extend([dirs.config, dirs.data, dirs.cache]);
+    data_folders.extend(
+        arcade_link::paths::legacy_dirs(ME)
+            .into_iter()
+            .map(|legacy| legacy.path),
+    );
     data_folders.extend(dirs::data_local_dir().map(|d| d.join(IDENTIFIER)));
     #[cfg(target_os = "macos")]
     data_folders.extend(dirs::home_dir().map(|h| h.join("Library/WebKit").join(IDENTIFIER)));

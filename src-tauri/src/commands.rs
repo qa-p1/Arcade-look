@@ -312,8 +312,12 @@ pub fn bootstrap(state: State<'_, app::AppState>) -> Bootstrap {
 
 /// A separate handshake avoids losing Link requests during bootstrap/listener setup.
 #[tauri::command]
-pub fn frontend_ready(app: AppHandle) {
-    app::frontend_ready(&app);
+pub fn frontend_ready(app: AppHandle, window: tauri::WebviewWindow) {
+    if window.label() == app::SETTINGS {
+        app::settings_ready(&app);
+    } else {
+        app::frontend_ready(&app);
+    }
 }
 
 /// Frontend diagnostics, printed only with `ALOOK_DEBUG=1`.
@@ -323,8 +327,12 @@ pub fn log(level: String, message: String) {
 }
 
 #[tauri::command]
-pub fn show_window(app: AppHandle) {
-    app::show(&app);
+pub fn show_window(app: AppHandle, window: tauri::WebviewWindow) {
+    if window.label() == app::SETTINGS {
+        app::show_settings(&app);
+    } else {
+        app::show(&app);
+    }
 }
 
 #[tauri::command]
@@ -368,7 +376,7 @@ pub async fn get_autostart() -> Res<bool> {
     blocking(|| Ok(crate::integration::autostart_enabled())).await
 }
 
-/// Turn "Start on login" on or off; returns the resulting state.
+/// Turn "Start at login" on or off; returns the resulting state.
 #[tauri::command]
 pub async fn set_autostart(enabled: bool) -> Res<bool> {
     blocking(move || {
@@ -405,4 +413,81 @@ pub fn reload_plugins(state: State<'_, app::AppState>) -> usize {
         *p = list;
     }
     n
+}
+
+#[tauri::command]
+pub fn open_settings(app: AppHandle) {
+    app::open_settings(&app);
+}
+
+#[tauri::command]
+pub fn open_welcome(app: AppHandle) {
+    app::open(&app, None, app::Source::Local);
+}
+
+#[tauri::command]
+pub async fn list_plugins() -> Res<Vec<plugins::Plugin>> {
+    blocking(|| Ok(plugins::load_all(true))).await
+}
+
+#[derive(Serialize)]
+pub struct AboutInfo {
+    channel: String,
+    tools: bool,
+    logs: String,
+}
+
+pub fn channel() -> String {
+    arcade_link::install::Environment::discover()
+        .ok()
+        .and_then(|environment| {
+            environment
+                .receipts()
+                .read(arcade_link::ids::LOOK)
+                .ok()
+                .flatten()
+        })
+        .map_or_else(|| "stable".into(), |receipt| receipt.channel)
+}
+
+pub fn logs_dir() -> PathBuf {
+    arcade_link::paths::app_dirs(arcade_link::ids::LOOK)
+        .data
+        .join("logs")
+}
+
+#[tauri::command]
+pub async fn about_info() -> Res<AboutInfo> {
+    blocking(|| {
+        let logs = logs_dir();
+        std::fs::create_dir_all(&logs).or_str()?;
+        Ok(AboutInfo {
+            channel: channel(),
+            tools: arcade_link::Registry::load(&arcade_link::Locations::discover())
+                .get(arcade_link::ids::TOOLS)
+                .is_some(),
+            logs: logs.to_string_lossy().into_owned(),
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn diagnostics(app: AppHandle) -> Res<String> {
+    blocking(move || {
+        let mut header = arcade_link::diagnostics::Header::new(
+            arcade_link::ids::LOOK,
+            env!("CARGO_PKG_VERSION"),
+            &channel(),
+        );
+        let state = app.state::<app::AppState>();
+        header.link_enabled = state.config().link_enabled;
+        header.peers_from(&arcade_link::Locations::discover());
+        Ok(header.render()
+            + &format!(
+                "Plugins: {}\n",
+                state.plugins.read().map(|list| list.len()).unwrap_or(0)
+            ))
+    })
+    .await
 }

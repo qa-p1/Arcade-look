@@ -1,7 +1,7 @@
 //! macOS: read Finder's selection for the global shortcut. (Finder's own Space key keeps
-//! opening Apple's Quick Look; our shortcut, Ctrl+Alt+Space by default, opens Arcade Look.)
+//! opening Apple's Quick Look; our shortcut, Ctrl+Alt+Shift+Space on new installs, opens Arcade Look.)
 
-use crate::util::Res;
+use crate::util::{OrStr, Res};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -42,7 +42,7 @@ pub fn install() -> Res<String> {
         Ok(()) => " Arcade Look now starts in the background when you log in (change this in \
             Settings)."
             .to_string(),
-        Err(e) => format!(" Start on login could not be turned on: {e}"),
+        Err(e) => format!(" Start at login could not be turned on: {e}"),
     };
     Ok(format!(
         "macOS needs no setup: select a file in Finder and press the global shortcut \
@@ -62,7 +62,7 @@ fn launch_agent() -> PathBuf {
         .map(|e| e.home)
         .or_else(dirs::home_dir)
         .unwrap_or_default()
-        .join("Library/LaunchAgents/app.arcadelook.plist")
+        .join("Library/LaunchAgents/dev.arcade.Look.plist")
 }
 
 pub fn autostart_enabled() -> bool {
@@ -81,7 +81,7 @@ pub fn set_autostart(enabled: bool) -> Res<()> {
     if path_str.starts_with("/Volumes/") || path_str.contains("/AppTranslocation/") {
         return Err(
             "Move Arcade Look to the Applications folder, open it from there, then turn on \
-            Start on login."
+            Start at login."
                 .into(),
         );
     }
@@ -95,7 +95,7 @@ pub fn set_autostart(enabled: bool) -> Res<()> {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>app.arcadelook</string>
+  <key>Label</key><string>dev.arcade.Look</string>
   <key>ProgramArguments</key>
   <array><string>{exe}</string><string>--service</string></array>
   <key>RunAtLoad</key><true/>
@@ -109,4 +109,25 @@ pub fn set_autostart(enabled: bool) -> Res<()> {
         &path,
         Some(plist.as_bytes()),
     )
+}
+
+pub fn migrate_entries() -> Res<()> {
+    let old = dirs::home_dir()
+        .unwrap_or_default()
+        .join("Library/LaunchAgents/app.arcadelook.plist");
+    if old.is_file() {
+        let text = std::fs::read_to_string(&old).or_str()?;
+        if text.contains("<string>app.arcadelook</string>") {
+            super::migrate_entry(
+                &old,
+                &launch_agent(),
+                text.replace(
+                    "<string>app.arcadelook</string>",
+                    "<string>dev.arcade.Look</string>",
+                ),
+                "autostart",
+            )?;
+        }
+    }
+    Ok(())
 }

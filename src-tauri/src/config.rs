@@ -1,4 +1,4 @@
-//! User configuration (`<config dir>/arcade-look/config.json`) and persisted window state.
+//! User configuration (`<config dir>/arcade/look/settings.json`) and persisted window state.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -10,6 +10,10 @@ pub struct Config {
     pub theme: String,
     /// Minutes before a non-resident process exits (0 = never). Webviews release after 30 s.
     pub idle_minutes: u64,
+    /// Keep the service resident after its windows close.
+    pub keep_ready: bool,
+    /// System notifications for completed actions while every window is hidden.
+    pub notifications: bool,
     /// Global shortcut that previews the file manager's selection. Empty disables it.
     pub global_shortcut: String,
     /// Windows: press Space in Explorer to preview (requires the background service).
@@ -37,6 +41,8 @@ impl Default for Config {
         Self {
             theme: "system".into(),
             idle_minutes: 10,
+            keep_ready: true,
+            notifications: false,
             global_shortcut: default_shortcut(std::env::consts::OS).into(),
             explorer_space: true,
             nautilus_previewer: true,
@@ -51,12 +57,8 @@ impl Default for Config {
     }
 }
 
-fn default_shortcut(platform: &str) -> &'static str {
-    match platform {
-        "windows" => "Ctrl+Alt+Shift+Space",
-        "linux" => "",
-        _ => "Ctrl+Alt+Space",
-    }
+fn default_shortcut(_platform: &str) -> &'static str {
+    "Ctrl+Alt+Shift+Space"
 }
 
 #[cfg(test)]
@@ -64,10 +66,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defaults_avoid_box_on_new_windows_installs_only() {
+    fn new_installs_use_the_standard_shortcut_and_saved_shortcuts_roundtrip() {
         assert_eq!(default_shortcut("windows"), "Ctrl+Alt+Shift+Space");
-        assert_eq!(default_shortcut("linux"), "");
-        assert_eq!(default_shortcut("macos"), "Ctrl+Alt+Space");
+        assert_eq!(default_shortcut("linux"), "Ctrl+Alt+Shift+Space");
+        assert_eq!(default_shortcut("macos"), "Ctrl+Alt+Shift+Space");
         for saved in ["Ctrl+Alt+Space", "Super+Shift+P", ""] {
             let config: Config =
                 serde_json::from_value(serde_json::json!({"globalShortcut": saved})).unwrap();
@@ -77,16 +79,79 @@ mod tests {
             assert_eq!(roundtrip.global_shortcut, saved);
         }
     }
+    #[test]
+    fn migration_keeps_preferences_unknown_fields_and_plugin_files() {
+        let root = std::env::temp_dir().join(format!(
+            "look-migrate-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("plugins/custom")).unwrap();
+        let bytes = br#"{"globalShortcut":"Super+Shift+P","theme":"dark","futureOption":17}"#;
+        std::fs::write(root.join("config.json"), bytes).unwrap();
+        std::fs::write(root.join("plugins/custom/plugin.json"), b"plugin-content").unwrap();
+        migrate_settings_file(&root).unwrap();
+        assert_eq!(std::fs::read(root.join("settings.json")).unwrap(), bytes);
+        assert!(!root.join("config.json").exists());
+        assert_eq!(
+            std::fs::read(root.join("plugins/custom/plugin.json")).unwrap(),
+            b"plugin-content"
+        );
+        migrate_settings_file(&root).unwrap();
+        std::fs::write(root.join("config.json"), b"different").unwrap();
+        assert!(migrate_settings_file(&root).is_err());
+        assert_eq!(std::fs::read(root.join("settings.json")).unwrap(), bytes);
+        assert_eq!(
+            std::fs::read(root.join("config.json")).unwrap(),
+            b"different"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
 
 pub fn dir() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("arcade-look")
+    arcade_link::paths::app_dirs(arcade_link::ids::LOOK).config
 }
 
 pub fn config_path() -> PathBuf {
-    dir().join("config.json")
+    dir().join("settings.json")
+}
+
+/// Link copies and verifies every legacy folder before removing it. Refuse to
+/// start on a conflict instead of silently replacing the user's preferences.
+pub fn migrate() -> Result<(), String> {
+    let report = arcade_link::paths::migrate_app_dirs(arcade_link::ids::LOOK);
+    if !report.kept.is_empty() {
+        return Err(report
+            .kept
+            .iter()
+            .map(|(path, reason)| format!("{}: {reason}", path.display()))
+            .collect::<Vec<_>>()
+            .join("; "));
+    }
+    migrate_settings_file(&dir())
+}
+
+fn migrate_settings_file(directory: &std::path::Path) -> Result<(), String> {
+    let old = directory.join("config.json");
+    let new = directory.join("settings.json");
+    if !old.exists() {
+        return Ok(());
+    }
+    let bytes = std::fs::read(&old).map_err(|e| e.to_string())?;
+    if new.exists() && std::fs::read(&new).map_err(|e| e.to_string())? != bytes {
+        return Err(
+            "Both old and new settings exist with different content; both have been kept.".into(),
+        );
+    }
+    arcade_link::paths::write_atomic(&new, &bytes, true).map_err(|e| e.to_string())?;
+    if std::fs::read(&new).map_err(|e| e.to_string())? != bytes {
+        return Err("Settings verification failed; the old file has been kept.".into());
+    }
+    std::fs::remove_file(old).map_err(|e| e.to_string())
 }
 
 pub fn plugins_dir() -> PathBuf {

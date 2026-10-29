@@ -2,7 +2,7 @@
 
 > Historical product blueprint. Unmeasured size/performance statements are
 > design targets. For implemented behavior and verification, read the
-> [README](../README.md) and [current status](STATUS.md).
+> [README](../../../README.md) and [current status](../../STATUS.md).
 
 > A universal, cross-platform Quick Look. Select a file, press **Space**, see it instantly.
 > Images, video, audio, PDFs, archives, code, fonts, Markdown, JSON, Office docs, 3D models, notebooks — and anything else through plugins.
@@ -145,4 +145,4 @@ Security: previews of untrusted content never execute it. HTML runs in a `sandbo
 
 ## 11. Arcade Link
 
-Look joins the other Arcade apps through Arcade Link (`v0.2.0`): it exposes `look.preview`, `look.inspect` and, on Windows and macOS, `look.preview_selection`, and shows peer actions in its `A` strip. See [arcade-link.md](arcade-link.md) and the verified state in [STATUS.md](STATUS.md).
+Look joins the other Arcade apps through Arcade Link (`v0.2.0`): it exposes `look.preview`, `look.inspect` and, on Windows and macOS, `look.preview_selection`, and shows peer actions in its `A` strip. See [arcade-link.md](../link.md) and the verified state in [STATUS.md](../../STATUS.md).

@@ -222,7 +222,7 @@ fn execute(p: &Plugin, file: &Path, outdir: &Path) -> Res<Vec<u8>> {
     }
     let mut child = cmd
         .spawn()
-        .map_err(|e| format!("Could not run `{}`: {e}", args[0]))?;
+        .map_err(|e| format!("Couldn't run `{}`: {e}", args[0]))?;
     let mut so = child.stdout.take().ok_or("no stdout")?;
     let mut se = child.stderr.take().ok_or("no stderr")?;
     let (out_tx, out_rx) = std::sync::mpsc::channel();

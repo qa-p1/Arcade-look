@@ -2,9 +2,30 @@
 import { invoke } from '@tauri-apps/api/core';
 
 export type Kind =
-  | 'folder' | 'image' | 'image-decode' | 'image-raw' | 'image-psd' | 'svg' | 'video' | 'audio'
-  | 'pdf' | 'markdown' | 'code' | 'text' | 'json' | 'notebook' | 'csv' | 'spreadsheet'
-  | 'document' | 'presentation' | 'epub' | 'archive' | 'font' | 'model' | 'html' | 'binary';
+  | 'folder'
+  | 'image'
+  | 'image-decode'
+  | 'image-raw'
+  | 'image-psd'
+  | 'svg'
+  | 'video'
+  | 'audio'
+  | 'pdf'
+  | 'markdown'
+  | 'code'
+  | 'text'
+  | 'json'
+  | 'notebook'
+  | 'csv'
+  | 'spreadsheet'
+  | 'document'
+  | 'presentation'
+  | 'epub'
+  | 'archive'
+  | 'font'
+  | 'model'
+  | 'html'
+  | 'binary';
 
 export interface Plugin {
   id: string;
@@ -43,6 +64,8 @@ export interface FileInfo {
 export interface Config {
   theme: 'system' | 'light' | 'dark';
   idleMinutes: number;
+  keepReady: boolean;
+  notifications: boolean;
   globalShortcut: string;
   explorerSpace: boolean;
   nautilusPreviewer: boolean;
@@ -70,44 +93,149 @@ export interface Bootstrap {
   shortcutSupported: boolean;
 }
 
-export interface TextData { text: string; encoding: string; truncated: boolean; size: number; lines: number }
-export interface ArchiveEntry { path: string; size: number | null; packed: number | null; dir: boolean; modified: number | null; encrypted: boolean }
-export interface ArchiveListing { format: string; entries: ArchiveEntry[]; totalSize: number; packedSize: number; truncated: boolean; note: string | null }
-export interface TableData { sheets: string[]; sheet: number; rows: string[][]; columns: number; truncatedRows: boolean; truncatedCols: boolean; delimiter: string | null; encoding: string | null }
-export interface DocOut { html: string; title: string | null; meta: [string, string][]; truncated: boolean }
-export type SlideItem = { type: 'text'; text: string; level: number } | { type: 'image'; src: string } | { type: 'table'; rows: string[][] };
-export interface Slide { title: string | null; subtitle: string | null; items: SlideItem[]; notes: string | null }
-export interface Deck { slides: Slide[]; aspect: number; title: string | null; meta: [string, string][]; truncated: boolean }
+export interface TextData {
+  text: string;
+  encoding: string;
+  truncated: boolean;
+  size: number;
+  lines: number;
+}
+export interface ArchiveEntry {
+  path: string;
+  size: number | null;
+  packed: number | null;
+  dir: boolean;
+  modified: number | null;
+  encrypted: boolean;
+}
+export interface ArchiveListing {
+  format: string;
+  entries: ArchiveEntry[];
+  totalSize: number;
+  packedSize: number;
+  truncated: boolean;
+  note: string | null;
+}
+export interface TableData {
+  sheets: string[];
+  sheet: number;
+  rows: string[][];
+  columns: number;
+  truncatedRows: boolean;
+  truncatedCols: boolean;
+  delimiter: string | null;
+  encoding: string | null;
+}
+export interface DocOut {
+  html: string;
+  title: string | null;
+  meta: [string, string][];
+  truncated: boolean;
+}
+export type SlideItem =
+  | { type: 'text'; text: string; level: number }
+  | { type: 'image'; src: string }
+  | { type: 'table'; rows: string[][] };
+export interface Slide {
+  title: string | null;
+  subtitle: string | null;
+  items: SlideItem[];
+  notes: string | null;
+}
+export interface Deck {
+  slides: Slide[];
+  aspect: number;
+  title: string | null;
+  meta: [string, string][];
+  truncated: boolean;
+}
 export interface FontInfo {
-  family: string | null; subfamily: string | null; fullName: string | null; version: string | null;
-  designer: string | null; manufacturer: string | null; copyright: string | null; license: string | null;
-  glyphs: number; unitsPerEm: number; faces: number; monospaced: boolean; variable: boolean;
+  family: string | null;
+  subfamily: string | null;
+  fullName: string | null;
+  version: string | null;
+  designer: string | null;
+  manufacturer: string | null;
+  copyright: string | null;
+  license: string | null;
+  glyphs: number;
+  unitsPerEm: number;
+  faces: number;
+  monospaced: boolean;
+  variable: boolean;
   axes: { tag: string; name: string; min: number; default: number; max: number }[];
-  codepoints: number[]; coverage: number; format: string;
+  codepoints: number[];
+  coverage: number;
+  format: string;
 }
 export interface AudioInfo {
-  title: string | null; artist: string | null; album: string | null; albumArtist: string | null;
-  genre: string | null; year: string | null; track: number | null; trackTotal: number | null; disc: number | null;
-  composer: string | null; comment: string | null; durationMs: number | null; bitrate: number | null;
-  sampleRate: number | null; channels: number | null; bitDepth: number | null; hasCover: boolean;
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  albumArtist: string | null;
+  genre: string | null;
+  year: string | null;
+  track: number | null;
+  trackTotal: number | null;
+  disc: number | null;
+  composer: string | null;
+  comment: string | null;
+  durationMs: number | null;
+  bitrate: number | null;
+  sampleRate: number | null;
+  channels: number | null;
+  bitDepth: number | null;
+  hasCover: boolean;
 }
-export interface ImageInfo { width: number | null; height: number | null; exif: [string, string][] }
-export interface DirEntry { name: string; path: string; dir: boolean; size: number | null; modified: number | null; ext: string; kind: string; hidden: boolean }
-export interface DirListing { entries: DirEntry[]; total: number; truncated: boolean }
-export interface DirSize { bytes: number; files: number; dirs: number; complete: boolean }
-export interface PluginOutput { output: Plugin['output']; text: string | null; path: string | null; language: string | null }
+export interface ImageInfo {
+  width: number | null;
+  height: number | null;
+  exif: [string, string][];
+}
+export interface DirEntry {
+  name: string;
+  path: string;
+  dir: boolean;
+  size: number | null;
+  modified: number | null;
+  ext: string;
+  kind: string;
+  hidden: boolean;
+}
+export interface DirListing {
+  entries: DirEntry[];
+  total: number;
+  truncated: boolean;
+}
+export interface DirSize {
+  bytes: number;
+  files: number;
+  dirs: number;
+  complete: boolean;
+}
+export interface PluginOutput {
+  output: Plugin['output'];
+  text: string | null;
+  path: string | null;
+  language: string | null;
+}
 
 export const api = {
   bootstrap: () => invoke<Bootstrap>('bootstrap'),
   frontendReady: () => invoke<void>('frontend_ready'),
   inspect: (path: string) => invoke<FileInfo>('inspect', { path }),
   readText: (path: string, maxBytes?: number) => invoke<TextData>('read_text', { path, maxBytes }),
-  renderMarkdown: (path: string) => invoke<{ html: string; truncated: boolean }>('render_markdown', { path }),
+  renderMarkdown: (path: string) =>
+    invoke<{ html: string; truncated: boolean }>('render_markdown', { path }),
   markdownBatch: (sources: string[]) => invoke<string[]>('markdown_batch', { sources }),
-  readBytes: (path: string, offset: number, length: number) => invoke<ArrayBuffer>('read_bytes', { path, offset, length }),
-  listArchive: (path: string, format: string) => invoke<ArchiveListing>('list_archive', { path, format }),
-  extractEntry: (path: string, format: string, entry: string) => invoke<string>('extract_entry', { path, format, entry }),
-  readTable: (path: string, format: string, sheet?: number) => invoke<TableData>('read_table', { path, format, sheet }),
+  readBytes: (path: string, offset: number, length: number) =>
+    invoke<ArrayBuffer>('read_bytes', { path, offset, length }),
+  listArchive: (path: string, format: string) =>
+    invoke<ArchiveListing>('list_archive', { path, format }),
+  extractEntry: (path: string, format: string, entry: string) =>
+    invoke<string>('extract_entry', { path, format, entry }),
+  readTable: (path: string, format: string, sheet?: number) =>
+    invoke<TableData>('read_table', { path, format, sheet }),
   readDocument: (path: string, format: string) => invoke<DocOut>('read_document', { path, format }),
   readSlides: (path: string, format: string) => invoke<Deck>('read_slides', { path, format }),
   fontInfo: (path: string, ext: string) => invoke<FontInfo>('font_info', { path, ext }),

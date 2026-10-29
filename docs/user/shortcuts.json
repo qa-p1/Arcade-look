@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "app": "arcade.look",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "groups": [
     {
       "title": "Preview and navigation",
@@ -546,9 +546,7 @@
           "id": "preview-selection",
           "title": "Preview the current file-manager selection",
           "keys": {
-            "default": "Ctrl+Alt+Shift+Space",
-            "linux": null,
-            "macos": "Ctrl+Alt+Space"
+            "default": "Ctrl+Alt+Shift+Space"
           },
           "rebindable": true
         }
