@@ -1,3 +1,4 @@
+import './design/arcade.css';
 import './styles/app.css';
 import { invoke } from '@tauri-apps/api/core';
 import { App } from './app';

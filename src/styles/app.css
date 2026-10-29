@@ -1,117 +1,73 @@
-/* ---------------------------------------------------------------- tokens */
-:root {
-  --bg: #f4f4f6;
-  --bg-elev: #ffffff;
-  --surface: #ffffff;
-  --surface-2: #f0f0f3;
-  --surface-3: #e7e7ec;
-  --border: rgba(15, 15, 30, 0.09);
-  --border-strong: rgba(15, 15, 30, 0.16);
-  --text: #18181b;
-  --text-2: #52525b;
-  --text-3: #8e8e99;
-  --accent: #6d5dfc;
-  --accent-2: #4f46e5;
-  --accent-soft: rgba(109, 93, 252, 0.12);
-  --danger: #dc2626;
-  --ok: #16a34a;
-  --glass: rgba(255, 255, 255, 0.78);
-  --shadow: 0 12px 32px rgba(15, 15, 40, 0.16), 0 2px 6px rgba(15, 15, 40, 0.08);
-  --shadow-sm: 0 1px 3px rgba(15, 15, 40, 0.1);
-  --checker: #e6e6ea;
-  --paper: #ffffff;
-  --radius: 10px;
-  --radius-sm: 7px;
-  --titlebar: 44px;
-  --sans: system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', 'Inter', Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
-  --mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', monospace;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+@font-face {
+  font-family: Inter;
+  src: url('../design/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
 
-  /* syntax */
+/* ---------------------------------------------------------------- tokens */
+/* Colours, type and radii come from the Arcade design kit (src/design/arcade.css,
+   <html data-app="arcade.look"> for Look's blue accent). These names are Look's
+   aliases for kit tokens, kept so the viewers read naturally. */
+:root {
+  --bg-elev: var(--panel);
+  --surface: var(--panel);
+  --surface-2: var(--sunken);
+  --surface-3: var(--hover);
+  --border: var(--line);
+  --border-strong: var(--line-strong);
+  --text-2: var(--muted);
+  --text-3: var(--faint);
+  --accent-2: var(--accent);
+  --glass: var(--panel);
+  --shadow-sm: var(--shadow);
+  --checker: var(--hover);
+  --paper: var(--panel);
+  --titlebar: 44px;
+  --sans: var(--font-sans);
+  --mono: var(--font-mono);
+}
+
+/* Look's content palette: syntax colours for code, Markdown and JSON. Every
+   colour is at least 4.5:1 on --sunken in its theme. */
+:root {
   --hl-keyword: #8b2fd6;
   --hl-string: #0a7a43;
   --hl-number: #b45309;
-  --hl-comment: #8a8a96;
+  --hl-comment: #5f6672;
   --hl-title: #1d4ed8;
   --hl-type: #0e7490;
   --hl-attr: #b45309;
   --hl-tag: #be123c;
   --hl-meta: #6d28d9;
-  --hl-add-bg: rgba(22, 163, 74, 0.12);
-  --hl-del-bg: rgba(220, 38, 38, 0.12);
-  color-scheme: light;
+  --hl-add-bg: var(--ok-soft);
+  --hl-del-bg: var(--danger-soft);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #131315;
-    --bg-elev: #1b1b1e;
-    --surface: #1f1f23;
-    --surface-2: #26262b;
-    --surface-3: #303036;
-    --border: rgba(255, 255, 255, 0.075);
-    --border-strong: rgba(255, 255, 255, 0.14);
-    --text: #ececf1;
-    --text-2: #a8a8b3;
-    --text-3: #6f6f7a;
-    --accent: #9b8cff;
-    --accent-2: #7c6cff;
-    --accent-soft: rgba(155, 140, 255, 0.16);
-    --danger: #f87171;
-    --ok: #4ade80;
-    --glass: rgba(32, 32, 37, 0.78);
-    --shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-    --checker: #2a2a2f;
-    --paper: #1c1c20;
     --hl-keyword: #c792ea;
     --hl-string: #a5e075;
     --hl-number: #f78c6c;
-    --hl-comment: #6c7086;
+    --hl-comment: #8b929c;
     --hl-title: #82aaff;
     --hl-type: #89ddff;
     --hl-attr: #ffcb6b;
     --hl-tag: #f07178;
     --hl-meta: #c3a6ff;
-    --hl-add-bg: rgba(74, 222, 128, 0.12);
-    --hl-del-bg: rgba(248, 113, 113, 0.14);
-    color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #131315;
-  --bg-elev: #1b1b1e;
-  --surface: #1f1f23;
-  --surface-2: #26262b;
-  --surface-3: #303036;
-  --border: rgba(255, 255, 255, 0.075);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text: #ececf1;
-  --text-2: #a8a8b3;
-  --text-3: #6f6f7a;
-  --accent: #9b8cff;
-  --accent-2: #7c6cff;
-  --accent-soft: rgba(155, 140, 255, 0.16);
-  --danger: #f87171;
-  --ok: #4ade80;
-  --glass: rgba(32, 32, 37, 0.78);
-  --shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --checker: #2a2a2f;
-  --paper: #1c1c20;
   --hl-keyword: #c792ea;
   --hl-string: #a5e075;
   --hl-number: #f78c6c;
-  --hl-comment: #6c7086;
+  --hl-comment: #8b929c;
   --hl-title: #82aaff;
   --hl-type: #89ddff;
   --hl-attr: #ffcb6b;
   --hl-tag: #f07178;
   --hl-meta: #c3a6ff;
-  --hl-add-bg: rgba(74, 222, 128, 0.12);
-  --hl-del-bg: rgba(248, 113, 113, 0.14);
-  color-scheme: dark;
 }
 
 /* ---------------------------------------------------------------- base */
