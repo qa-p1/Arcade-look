@@ -45,8 +45,9 @@ def main():
             if (parent / ".git").exists():
                 raise RuntimeError("AppImage verification must run outside the checkout")
         env = os.environ.copy()
-        for key in ("APPIMAGE", "APPDIR", "ARCADE_DEV_BUILD"):
+        for key in ("APPIMAGE", "APPDIR", "ARCADE_DEV_BUILD", "WAYLAND_DISPLAY", "HYPRLAND_INSTANCE_SIGNATURE", "SWAYSOCK"):
             env.pop(key, None)
+        env["GDK_BACKEND"] = "x11"  # Use xvfb-run, never an inherited real desktop.
         for key, directory in (
             ("HOME", "home"), ("XDG_CONFIG_HOME", "config"), ("XDG_DATA_HOME", "data"),
             ("XDG_CACHE_HOME", "cache"), ("XDG_RUNTIME_DIR", "run"), ("ARCADE_HOME", "arcade"),
@@ -60,6 +61,10 @@ def main():
         env["ARCADE_NO_INSTALL_PROMPT"] = "1"
         # ARCADE_HOME redirects Link's Applications, integration and CLI roots.
         install_home = Path(env["ARCADE_HOME"])
+        # Mirror a real profile: application integration and the installer
+        # must resolve the same XDG roots even with ARCADE_HOME isolation.
+        env["XDG_DATA_HOME"] = str(install_home / ".local/share")
+        env["XDG_CONFIG_HOME"] = str(install_home / ".config")
         env["PATH"] = str(install_home / ".local/bin") + os.pathsep + env.get("PATH", "")
         download = root / "Downloaded.AppImage"
         shutil.copy2(image, download)
@@ -111,6 +116,34 @@ def main():
         work.mkdir()
         (work / "note.md").write_text("# Arcade Look\n", encoding="utf-8")
         survives(installed, env, work, "note.md")
+
+        # Reproduce an in-place upgrade from pre-overhaul ids. Tools creates
+        # the new receipt-owned entries, but an older customized launcher and
+        # login entry can remain. Fresh-profile checks alone missed 0.4.0's
+        # fatal conflict: both Settings and real previews must still start.
+        legacy_entries = {}
+        for folder, args in ((desktop.parent, "%U"), (autostart.parent, "--service")):
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / "arcade-look.desktop"
+            contents = f'[Desktop Entry]\nType=Application\nName=Arcade Look\nComment=Legacy custom entry\nExec="{installed}" {args}\n'
+            path.write_text(contents, encoding="utf-8")
+            legacy_entries[path] = contents
+        owned_entries = {path: path.read_bytes() for path in (desktop, autostart)}
+        survives(installed, env, work, "--settings")
+        for path, contents in legacy_entries.items():
+            assert path.read_text(encoding="utf-8") == contents, f"Upgrade changed conflicting entry: {path}"
+        # Exercise a login-entry conflict independently of the launcher conflict.
+        legacy_launcher = desktop.parent / "arcade-look.desktop"
+        legacy_launcher.unlink()
+        del legacy_entries[legacy_launcher]
+        survives(installed, env, work, "note.md")
+        for path, contents in legacy_entries.items():
+            assert path.read_text(encoding="utf-8") == contents, f"Upgrade changed conflicting entry: {path}"
+        for path, contents in owned_entries.items():
+            assert path.read_bytes() == contents, f"Upgrade replaced installer-owned entry: {path}"
+        # The uninstall check below remains about installer-owned files.
+        for path in legacy_entries:
+            path.unlink()
 
         # A missing launcher must be repaired from the installed package.
         desktop.unlink()

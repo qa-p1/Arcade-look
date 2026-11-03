@@ -1,5 +1,20 @@
 # Arcade Look: status
 
+## 2026-11-03: 0.4.1 startup fix
+
+The installed 0.4.0 exited before creating a window when a Tools update created
+`dev.arcade.Look.desktop` but the legacy `arcade-look.desktop` remained. The
+migration correctly kept the conflicting files, but startup treated that optional
+integration conflict as fatal. Migration now runs after log capture, and a failure
+keeps the files and logs a warning while previews and Settings continue.
+
+The old release gate tested a clean temporary profile. The native window check
+now seeds conflicting legacy entries; the packaged AppImage gate also checks
+Settings with a launcher conflict and a preview with only a login-entry conflict.
+Both checks verify the existing entries are preserved. Verification results for
+this candidate are recorded when complete; three-OS CI and package checks must
+pass before publication.
+
 ## 2026-10-29: 0.4.0
 
 The overhaul retains every built-in viewer and fallback, plugin support, history,

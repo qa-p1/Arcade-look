@@ -108,10 +108,6 @@ pub fn run() {
     gtk::glib::set_prgname(Some("dev.arcade.Look"));
     tray::wait_for_predecessor();
     std::thread::spawn(util::clean_temp);
-    if let Err(error) = integration::migrate_entries() {
-        eprintln!("arcade-look: old integration entries were kept: {error}");
-        std::process::exit(1);
-    }
     let config = config::load();
     let plugins = plugins::load_all(config.plugins);
     let start_args = args.clone();
@@ -232,6 +228,13 @@ pub fn run() {
                 arcade_link::logs::capture_stderr(&commands::logs_dir(), "arcade-look")
             {
                 eprintln!("arcade-look: log unavailable: {error}");
+            }
+            // A Tools update can already have installed the new launcher while
+            // the old one is still present. Keep conflicting entries intact;
+            // optional integration migration must never prevent previews or
+            // Settings from starting. Capture the warning in the app log too.
+            if let Err(error) = integration::migrate_entries() {
+                eprintln!("arcade-look: old integration entries were kept: {error}");
             }
             // A background utility: no Dock icon, just the menu bar item and the preview.
             #[cfg(target_os = "macos")]

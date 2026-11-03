@@ -31,6 +31,21 @@ config = SANDBOX / 'config/arcade/look/settings.json'
 config.parent.mkdir(parents=True, exist_ok=True)
 config.write_text(json.dumps({'theme': 'light', 'globalShortcut': '', 'autoplay': False, 'keepReady': True}))
 
+# A real upgrade can retain the old launcher/login entry after the installer
+# creates their new identifiers. The old strict migration must not stop either
+# native window from opening, and conflicts must remain byte-for-byte intact.
+legacy_entries = {}
+for parent, args in (('data/applications', '%U'), ('config/autostart', '--service')):
+    folder = SANDBOX / parent
+    folder.mkdir(parents=True, exist_ok=True)
+    for name, comment in (('arcade-look', 'Legacy custom entry'), ('dev.arcade.Look', 'Current installer entry')):
+        destination = SANDBOX / 'arcade/.config/autostart' if parent == 'config/autostart' and name == 'dev.arcade.Look' else folder
+        destination.mkdir(parents=True, exist_ok=True)
+        path = destination / (name + '.desktop')
+        contents = f'[Desktop Entry]\nType=Application\nName=Arcade Look\nComment={comment}\nExec="{exe}" {args}\n'
+        path.write_text(contents)
+        legacy_entries[path] = contents
+
 # Real command and ES-module plugins, confined to this profile.
 for name, manifest, entry in (
     ('native-command', {'name': 'Native command sample', 'extensions': ['lookcommand'], 'command': ['python3', '-c', 'print("# Command plugin\\nRendered from a real process.")'], 'output': 'markdown'}, None),
@@ -152,7 +167,9 @@ measurements = {}
 try:
     with log.open('wb') as stream:
         process = subprocess.Popen([str(exe), '--background'], env=env, stdout=stream, stderr=stream, start_new_session=True)
-    wait_for(lambda: endpoint.exists() and control.exists(), 'Look never became ready')
+    wait_for(lambda: endpoint.exists() and control.exists(), 'Look never became ready with a legacy launcher conflict')
+    for path, contents in legacy_entries.items():
+        assert path.read_text() == contents, f'Upgrade changed conflicting integration: {path}'
     measurements['baseline'] = settled_rss()
     # Repeated create/destroy must return the entire process tree to its idle RSS.
     for attempt in range(2):
