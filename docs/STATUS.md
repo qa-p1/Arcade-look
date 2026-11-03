@@ -2,6 +2,13 @@
 
 ## 2026-11-03: 0.4.2 stable background process
 
+Linux connected-action notifications now use direct notify-rust delivery on a
+blocking worker. The notification plugin's async wrapper could call synchronous
+zbus delivery inside Tokio, causing a nested-runtime panic. Opt-in, visible-window
+and cancelled-action suppression remain unchanged; other platforms retain the
+plugin. A native async-runtime regression uses a child with an unavailable private
+notification bus and requires both joins to succeed, with an ordinary bus error.
+
 The owner requires that window close/hide and memory cleanup never automatically
 restart the background app. Removed Look's five-minute cleanup restart, its
 release counter/tenth-preview replacement, and the Settings-close restart.

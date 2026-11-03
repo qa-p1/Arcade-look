@@ -84,6 +84,7 @@ dependencies = [
  "ksni",
  "lofty",
  "lzma-rust2",
+ "notify-rust",
  "percent-encoding",
  "pulldown-cmark",
  "quick-xml 0.41.0",

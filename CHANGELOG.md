@@ -2,6 +2,8 @@
 
 ## 0.4.2 — 2026-11-03
 
+- Deliver Linux connected-action notifications from a blocking worker so synchronous D-Bus delivery cannot panic inside the async runtime. Keep notification opt-in, visible-window and cancelled-action suppression.
+
 - Keep the same background process when closing Settings, hiding previews or reclaiming idle WebViews. Remove the automatic memory-cleanup restarts, including the five-minute timer and every-tenth-preview replacement. Explicit Restart and installation/update handoffs remain available.
 - Verify native process identity across Settings close/reopen and twelve preview release cycles, while checking that the WebViews are destroyed and explicit Restart still works.
 - Release retired Linux WebKit renderers by disconnecting the closing view's IPC signal cycle. Keep other windows and their shared context available; no process killing, cache-policy changes or background restarts.
