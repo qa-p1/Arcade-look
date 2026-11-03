@@ -287,7 +287,7 @@ if have("7z"):
     run("7z", "a", "-bd", P("assets.7z"), P("gradient.png"), P("README.md"))
 
 # ------------------------------------------------------------------ fonts
-for cand in ["/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"]:
+for cand in ["/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/TTF/DejaVuSerif.ttf", "/usr/share/fonts/noto/NotoSans-Regular.ttf"]:
     if os.path.exists(cand):
         shutil.copy(cand, P(os.path.basename(cand)))
         break
