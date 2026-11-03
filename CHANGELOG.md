@@ -4,6 +4,7 @@
 
 - Keep the same background process when closing Settings, hiding previews or reclaiming idle WebViews. Remove the automatic memory-cleanup restarts, including the five-minute timer and every-tenth-preview replacement. Explicit Restart and installation/update handoffs remain available.
 - Verify native process identity across Settings close/reopen and twelve preview release cycles, while checking that the WebViews are destroyed and explicit Restart still works.
+- Release retired Linux WebKit renderers by disconnecting the closing view's IPC signal cycle. Keep other windows and their shared context available; no process killing, cache-policy changes or background restarts.
 
 ## 0.4.1 — 2026-11-03
 

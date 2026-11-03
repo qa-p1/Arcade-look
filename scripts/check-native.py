@@ -181,6 +181,30 @@ def assert_resident(pid, seconds=1.25):
         time.sleep(.05)
 
 
+def memory_snapshot():
+    process = psutil.Process(current_pid())
+    result = {'rss': 0, 'pss': 0, 'uss': 0, 'processes': []}
+    for child in [process, *process.children(recursive=True)]:
+        try:
+            memory = child.memory_full_info()
+            entry = {'pid': child.pid, 'name': child.name(), 'rss': memory.rss,
+                     'pss': getattr(memory, 'pss', 0), 'uss': getattr(memory, 'uss', 0)}
+        except psutil.NoSuchProcess:
+            continue
+        result['processes'].append(entry)
+        for key in ('rss', 'pss', 'uss'):
+            result[key] += entry[key]
+    return result
+
+
+def released_memory():
+    snapshot = memory_snapshot()
+    # psutil may report the kernel-truncated name on older platforms.
+    if any(child['name'].startswith('WebKitWeb') for child in snapshot['processes']):
+        return None
+    return snapshot
+
+
 def rss():
     process = psutil.Process(current_pid())
     return sum(child.memory_info().rss for child in [process, *process.children(recursive=True)] if child.is_running())
@@ -196,6 +220,7 @@ try:
     measurements['baseline'] = settled_rss()
     resident_pid = current_pid()
     measurements['initial_pid'] = resident_pid
+    measurements['baseline_memory'] = memory_snapshot()
     # Destroy Settings and measure reclaimed resources without replacing Look.
     for attempt in range(2):
         second('--settings')
@@ -223,6 +248,7 @@ try:
         wait_for(lambda: 'settings' not in window_state()['windows'], 'Closing Settings retained its WebView')
         assert_resident(resident_pid, seconds=2)
         measurements['after_close_' + str(attempt)] = settled_rss()
+        measurements['after_close_memory_' + str(attempt)] = wait_for(released_memory, 'Closing Settings retained a WebKit renderer', seconds=10)
         assert_resident(resident_pid)
 
     # Exercise actual hide timers and cold reopening beyond the former tenth-
@@ -230,15 +256,36 @@ try:
     # the production release path still uses its normal delay.
     note = SANDBOX / 'resident-lifecycle.md'
     note.write_text('# Resident lifecycle\nThe same background process stays available.\n')
+    # Closing one view must leave the other view's IPC and rendering intact.
+    second(note)
+    wait_for(lambda: ready('main'), 'Preview did not paint before Settings')
+    preview_title = evaluate('return document.title;')
+    second('--settings')
+    wait_for(lambda: ready('settings'), 'Concurrent Settings did not paint')
+    assert set(window_state()['windows']) == {'main', 'settings'}
+    close_settings()
+    wait_for(lambda: 'settings' not in window_state()['windows'], 'Concurrent Settings was not destroyed')
+    assert evaluate('return document.title;') == preview_title
+    assert evaluate("return document.querySelector('[data-viewer]')?.dataset.viewer;") == 'markdown'
+    second('--hide')
+    wait_for(lambda: 'main' not in window_state()['windows'], 'Concurrent preview was not released')
+    assert_resident(resident_pid)
+    measurements['preview_cycle_memory'] = []
     for cycle in range(12):
         second(note)
         wait_for(lambda: ready('main'), 'Cold preview did not paint')
         second('--hide')
         wait_for(lambda: 'main' not in window_state()['windows'], 'Hidden preview WebView was not released')
         assert_resident(resident_pid)
+        measurements['preview_cycle_memory'].append(wait_for(released_memory, 'Preview release retained a WebKit renderer at cycle ' + str(cycle), seconds=10))
     measurements['released_preview_cycles'] = 12
-    measurements['after_preview_releases'] = settled_rss()
-    assert_resident(resident_pid)
+    measurements['after_preview_releases_immediate'] = memory_snapshot()
+    # Give asynchronous WebKit child shutdowns a bounded settling interval;
+    # PSS apportions shared mappings that aggregate RSS counts repeatedly.
+    assert_resident(resident_pid, seconds=15)
+    measurements['after_preview_releases'] = rss()
+    measurements['after_preview_release_settle'] = memory_snapshot()
+    assert released_memory(), 'Renderers remained after the final settling interval'
 
     # User-requested Restart must remain functional and hand off to a successor.
     second('--restart')

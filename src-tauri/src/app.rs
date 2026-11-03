@@ -231,6 +231,50 @@ fn background(app: &AppHandle, window: &WebviewWindow) -> tauri::window::Color {
     tauri::window::Color(r, g, b, 255)
 }
 
+#[cfg(target_os = "linux")]
+fn release_webview_ipc_on_destroy(window: &WebviewWindow) -> tauri::Result<()> {
+    use gtk::glib::{gobject_ffi, subclass::SignalId, translate::IntoGlib};
+    use gtk::prelude::{ObjectExt, ObjectType, WidgetExt};
+    use webkit2gtk::WebViewExt;
+
+    window.with_webview(|native| {
+        native.inner().connect_destroy(|webview| {
+            let Some(manager) = webview.user_content_manager() else {
+                return;
+            };
+            let Some(signal) = SignalId::lookup("script-message-received", manager.type_()) else {
+                return;
+            };
+            // Wry's IPC signal closure owns a strong WebView reference, while
+            // that view owns this manager. Break the cycle only on destruction.
+            // Each Wry view has its own manager, even when contexts are shared.
+            // SAFETY: manager stays strongly owned here on the GTK thread. The
+            // signal id belongs to its type; only handlers of that signal on
+            // this retiring manager are disconnected. Individual lookup works
+            // on older GLib versions where disconnect_matched lacks ID support.
+            unsafe {
+                let instance = manager.as_ptr().cast();
+                loop {
+                    let handler = gobject_ffi::g_signal_handler_find(
+                        instance,
+                        gobject_ffi::G_SIGNAL_MATCH_ID,
+                        signal.into_glib(),
+                        0,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                    );
+                    if handler == 0 {
+                        break;
+                    }
+                    gobject_ffi::g_signal_handler_disconnect(instance, handler);
+                }
+            }
+        });
+    })?;
+    Ok(())
+}
+
 fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let window =
         WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("index.html?settings".into()))
@@ -253,6 +297,8 @@ fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                     .join("webview"),
             )
             .build()?;
+    #[cfg(target_os = "linux")]
+    release_webview_ipc_on_destroy(&window)?;
     window.set_background_color(Some(background(app, &window)))?;
     Ok(window)
 }
@@ -484,6 +530,8 @@ pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     #[cfg(not(target_os = "macos"))]
     let builder = builder.decorations(false);
     let window = builder.build()?;
+    #[cfg(target_os = "linux")]
+    release_webview_ipc_on_destroy(&window)?;
     window.set_background_color(Some(background(app, &window)))?;
     Ok(window)
 }

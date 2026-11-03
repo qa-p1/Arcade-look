@@ -20,8 +20,10 @@ Settings create/destroy with an unchanged resident PID, twelve preview
 open/hide/release cycles beyond the former restart threshold, explicit Restart,
 both live themes, every viewer with generated real files at minimum and full display size,
 and 125% Settings text. `artifacts/ui/native` contains screenshots and memory
-measurements. RSS is observed without replacing the process to satisfy a memory
-threshold. Run `scripts/check-native.py --lifecycle-only` inside the same isolated
+measurements, including process counts, RSS, PSS and USS after each close/release
+and a bounded 15-second final settle. Once all views are closed, no WebKit renderer
+children may remain. The concurrent-window check verifies that destroying Settings preserves
+the other view's IPC. Memory is observed without replacing the resident process. Run `scripts/check-native.py --lifecycle-only` inside the same isolated
 runner to select the process/window checks without repeating the viewer matrix.
 Playwright separately checks the compiled UI with deterministic
 IPC fixtures, all Settings sections and error/retry/shortcut interactions.

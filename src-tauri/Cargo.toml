@@ -59,6 +59,7 @@ tauri = { version = "2.11", features = ["tray-icon"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 futures-util = { version = "0.3", default-features = false }
 gtk = "0.18"
+webkit2gtk = "2"
 ksni = { version = "0.3", default-features = false, features = ["tokio"] }
 
 [target.'cfg(windows)'.dependencies]

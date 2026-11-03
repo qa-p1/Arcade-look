@@ -100,6 +100,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "ttf-parser",
+ "webkit2gtk",
  "windows 0.62.2",
  "zbus",
  "zip",

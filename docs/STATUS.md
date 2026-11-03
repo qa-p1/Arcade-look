@@ -17,6 +17,20 @@ RSS is measured without claiming that replacing the process reclaimed memory.
 Test builds can shorten the existing preview release delay only inside the
 private isolated runner; production keeps the 30-second delay.
 
+Linux teardown now also breaks Wry's per-view IPC reference cycle: the content
+manager's signal handler held a strong reference back to the WebView. On that
+view's GTK destroy event, only its own script-message handlers are disconnected.
+Other views and the shared context remain usable. A native concurrent-preview/
+Settings check verifies that closing Settings leaves the preview's IPC working.
+No renderer process is killed and no browser-cache policy is changed.
+
+The isolated accelerated lifecycle baseline retained 14 renderer children after
+12 repeated preview releases and a 15-second settle (1,067.5 MiB process-tree
+PSS). The cleanup run, including the concurrent-window check, retained zero
+renderers and measured 139.0 MiB PSS. Native checks require zero retired renderers
+whenever all views are closed and record per-cycle RSS, PSS and USS; these are Linux
+test measurements rather than a cross-platform memory budget.
+
 ## 2026-11-03: 0.4.1 startup fix
 
 The installed 0.4.0 exited before creating a window when a Tools update created
