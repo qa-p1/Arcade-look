@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 — 2026-11-03
+
+- Keep the same background process when closing Settings, hiding previews or reclaiming idle WebViews. Remove the automatic memory-cleanup restarts, including the five-minute timer and every-tenth-preview replacement. Explicit Restart and installation/update handoffs remain available.
+- Verify native process identity across Settings close/reopen and twelve preview release cycles, while checking that the WebViews are destroyed and explicit Restart still works.
+
 ## 0.4.1 — 2026-11-03
 
 - Start normally after an update leaves both the old and new launcher or start-at-login entries. Preserve conflicting entries and record the optional migration warning in the app log instead of exiting before Settings or previews can open.

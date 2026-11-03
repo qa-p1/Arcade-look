@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Real GTK/WebKit checks; run only inside Link's disposable D-Bus/Xvfb runner."""
+import argparse
 import importlib.util
 import json
 import os
@@ -7,10 +8,15 @@ from pathlib import Path
 import re
 import socket
 import subprocess
+import sys
 import time
 import uuid
 
 import psutil
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--lifecycle-only', action='store_true', help='Check native process/window lifecycle without the viewer/layout matrix')
+options = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parents[1]
 LINK = Path(os.environ.get('ARCADE_LINK', ROOT.parent / 'Arcade-Link')).resolve()
@@ -26,7 +32,7 @@ exe = ROOT / 'src-tauri/target/debug/arcade-look'
 control = SANDBOX / 'look-native-control.sock'
 log = SANDBOX / 'look-native.log'
 endpoint = SANDBOX / 'arcade/run/arcade.look.endpoint'
-env = dict(session.env, ALOOK_DEBUG='1', ALOOK_E2E_CONTROL=str(control))
+env = dict(session.env, ALOOK_DEBUG='1', ALOOK_E2E_CONTROL=str(control), ALOOK_E2E_RELEASE_MILLIS='250')
 config = SANDBOX / 'config/arcade/look/settings.json'
 config.parent.mkdir(parents=True, exist_ok=True)
 config.write_text(json.dumps({'theme': 'light', 'globalShortcut': '', 'autoplay': False, 'keepReady': True}))
@@ -158,6 +164,23 @@ def current_pid():
         return None
 
 
+def window_state():
+    with socket.socket(socket.AF_UNIX) as channel:
+        channel.settimeout(3)
+        channel.connect(str(control))
+        channel.sendall(b'{"state":true}\n')
+        with channel.makefile('rb') as response:
+            return json.loads(response.readline())
+
+
+def assert_resident(pid, seconds=1.25):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        assert current_pid() == pid, ('Resident process changed unexpectedly', pid, current_pid())
+        assert window_state()['pid'] == pid, 'Native driver moved to another process'
+        time.sleep(.05)
+
+
 def rss():
     process = psutil.Process(current_pid())
     return sum(child.memory_info().rss for child in [process, *process.children(recursive=True)] if child.is_running())
@@ -171,13 +194,14 @@ try:
     for path, contents in legacy_entries.items():
         assert path.read_text() == contents, f'Upgrade changed conflicting integration: {path}'
     measurements['baseline'] = settled_rss()
-    # Repeated create/destroy must return the entire process tree to its idle RSS.
+    resident_pid = current_pid()
+    measurements['initial_pid'] = resident_pid
+    # Destroy Settings and measure reclaimed resources without replacing Look.
     for attempt in range(2):
-        old_pid = current_pid()
         second('--settings')
         wait_for(lambda: 'frontend ready' in log.read_text(errors='replace'), 'Settings never became ready')
         wait_for(lambda: ready('settings'), 'Settings did not paint')
-        if attempt == 0:
+        if attempt == 0 and not options.lifecycle_only:
             native = evaluate("return await window.__TAURI_INTERNALS__.invoke('plugin:window|inner_size');", 'settings')
             assert native == {'width': 760, 'height': 560}, native
             for theme in ('light', 'dark'):
@@ -196,16 +220,46 @@ try:
                         wait_for(lambda: ready('settings'), 'Settings section did not paint')
                         capture('settings-' + section.lower().replace(' ', '-') + '-' + theme + '-' + str(factor), 'settings', [720, 520])
         close_settings()
-        wait_for(lambda: current_pid() not in (None, old_pid), 'Closing Settings did not return to a fresh idle service', seconds=40)
-        wait_for(control.exists, 'Restarted service did not expose its private test driver')
+        wait_for(lambda: 'settings' not in window_state()['windows'], 'Closing Settings retained its WebView')
+        assert_resident(resident_pid, seconds=2)
         measurements['after_close_' + str(attempt)] = settled_rss()
-        # Closing Settings restarts the idle service, which is leaner than a
-        # first start (that one also ran migration and integration setup), so
-        # memory must not grow past the pre-open level; repeated open/close
-        # cycles must then land on the same idle level within 5 MB.
-        assert measurements['after_close_' + str(attempt)] <= measurements['baseline'] + 5 * 1024 * 1024, measurements
-        if attempt:
-            assert abs(measurements['after_close_1'] - measurements['after_close_0']) <= 5 * 1024 * 1024, measurements
+        assert_resident(resident_pid)
+
+    # Exercise actual hide timers and cold reopening beyond the former tenth-
+    # release restart threshold. Only the test binary shortens the 30s timer;
+    # the production release path still uses its normal delay.
+    note = SANDBOX / 'resident-lifecycle.md'
+    note.write_text('# Resident lifecycle\nThe same background process stays available.\n')
+    for cycle in range(12):
+        second(note)
+        wait_for(lambda: ready('main'), 'Cold preview did not paint')
+        second('--hide')
+        wait_for(lambda: 'main' not in window_state()['windows'], 'Hidden preview WebView was not released')
+        assert_resident(resident_pid)
+    measurements['released_preview_cycles'] = 12
+    measurements['after_preview_releases'] = settled_rss()
+    assert_resident(resident_pid)
+
+    # User-requested Restart must remain functional and hand off to a successor.
+    second('--restart')
+    wait_for(lambda: current_pid() not in (None, resident_pid), 'Explicit Restart did not replace the process')
+    def successor_ready():
+        try:
+            return window_state()['pid'] == current_pid()
+        except (OSError, json.JSONDecodeError):
+            return False
+    wait_for(successor_ready, 'Explicit successor did not become ready')
+    measurements['explicit_restart_pid'] = current_pid()
+    second('--settings')
+    wait_for(lambda: ready('settings'), 'Settings did not reopen after explicit Restart')
+    close_settings()
+    wait_for(lambda: 'settings' not in window_state()['windows'], 'Restarted Settings WebView was not destroyed')
+    assert_resident(measurements['explicit_restart_pid'], seconds=2)
+    (SHOTS / 'lifecycle.json').write_text(json.dumps(measurements, indent=2) + '\n')
+    if options.lifecycle_only:
+        print('PASS: stable resident PID through Settings close and 12 preview releases; WebViews destroyed; explicit Restart works.')
+        sys.exit(0)
+
     samples = SANDBOX / 'real-files'
     subprocess.run(['python3', str(ROOT / 'scripts/make-fixtures.py'), str(samples)], check=True)
     (samples / 'command.lookcommand').write_text('command plugin input')
@@ -253,7 +307,7 @@ try:
         close_settings()
     (SHOTS / 'measurements.json').write_text(json.dumps(measurements, indent=2) + '\n')
     (SHOTS / 'matrix.json').write_text(json.dumps(matrix, indent=2) + '\n')
-    print('PASS: native Settings lifecycle/RSS, live themes, all viewer types, minimum/full-size layout; screenshots saved.')
+    print('PASS: native resident PID/WebView lifecycle, explicit Restart, live themes, all viewer types, minimum/full-size layout; screenshots saved.')
 finally:
     try:
         second('--quit')

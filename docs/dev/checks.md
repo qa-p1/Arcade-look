@@ -16,10 +16,14 @@ unit-test discovery continues to ignore these runtime tests; CI must run both
 explicit commands. No failures or unavailable artifacts may be counted as passes.
 
 The real native check builds the embedded frontend with the e2e feature, checks
-Settings create/destroy, two process-tree RSS returns within 5 MiB, both live
-themes, every viewer with generated real files at minimum and full display size,
+Settings create/destroy with an unchanged resident PID, twelve preview
+open/hide/release cycles beyond the former restart threshold, explicit Restart,
+both live themes, every viewer with generated real files at minimum and full display size,
 and 125% Settings text. `artifacts/ui/native` contains screenshots and memory
-measurements. Playwright separately checks the compiled UI with deterministic
+measurements. RSS is observed without replacing the process to satisfy a memory
+threshold. Run `scripts/check-native.py --lifecycle-only` inside the same isolated
+runner to select the process/window checks without repeating the viewer matrix.
+Playwright separately checks the compiled UI with deterministic
 IPC fixtures, all Settings sections and error/retry/shortcut interactions.
 Those browser fixtures do not verify the native backend.
 

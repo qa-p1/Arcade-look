@@ -1,5 +1,22 @@
 # Arcade Look: status
 
+## 2026-11-03: 0.4.2 stable background process
+
+The owner requires that window close/hide and memory cleanup never automatically
+restart the background app. Removed Look's five-minute cleanup restart, its
+release counter/tenth-preview replacement, and the Settings-close restart.
+Settings still destroys its WebView immediately; hidden previews still release
+their WebView after 30 seconds. The resident process keeps its identity and Link,
+tray and shortcut listeners. Explicit Restart and installer/update handoffs are
+unchanged, as is the configured optional exit for non-resident use.
+
+The native lifecycle check now asserts that Settings and preview WebViews are
+actually destroyed while the PID stays fixed through repeated reopen/release
+cycles. It also verifies that an explicit Restart creates a working successor.
+RSS is measured without claiming that replacing the process reclaimed memory.
+Test builds can shorten the existing preview release delay only inside the
+private isolated runner; production keeps the 30-second delay.
+
 ## 2026-11-03: 0.4.1 startup fix
 
 The installed 0.4.0 exited before creating a window when a Tools update created
