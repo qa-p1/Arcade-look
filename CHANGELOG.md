@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 — 2026-11-03
+
+- Start normally after an update leaves both the old and new launcher or start-at-login entries. Preserve conflicting entries and record the optional migration warning in the app log instead of exiting before Settings or previews can open.
+- Verify native windows with a legacy-entry conflict, and check the actual AppImage with both launcher and login-entry upgrade conflicts before publishing.
+
 ## 0.4.0 — 2026-10-29
 
 - Adopt the Arcade kit’s Inter, blue accent, controls, viewer chrome, welcome, actions menu and Connected apps page. Keep all viewers, plugins, navigation, metadata and file-manager integrations.
