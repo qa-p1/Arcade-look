@@ -2,6 +2,8 @@
 
 ## 0.4.2 — 2026-11-03
 
+- Keep previews open when the pointer leaves or another window takes focus. Close only on an explicit close/toggle action; verify focus loss, Escape, Space and native window close in the real Linux UI.
+
 - Deliver Linux connected-action notifications from a blocking worker so synchronous D-Bus delivery cannot panic inside the async runtime. Keep notification opt-in, visible-window and cancelled-action suppression.
 
 - Keep the same background process when closing Settings, hiding previews or reclaiming idle WebViews. Remove the automatic memory-cleanup restarts, including the five-minute timer and every-tenth-preview replacement. Explicit Restart and installation/update handoffs remain available.

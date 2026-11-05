@@ -138,17 +138,9 @@ pub fn run() {
                     app::hide(window.app_handle());
                 }
             }
-            if matches!(event, WindowEvent::Focused(false))
-                && window.label() == app::MAIN
-                && window.app_handle().state::<app::AppState>().is_visible()
-                && !window.app_handle().state::<app::AppState>().just_shown()
-                && !window
-                    .app_handle()
-                    .get_webview_window(app::SETTINGS)
-                    .is_some_and(|settings| settings.is_visible().unwrap_or(false))
-            {
-                app::hide(window.app_handle());
-            }
+            // Focus follows the pointer on some desktops. Losing focus must
+            // not dismiss a preview or interrupt reading/media playback.
+            // Only explicit close/toggle actions hide the preview.
             // The window may get focus after `show` returned (it maps asynchronously): hand
             // keyboard focus to the web view so Space/Esc/arrows work without a click.
             #[cfg(target_os = "linux")]

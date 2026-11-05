@@ -1,5 +1,14 @@
 # Arcade Look: status
 
+## 2026-11-05: previews stay open when focus changes
+
+Removed preview dismissal on focus loss. On focus-follows-mouse desktops,
+moving the pointer outside the preview triggered this handler after its 400 ms
+startup grace period. Native verification reproduces the unwanted hide with a
+separate X11 window, then requires the preview to remain visible after pointer
+and focus transfer. Escape, Space and native window close remain explicit close
+actions and release the preview without replacing its resident process.
+
 ## 2026-11-03: 0.4.2 stable background process
 
 Linux connected-action notifications now use direct notify-rust delivery on a

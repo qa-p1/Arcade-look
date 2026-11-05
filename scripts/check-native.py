@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Real GTK/WebKit checks; run only inside Link's disposable D-Bus/Xvfb runner."""
 import argparse
+from contextlib import contextmanager
+import ctypes
 import importlib.util
 import json
 import os
@@ -16,6 +18,7 @@ import psutil
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--lifecycle-only', action='store_true', help='Check native process/window lifecycle without the viewer/layout matrix')
+parser.add_argument('--focus-only', action='store_true', help='Check preview focus retention and explicit close controls')
 options = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,6 +99,35 @@ def evaluate(script, window='main', size=None):
 
 def ready(window):
     return evaluate("return !!document.querySelector('h1') && !document.querySelector('.skeleton');", window)
+
+
+@contextmanager
+def unrelated_window():
+    # A real external X11 window: Settings deliberately did not trigger the old
+    # focus-loss hide handler, so using Settings would miss this regression.
+    x11 = ctypes.CDLL('libX11.so.6')
+    display_type, window_type = ctypes.c_void_p, ctypes.c_ulong
+    for name, result, arguments in (
+        ('XOpenDisplay', display_type, [ctypes.c_char_p]),
+        ('XDefaultRootWindow', window_type, [display_type]),
+        ('XCreateSimpleWindow', window_type, [display_type, window_type, ctypes.c_int, ctypes.c_int, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_ulong, ctypes.c_ulong]),
+        ('XMapWindow', ctypes.c_int, [display_type, window_type]),
+        ('XDestroyWindow', ctypes.c_int, [display_type, window_type]),
+        ('XSync', ctypes.c_int, [display_type, ctypes.c_int]),
+        ('XCloseDisplay', ctypes.c_int, [display_type]),
+    ):
+        function = getattr(x11, name)
+        function.restype, function.argtypes = result, arguments
+    display = x11.XOpenDisplay(env['DISPLAY'].encode())
+    assert display, 'Could not open the isolated X11 display'
+    window = x11.XCreateSimpleWindow(display, x11.XDefaultRootWindow(display), 0, 0, 100, 100, 0, 0, 0)
+    try:
+        x11.XMapWindow(display, window)
+        x11.XSync(display, False)
+        yield str(window)
+    finally:
+        x11.XDestroyWindow(display, window)
+        x11.XCloseDisplay(display)
 
 
 def text_scale(factor, window='main'):
@@ -226,7 +258,7 @@ try:
         second('--settings')
         wait_for(lambda: 'frontend ready' in log.read_text(errors='replace'), 'Settings never became ready')
         wait_for(lambda: ready('settings'), 'Settings did not paint')
-        if attempt == 0 and not options.lifecycle_only:
+        if attempt == 0 and not (options.lifecycle_only or options.focus_only):
             native = evaluate("return await window.__TAURI_INTERNALS__.invoke('plugin:window|inner_size');", 'settings')
             assert native == {'width': 760, 'height': 560}, native
             for theme in ('light', 'dark'):
@@ -256,6 +288,33 @@ try:
     # the production release path still uses its normal delay.
     note = SANDBOX / 'resident-lifecycle.md'
     note.write_text('# Resident lifecycle\nThe same background process stays available.\n')
+    second(note)
+    wait_for(lambda: ready('main'), 'Preview did not paint before focus test')
+    preview_window = subprocess.check_output(['xdotool', 'search', '--onlyvisible', '--pid', str(resident_pid)], env=env, text=True).splitlines()[-1]
+    subprocess.run(['xdotool', 'windowfocus', '--sync', preview_window], env=env, check=True)
+    wait_for(lambda: evaluate('return document.hasFocus();'), 'Preview never gained focus')
+    # Cross the old 400ms grace period, then move outside and transfer focus as
+    # a focus-follows-mouse compositor does. No real desktop is involved.
+    assert_resident(resident_pid, seconds=.6)
+    with unrelated_window() as other:
+        subprocess.run(['xdotool', 'mousemove', '--window', other, '20', '20', 'windowfocus', '--sync', other], env=env, check=True)
+        wait_for(lambda: not evaluate('return document.hasFocus();'), 'External window did not take focus')
+        for _ in range(15):
+            assert evaluate("return await window.__TAURI_INTERNALS__.invoke('plugin:window|is_visible');"), 'Preview hid when pointer/focus moved to another window'
+            time.sleep(.1)
+    assert_resident(resident_pid)
+    for key in ('Escape', 'space'):
+        subprocess.run(['xdotool', 'windowfocus', '--sync', preview_window, 'key', '--clearmodifiers', key], env=env, check=True)
+        wait_for(lambda: 'main' not in window_state()['windows'], 'Explicit ' + key + ' did not close and release preview')
+        second(note)
+        wait_for(lambda: ready('main'), 'Preview did not reopen after ' + key)
+        preview_window = subprocess.check_output(['xdotool', 'search', '--onlyvisible', '--pid', str(resident_pid)], env=env, text=True).splitlines()[-1]
+    evaluate("setTimeout(() => window.__TAURI_INTERNALS__.invoke('plugin:window|close'), 100); return true;")
+    wait_for(lambda: 'main' not in window_state()['windows'], 'Explicit window close did not release preview')
+    assert_resident(resident_pid)
+    if options.focus_only:
+        print('PASS: preview survives pointer/focus loss; Escape, Space and window close still work; resident PID unchanged.')
+        sys.exit(0)
     # Closing one view must leave the other view's IPC and rendering intact.
     second(note)
     wait_for(lambda: ready('main'), 'Preview did not paint before Settings')
