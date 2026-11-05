@@ -24,6 +24,12 @@ IPC fixtures, all Settings sections and error/retry/shortcut interactions.
 Those browser fixtures do not verify the native backend.
 
 Installer jobs smoke-test AppImage, DMG and Windows setup in temporary profiles.
+They start alongside the source checks rather than waiting for the slowest OS.
+The beta rehearsal requires both the source matrix and installer matrix to pass;
+release publication still depends on the complete reusable CI workflow.
+Rust caches restore on every ref and save only on main pushes. Linux packaging
+caches the pinned Link runner too and reuses its debug CLI for the tray gate,
+instead of building a second release CLI for the same test.
 The beta package rehearsal checks all three installers, arcade-release.json and
 SHA256SUMS.txt and uploads a candidate artifact without publishing. tag.yml and
 release.yml remain manual; official releases are outside this task’s authorization.
