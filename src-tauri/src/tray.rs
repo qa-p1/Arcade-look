@@ -52,11 +52,17 @@ fn run(app: &AppHandle, action: Action) {
 /// Successors wait for the old process to release the single-instance slot.
 pub const RESTART_ENV: &str = "ARCADE_LOOK_RESTART_AFTER";
 
-pub fn restart_request(app: &AppHandle) -> Result<(), arcade_link::LinkError> {
+pub(crate) fn restart_command() -> std::process::Command {
     let mut command = std::process::Command::new(crate::integration::launcher_path());
-    // The successor runs from a new mount; it mustn't keep this one alive.
-    arcade_link::childenv::detach_from_image(&mut command)
-        .arg("--service")
+    // A fresh AppImage must use host libraries to start its launcher, then
+    // configure its own mount. Detaching descriptors alone leaves old GTK/
+    // library paths behind and can break the host shell before startup.
+    arcade_link::childenv::sanitize(&mut command).arg("--service");
+    command
+}
+
+pub fn restart_request(app: &AppHandle) -> Result<(), arcade_link::LinkError> {
+    restart_command()
         .env(RESTART_ENV, std::process::id().to_string())
         .spawn()
         .map_err(|e| arcade_link::LinkError::unavailable(e.to_string()))?;
@@ -370,6 +376,56 @@ mod native {
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
+    #[test]
+    fn restart_command_cleans_image_environment() {
+        use std::{ffi::OsStr, path::PathBuf, process::Command};
+        const CHILD: &str = "ARCADE_LOOK_TEST_RESTART_ENV";
+        if let Some(root) = std::env::var_os(CHILD) {
+            let root = PathBuf::from(root);
+            let command = super::restart_command();
+            let env: std::collections::HashMap<_, _> = command.get_envs().collect();
+            assert_eq!(env.get(OsStr::new("APPDIR")), Some(&None));
+            assert_eq!(env.get(OsStr::new("APPIMAGE")), Some(&None));
+            assert_eq!(
+                env.get(OsStr::new("LD_LIBRARY_PATH")),
+                Some(&Some(OsStr::new("/user/lib")))
+            );
+            assert_eq!(
+                env.get(OsStr::new("PATH")),
+                Some(&Some(OsStr::new("/usr/bin")))
+            );
+            assert_eq!(command.get_current_dir(), Some(root.join("home").as_path()));
+            assert_eq!(
+                command.get_args().collect::<Vec<_>>(),
+                [OsStr::new("--service")]
+            );
+            return;
+        }
+        let root = std::env::temp_dir().join(format!("look-restart-env-{}", std::process::id()));
+        let image = root.join("image");
+        std::fs::create_dir_all(image.join("usr")).unwrap();
+        std::fs::create_dir_all(root.join("home")).unwrap();
+        let result = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "tray::tests::restart_command_cleans_image_environment",
+                "--nocapture",
+            ])
+            .env(CHILD, &root)
+            .env("APPDIR", &image)
+            .env("APPIMAGE", root.join("Download.AppImage"))
+            .env("HOME", root.join("home"))
+            .env(
+                "LD_LIBRARY_PATH",
+                format!("{}/usr/lib:/user/lib", image.display()),
+            )
+            .env("PATH", format!("{}/usr/bin:/usr/bin", image.display()))
+            .current_dir(image.join("usr"))
+            .status();
+        let _ = std::fs::remove_dir_all(root);
+        assert!(result.unwrap().success());
+    }
+
     #[test]
     fn an_exited_unreaped_predecessor_is_not_alive() {
         let mut child = std::process::Command::new("true").spawn().unwrap();
