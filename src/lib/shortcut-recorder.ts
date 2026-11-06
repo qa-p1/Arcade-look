@@ -85,6 +85,7 @@ export class ShortcutRecorder {
     this.warning.replaceChildren();
     this.record.classList.add('recording');
     this.record.textContent = 'Press keys…';
+    this.record.focus();
     void invoke('link_shortcut_recording', { recording: true });
   }
   private end() {

@@ -742,10 +742,11 @@ export class App {
       if (k === 'Escape') (e.target as HTMLElement).blur();
       return;
     }
-    // On the settings screen, Space and Enter operate the focused switch or button.
+    // Focused controls own their activation keys. Preview shortcuts must not
+    // turn a toolbar activation into opening or closing the preview itself.
     if (
       (k === ' ' || k === 'Enter') &&
-      (e.target as Element | null)?.closest?.('.settings :is(button, input)')
+      (e.target as Element | null)?.closest?.('button, input, a[href], summary')
     )
       return;
     if (this.helpEl && (k === 'Escape' || k === '?' || k === ' ' || k === 'Enter')) {
@@ -763,11 +764,6 @@ export class App {
       e.preventDefault();
       return;
     }
-    if (
-      (k === ' ' || k === 'Enter') &&
-      (e.target as Element | null)?.closest?.('.arcade-actions button')
-    )
-      return;
     if (!mod && e.altKey && (k === 'ArrowLeft' || k === 'ArrowRight')) {
       e.preventDefault();
       void (k === 'ArrowLeft' ? this.back() : this.forward());
