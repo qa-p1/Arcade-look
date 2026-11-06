@@ -57,6 +57,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: arcade-look/src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -101,12 +102,13 @@ jobs:
 
   installers:
     name: Installers
-    needs: check
+    # Packaging is independent of source tests. Start it immediately; the
+    # aggregate below and release's ci dependency still require both to pass.
     uses: ./.github/workflows/build.yml
 
   release-preview:
     name: Beta package and metadata rehearsal (no publication)
-    needs: installers
+    needs: [check, installers]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
