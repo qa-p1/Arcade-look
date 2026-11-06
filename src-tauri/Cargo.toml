@@ -1,6 +1,6 @@
 [package]
 name = "arcade-look"
-version = "0.4.1"
+version = "0.4.2"
 description = "Universal Quick Look: select a file, press Space, see it instantly"
 authors = ["Arcade Look contributors"]
 license = "MIT"
@@ -59,6 +59,8 @@ tauri = { version = "2.11", features = ["tray-icon"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 futures-util = { version = "0.3", default-features = false }
 gtk = "0.18"
+webkit2gtk = "2"
+notify-rust = "4"
 ksni = { version = "0.3", default-features = false, features = ["tokio"] }
 
 [target.'cfg(windows)'.dependencies]

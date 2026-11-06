@@ -16,10 +16,16 @@ unit-test discovery continues to ignore these runtime tests; CI must run both
 explicit commands. No failures or unavailable artifacts may be counted as passes.
 
 The real native check builds the embedded frontend with the e2e feature, checks
-Settings create/destroy, two process-tree RSS returns within 5 MiB, both live
-themes, every viewer with generated real files at minimum and full display size,
+Settings create/destroy with an unchanged resident PID, twelve preview
+open/hide/release cycles beyond the former restart threshold, explicit Restart,
+both live themes, every viewer with generated real files at minimum and full display size,
 and 125% Settings text. `artifacts/ui/native` contains screenshots and memory
-measurements. Playwright separately checks the compiled UI with deterministic
+measurements, including process counts, RSS, PSS and USS after each close/release
+and a bounded 15-second final settle. Once all views are closed, no WebKit renderer
+children may remain. The concurrent-window check verifies that destroying Settings preserves
+the other view's IPC. Memory is observed without replacing the resident process. Run `scripts/check-native.py --lifecycle-only` inside the same isolated
+runner to select the process/window checks without repeating the viewer matrix.
+Playwright separately checks the compiled UI with deterministic
 IPC fixtures, all Settings sections and error/retry/shortcut interactions.
 Those browser fixtures do not verify the native backend.
 
