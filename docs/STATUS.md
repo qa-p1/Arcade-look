@@ -1,5 +1,15 @@
 # Arcade Look: status
 
+## 2026-11-06: keyboard control follow-up for 0.4.3
+
+The Terra UX audit identified toolbar key activation being intercepted by preview
+shortcuts, and a conflict retry that began recording without focusing the recorder.
+Both are reproduced by new UI tests against the previous code. Focused controls
+now handle Enter/Space themselves, and beginning capture focuses the recorder.
+Tests cover Settings and Copy path buttons, background preview Enter/Space, and
+conflict retry followed directly by a new chord. Existing layout, live settings,
+retry and shortcut checks remain required.
+
 ## 2026-11-05: previews stay open when focus changes
 
 Removed preview dismissal on focus loss. On focus-follows-mouse desktops,

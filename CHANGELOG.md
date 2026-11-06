@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3 — 2026-11-06
+
+- Sanitize the restart successor's environment as well as its descriptors, so a fresh AppImage launcher cannot load incompatible libraries from its predecessor. Gate the actual Linux package on Settings/preview release, stable resident identity and explicit Restart/Quit.
+- Let Enter and Space activate the focused preview toolbar button, link or control instead of triggering the preview's open/close shortcuts. Keep those shortcuts available when focus is on the preview itself.
+- Focus the shortcut recorder when choosing another shortcut after a conflict, so the next key chord is captured immediately.
+- Add keyboard regressions for Settings and Copy path activation, preview shortcuts and conflict → Choose another → save a new chord, without manually restoring focus in the test.
+
 ## 0.4.2 — 2026-11-03
 
 - Keep previews open when the pointer leaves or another window takes focus. Close only on an explicit close/toggle action; verify focus loss, Escape, Space and native window close in the real Linux UI.

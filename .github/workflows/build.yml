@@ -101,6 +101,13 @@ jobs:
         shell: bash
         run: dbus-run-session -- xvfb-run -a python3 scripts/verify-appimage.py src-tauri/target/release/bundle/appimage/*.AppImage arcade.look Arcade-Look.AppImage arcade-look
 
+      # Close/reopen and explicit Restart must work in the shipping AppImage,
+      # including the launcher environment used by its successor process.
+      - name: Verify published AppImage close/reopen and Restart
+        if: runner.os == 'Linux'
+        shell: bash
+        run: dbus-run-session -- xvfb-run -a python3 scripts/verify-resident.py src-tauri/target/release/bundle/appimage/*.AppImage
+
       - name: Tray icon registration (real StatusNotifierWatcher, isolated)
         if: runner.os == 'Linux'
         shell: bash

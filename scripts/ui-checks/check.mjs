@@ -22,6 +22,48 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
 const mock = readFileSync(join(root, 'scripts/ui-checks/mock.js'), 'utf8');
 let pages = 0;
 try {
+  const keyboardFailures = [];
+  for (const [name, test] of [
+    ['preview toolbar activation', async (page) => {
+      await page.goto(url);
+      await page.getByRole('heading', { name: 'Getting started', exact: true }).waitFor();
+      await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text) => { window.__copiedPath = text; } } }));
+      for (const key of ['Enter', 'Space']) {
+        await page.evaluate(() => { window.__mock.calls = []; });
+        await page.getByRole('button', { name: 'Settings', exact: true }).focus();
+        await page.keyboard.press(key);
+        await page.waitForFunction(() => window.__mock.calls.some(([name]) => name === 'open_settings'), null, { timeout: 1500 });
+        assert.equal(await page.evaluate(() => window.__mock.calls.some(([name]) => ['open_default', 'hide_window'].includes(name))), false, 'Button activation triggered a preview shortcut');
+        await page.getByRole('button', { name: 'Copy path (Ctrl+C)', exact: true }).focus();
+        await page.evaluate(() => { window.__copiedPath = null; });
+        await page.keyboard.press(key);
+        await page.waitForFunction(() => window.__copiedPath === window.__mock.file.path, null, { timeout: 1500 });
+        assert.equal(await page.evaluate(() => window.__mock.calls.some(([name]) => ['open_default', 'hide_window'].includes(name))), false, 'Copy path triggered a preview shortcut');
+      }
+      await page.evaluate(() => document.activeElement.blur());
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(() => window.__mock.calls.some(([name]) => name === 'open_default'));
+      await page.keyboard.press('Space');
+      await page.waitForFunction(() => window.__mock.calls.some(([name]) => name === 'hide_window'));
+    }],
+    ['shortcut conflict retry focus', async (page) => {
+      await page.goto(url + '/?settings');
+      await page.getByRole('tab', { name: 'Shortcuts', exact: true }).click();
+      const record = page.getByRole('button', { name: 'Record global shortcut' });
+      await record.click();
+      await page.keyboard.press('Control+Alt+F');
+      await page.getByRole('button', { name: 'Choose another', exact: true }).click();
+      assert.equal(await record.evaluate((el) => document.activeElement === el), true, 'Choose another did not focus the recorder');
+      await page.keyboard.press('Control+Alt+P');
+      await page.waitForFunction(() => window.__mock.config.globalShortcut === 'Ctrl+Alt+P', null, { timeout: 1500 });
+    }],
+  ]) {
+    const page = await browser.newPage({ viewport: { width: 720, height: 520 } });
+    await page.addInitScript(mock);
+    try { await test(page); } catch (error) { keyboardFailures.push(`${name}: ${error.message}`); }
+    finally { await page.close(); }
+  }
+  assert.deepEqual(keyboardFailures, [], keyboardFailures.join('\n'));
   for (const theme of ['light', 'dark']) {
     for (const scale of [1, 1.25]) {
       const page = await browser.newPage({ viewport: { width: 720, height: 520 }, colorScheme: theme });
@@ -71,7 +113,7 @@ try {
       await page.getByRole('button', { name: 'Use anyway', exact: true }).waitFor();
       assert.equal(await page.evaluate(() => window.__mock.config.globalShortcut), 'Ctrl+Alt+Shift+Space');
       await page.getByRole('button', { name: 'Choose another', exact: true }).click();
-      await page.getByRole('button', { name: 'Record global shortcut' }).focus();
+      assert.equal(await page.getByRole('button', { name: 'Record global shortcut' }).evaluate((el) => document.activeElement === el), true);
       await page.keyboard.press('Escape');
       await page.getByRole('button', { name: 'Record global shortcut' }).click();
       await page.keyboard.press('Control+Alt+P');
@@ -106,5 +148,5 @@ try {
     await page.screenshot({ path: join(shots, `preview-minimum-${theme}.png`) });
     await page.close();
   }
-  console.log(`PASS: ${pages} minimum-size Settings states in light/dark at 100/125%, live themes, shortcut conflict/apply, failure/retry, preview preserved while opening Settings, empty actions, and preview screenshots.`);
+  console.log(`PASS: toolbar keyboard activation, shortcut conflict retry focus, preview Enter/Space shortcuts, ${pages} minimum-size Settings states in light/dark at 100/125%, live themes, shortcut conflict/apply, failure/retry, preview preserved while opening Settings, empty actions, and preview screenshots.`);
 } finally { await browser.close(); server.close(); }
