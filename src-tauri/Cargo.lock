@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "arcade-look"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "arcade-link",
  "base64 0.23.1",
@@ -84,6 +84,7 @@ dependencies = [
  "ksni",
  "lofty",
  "lzma-rust2",
+ "notify-rust",
  "percent-encoding",
  "pulldown-cmark",
  "quick-xml 0.41.0",
@@ -100,6 +101,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "ttf-parser",
+ "webkit2gtk",
  "windows 0.62.2",
  "zbus",
  "zip",

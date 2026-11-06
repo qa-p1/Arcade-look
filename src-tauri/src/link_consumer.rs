@@ -874,20 +874,25 @@ pub async fn link_invoke(
             any_window_visible,
             cancel.load(Ordering::SeqCst),
         ) {
-            use tauri_plugin_notification::NotificationExt;
             let body = if result.is_ok() {
                 "Your connected app action finished."
             } else {
                 "Couldn't finish the connected app action. Open Settings for details."
             };
-            if let Err(error) = app
-                .notification()
-                .builder()
-                .title("Arcade Look")
-                .body(body)
-                .show()
+            #[cfg(target_os = "linux")]
+            drop(linux_notification(body));
+            #[cfg(not(target_os = "linux"))]
             {
-                eprintln!("Couldn't show the action notification: {error}");
+                use tauri_plugin_notification::NotificationExt;
+                if let Err(error) = app
+                    .notification()
+                    .builder()
+                    .title("Arcade Look")
+                    .body(body)
+                    .show()
+                {
+                    eprintln!("Couldn't show the action notification: {error}");
+                }
             }
         }
         if let Err(error) = &result {
@@ -1001,12 +1006,75 @@ pub async fn link_open(app_id: String) -> Res<()> {
     .await
 }
 
+#[cfg(target_os = "linux")]
+fn linux_notification(body: &'static str) -> tauri::async_runtime::JoinHandle<Res<()>> {
+    // The synchronous zbus delivery can enter its own Tokio runtime. Keep it
+    // on a blocking worker rather than the notification plugin's async task.
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = notify_rust::Notification::new()
+            .appname("Arcade Look")
+            .summary("Arcade Look")
+            .body(body)
+            .icon("arcade-look")
+            .show()
+            .map(|_| ())
+            .map_err(|error| error.to_string());
+        if let Err(error) = &result {
+            eprintln!("Couldn't show the action notification: {error}");
+        }
+        result
+    })
+}
+
 fn should_notify(enabled: bool, any_window_visible: bool, cancelled: bool) -> bool {
     enabled && !any_window_visible && !cancelled
 }
 
 #[cfg(test)]
 mod notification_tests {
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_delivery_from_async_runtime_returns_bus_error_without_panicking() {
+        const CHILD: &str = "ARCADE_LOOK_NOTIFICATION_TEST_CHILD";
+        if std::env::var(CHILD).as_deref() != Ok("1") {
+            // Scope the unavailable bus to a child so ordinary cargo test can
+            // neither send a real notification nor race process-wide env edits.
+            let root = std::env::temp_dir().join(format!(
+                "look-notification-{}",
+                arcade_link::endpoint::new_token().unwrap()
+            ));
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "link_consumer::notification_tests::linux_delivery_from_async_runtime_returns_bus_error_without_panicking",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}/no-bus", root.display()))
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        let delivery = tauri::async_runtime::block_on(async {
+            tauri::async_runtime::spawn(async {
+                super::linux_notification("Notification delivery regression test").await
+            })
+            .await
+        })
+        .expect("the async caller must not panic")
+        .expect("notification delivery on the blocking worker must not panic");
+        assert!(
+            delivery.is_err(),
+            "the unavailable private bus must return an ordinary error"
+        );
+    }
+
     #[test]
     fn notifications_require_opt_in_a_hidden_app_and_a_finished_action() {
         for enabled in [false, true] {

@@ -42,3 +42,5 @@ The default preview trigger depends on your platform:
 ## Try this first
 
 Open an image or a PDF, then use the title-bar Back and Forward buttons to revisit your browsing history. In a folder, **Left** and **Right** move to the previous or next file. Press **?** to see the shortcuts supported by the current viewer.
+
+The preview stays open when you move the pointer outside it or switch to another window. Close it with the title-bar Close button, **Escape**, or **Space** while the preview has keyboard focus.

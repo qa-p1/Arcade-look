@@ -7,7 +7,7 @@
 use crate::config::{Config, WindowState};
 use crate::plugins::Plugin;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
@@ -35,20 +35,6 @@ pub enum Request {
 // Thirty seconds keeps repeated Space previews warm while promptly releasing expensive
 // WebKit/WebView2 processes after browsing stops (SPEC §17.5), even with idleMinutes = 0.
 const WEBVIEW_IDLE_RELEASE: Duration = Duration::from_secs(30);
-
-// Destroying the webview leaves WebKit's network process and the grown heap
-// behind (about 145 MiB against 40 for a fresh process). After this much more
-// quiet, a resident Look restarts into the background. Browsing sessions never
-// see it; the first preview after a long pause costs about 50 ms more.
-const LEAN_RESTART_AFTER: Duration = Duration::from_secs(5 * 60);
-
-// Each released webview also leaves some of WebKit's shared memory behind in
-// this process. Someone previewing a file every minute or two never gives Look
-// the quiet above: an all-day session grew by about two descriptors for every
-// three previews, toward the 1024 limit. After this many releases the next one
-// restarts Look as soon as it is hidden, so the leftovers stay bounded.
-const LEAN_RESTART_EVERY: u32 = 10;
-static RELEASES: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Default)]
 struct FrontendState {
@@ -104,8 +90,6 @@ pub struct AppState {
     pub window_state: Mutex<WindowState>,
     pub service: AtomicBool,
     pub visible: AtomicBool,
-    /// When the preview was last shown; focus loss right after that is ignored.
-    pub shown_at: Mutex<Option<Instant>>,
     pub source: Mutex<Source>,
     pub current: Mutex<Option<PathBuf>>,
     pub activation_token: Mutex<Option<String>>,
@@ -130,7 +114,6 @@ impl AppState {
             window_state: Mutex::new(crate::config::load_state()),
             service: AtomicBool::new(service),
             visible: AtomicBool::new(false),
-            shown_at: Mutex::new(None),
             source: Mutex::new(Source::Local),
             current: Mutex::new(None),
             activation_token: Mutex::new(None),
@@ -147,15 +130,6 @@ impl AppState {
 
     pub fn is_visible(&self) -> bool {
         self.visible.load(Ordering::SeqCst)
-    }
-
-    /// Mapping or raising the window can deliver a brief focus-out (no window
-    /// manager, some compositors); that one must not close the preview.
-    pub fn just_shown(&self) -> bool {
-        self.shown_at
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .is_some_and(|at| at.elapsed() < Duration::from_millis(400))
     }
 }
 
@@ -245,6 +219,50 @@ fn background(app: &AppHandle, window: &WebviewWindow) -> tauri::window::Color {
     tauri::window::Color(r, g, b, 255)
 }
 
+#[cfg(target_os = "linux")]
+fn release_webview_ipc_on_destroy(window: &WebviewWindow) -> tauri::Result<()> {
+    use gtk::glib::{gobject_ffi, subclass::SignalId, translate::IntoGlib};
+    use gtk::prelude::{ObjectExt, ObjectType, WidgetExt};
+    use webkit2gtk::WebViewExt;
+
+    window.with_webview(|native| {
+        native.inner().connect_destroy(|webview| {
+            let Some(manager) = webview.user_content_manager() else {
+                return;
+            };
+            let Some(signal) = SignalId::lookup("script-message-received", manager.type_()) else {
+                return;
+            };
+            // Wry's IPC signal closure owns a strong WebView reference, while
+            // that view owns this manager. Break the cycle only on destruction.
+            // Each Wry view has its own manager, even when contexts are shared.
+            // SAFETY: manager stays strongly owned here on the GTK thread. The
+            // signal id belongs to its type; only handlers of that signal on
+            // this retiring manager are disconnected. Individual lookup works
+            // on older GLib versions where disconnect_matched lacks ID support.
+            unsafe {
+                let instance = manager.as_ptr().cast();
+                loop {
+                    let handler = gobject_ffi::g_signal_handler_find(
+                        instance,
+                        gobject_ffi::G_SIGNAL_MATCH_ID,
+                        signal.into_glib(),
+                        0,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                    );
+                    if handler == 0 {
+                        break;
+                    }
+                    gobject_ffi::g_signal_handler_disconnect(instance, handler);
+                }
+            }
+        });
+    })?;
+    Ok(())
+}
+
 fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let window =
         WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("index.html?settings".into()))
@@ -267,6 +285,8 @@ fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                     .join("webview"),
             )
             .build()?;
+    #[cfg(target_os = "linux")]
+    release_webview_ipc_on_destroy(&window)?;
     window.set_background_color(Some(background(app, &window)))?;
     Ok(window)
 }
@@ -335,25 +355,11 @@ pub fn settings_destroyed(app: &AppHandle) {
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .destroyed();
-    if pending {
-        if let Err(error) = build_settings_window(app) {
-            eprintln!("arcade-look: couldn't reopen Settings: {error}");
-        }
+    if !pending {
         return;
     }
-    // WebKit retains its network process after the last webview is destroyed.
-    // Use Look's existing lean restart to return an otherwise idle service to
-    // its pre-Settings memory level. A new preview cancels this timer, and an
-    // active peer job or another window prevents the restart.
-    if app.webview_windows().is_empty() {
-        let since = Instant::now();
-        let mut frontend = state.frontend.lock().unwrap_or_else(|e| e.into_inner());
-        if !frontend.pending.is_empty() {
-            return;
-        }
-        frontend.hide(since);
-        drop(frontend);
-        schedule_lean_restart(app, since, true);
+    if let Err(error) = build_settings_window(app) {
+        eprintln!("arcade-look: couldn't reopen Settings: {error}");
     }
 }
 
@@ -512,6 +518,8 @@ pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     #[cfg(not(target_os = "macos"))]
     let builder = builder.decorations(false);
     let window = builder.build()?;
+    #[cfg(target_os = "linux")]
+    release_webview_ipc_on_destroy(&window)?;
     window.set_background_color(Some(background(app, &window)))?;
     Ok(window)
 }
@@ -529,7 +537,6 @@ pub fn show(app: &AppHandle) {
         return;
     }
     drop(frontend);
-    *state.shown_at.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
     let was_visible = state.visible.swap(true, Ordering::SeqCst);
     if !was_visible {
         let (_width, _height) = place_on_cursor_monitor(app, &w);
@@ -717,8 +724,11 @@ pub fn keep_alive(app: &AppHandle) -> bool {
 /// a reopened window (including one still loading) or a later window generation.
 fn schedule_idle_release(app: &AppHandle, since: Instant) {
     let handle = app.clone();
+    let release_after = WEBVIEW_IDLE_RELEASE;
+    #[cfg(all(feature = "e2e", unix))]
+    let release_after = crate::e2e::idle_release_delay(release_after);
     std::thread::spawn(move || {
-        std::thread::sleep(WEBVIEW_IDLE_RELEASE);
+        std::thread::sleep(release_after);
         let app = handle.clone();
         let _ = handle.run_on_main_thread(move || {
             let state = app.state::<AppState>();
@@ -739,9 +749,6 @@ fn schedule_idle_release(app: &AppHandle, since: Instant) {
                     frontend.ready = was_ready;
                     frontend.releasing = false;
                     eprintln!("arcade-look: could not release webview: {error}");
-                } else {
-                    let releases = RELEASES.fetch_add(1, Ordering::SeqCst) + 1;
-                    schedule_lean_restart(&app, since, releases >= LEAN_RESTART_EVERY);
                 }
             }
         });
@@ -763,57 +770,6 @@ fn schedule_idle_release(app: &AppHandle, since: Instant) {
                 .still_hidden(since);
             if hidden && !state.is_visible() && !keep_alive(&app) {
                 app.exit(0);
-            }
-        });
-    });
-}
-
-/// Restart a resident Look into the background once it has stayed hidden for
-/// [`LEAN_RESTART_AFTER`] after its webview was released (Linux, where WebKit
-/// keeps its network process for the life of the process).
-fn schedule_lean_restart(app: &AppHandle, since: Instant, soon: bool) {
-    if !cfg!(target_os = "linux") || std::env::var_os("ARCADE_LOOK_NO_LEAN_RESTART").is_some() {
-        return;
-    }
-    let handle = app.clone();
-    // Debug builds can shorten the wait to test it.
-    let after = if soon {
-        Duration::from_secs(1)
-    } else {
-        cfg!(debug_assertions)
-            .then(|| std::env::var("ALOOK_LEAN_RESTART_SECS").ok()?.parse().ok())
-            .flatten()
-            .map_or(LEAN_RESTART_AFTER, Duration::from_secs)
-    };
-    std::thread::spawn(move || {
-        std::thread::sleep(after);
-        let app = handle.clone();
-        let _ = handle.run_on_main_thread(move || {
-            let state = app.state::<AppState>();
-            let hidden = state
-                .frontend
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .still_hidden(since);
-            // A Look that would exit when idle needs no restart; one serving a
-            // request keeps running.
-            crate::dbg_log!(
-                "lean restart check: hidden {hidden}, visible {}, windows {}, keep alive {}, busy {}",
-                state.is_visible(),
-                app.webview_windows().len(),
-                keep_alive(&app),
-                crate::link_consumer::busy()
-            );
-            if hidden
-                && !state.is_visible()
-                && app.webview_windows().is_empty()
-                && keep_alive(&app)
-                && !crate::link_consumer::busy()
-            {
-                crate::dbg_log!("lean restart");
-                if let Err(error) = crate::tray::restart_request(&app) {
-                    eprintln!("arcade-look: lean restart: {error}");
-                }
             }
         });
     });

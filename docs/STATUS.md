@@ -1,5 +1,52 @@
 # Arcade Look: status
 
+## 2026-11-05: previews stay open when focus changes
+
+Removed preview dismissal on focus loss. On focus-follows-mouse desktops,
+moving the pointer outside the preview triggered this handler after its 400 ms
+startup grace period. Native verification reproduces the unwanted hide with a
+separate X11 window, then requires the preview to remain visible after pointer
+and focus transfer. Escape, Space and native window close remain explicit close
+actions and release the preview without replacing its resident process.
+
+## 2026-11-03: 0.4.2 stable background process
+
+Linux connected-action notifications now use direct notify-rust delivery on a
+blocking worker. The notification plugin's async wrapper could call synchronous
+zbus delivery inside Tokio, causing a nested-runtime panic. Opt-in, visible-window
+and cancelled-action suppression remain unchanged; other platforms retain the
+plugin. A native async-runtime regression uses a child with an unavailable private
+notification bus and requires both joins to succeed, with an ordinary bus error.
+
+The owner requires that window close/hide and memory cleanup never automatically
+restart the background app. Removed Look's five-minute cleanup restart, its
+release counter/tenth-preview replacement, and the Settings-close restart.
+Settings still destroys its WebView immediately; hidden previews still release
+their WebView after 30 seconds. The resident process keeps its identity and Link,
+tray and shortcut listeners. Explicit Restart and installer/update handoffs are
+unchanged, as is the configured optional exit for non-resident use.
+
+The native lifecycle check now asserts that Settings and preview WebViews are
+actually destroyed while the PID stays fixed through repeated reopen/release
+cycles. It also verifies that an explicit Restart creates a working successor.
+RSS is measured without claiming that replacing the process reclaimed memory.
+Test builds can shorten the existing preview release delay only inside the
+private isolated runner; production keeps the 30-second delay.
+
+Linux teardown now also breaks Wry's per-view IPC reference cycle: the content
+manager's signal handler held a strong reference back to the WebView. On that
+view's GTK destroy event, only its own script-message handlers are disconnected.
+Other views and the shared context remain usable. A native concurrent-preview/
+Settings check verifies that closing Settings leaves the preview's IPC working.
+No renderer process is killed and no browser-cache policy is changed.
+
+The isolated accelerated lifecycle baseline retained 14 renderer children after
+12 repeated preview releases and a 15-second settle (1,067.5 MiB process-tree
+PSS). The cleanup run, including the concurrent-window check, retained zero
+renderers and measured 139.0 MiB PSS. Native checks require zero retired renderers
+whenever all views are closed and record per-cycle RSS, PSS and USS; these are Linux
+test measurements rather than a cross-platform memory budget.
+
 ## 2026-11-03: 0.4.1 startup fix
 
 The installed 0.4.0 exited before creating a window when a Tools update created
