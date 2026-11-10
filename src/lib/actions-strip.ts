@@ -63,7 +63,7 @@ export class ActionsStrip {
         this.menu.querySelectorAll<HTMLButtonElement>('button')[Number(e.key) - 1]?.click();
         e.preventDefault();
         e.stopPropagation();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' && !this.closed) {
         this.close();
         this.button.focus();
         e.preventDefault();

@@ -81,7 +81,7 @@ test('RD-LOOK-1: Escape after the actions menu closed still steps back', async (
   await settle(page);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__mock.calls.some(([n]) => n === 'hide_window'), null, { timeout: 1500 });
-}, 'RD-LOOK-1');
+});
 
 test('RD-LOOK-1: fullscreen can be left after the actions menu was used', async (page) => {
   await open(page, { actions: [offer] });
@@ -93,7 +93,7 @@ test('RD-LOOK-1: fullscreen can be left after the actions menu was used', async 
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__mock.fullscreen === false, null, { timeout: 1500 });
   assert.equal(await hidden(page), 0, 'leaving fullscreen closed the preview');
-}, 'RD-LOOK-1');
+});
 
 test('LK-10: Escape closes the Info panel before the preview', async (page) => {
   await open(page);
@@ -106,7 +106,7 @@ test('LK-10: Escape closes the Info panel before the preview', async (page) => {
   assert.equal(await infoOpen(page), false, 'Escape left the Info panel open');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__mock.calls.some(([n]) => n === 'hide_window'));
-}, 'LK-10');
+});
 
 test('Escape ladder: menu, Info, fullscreen, close', async (page) => {
   await open(page, { actions: [offer] });
@@ -129,7 +129,7 @@ test('Escape ladder: menu, Info, fullscreen, close', async (page) => {
     await page.waitForTimeout(250);
     assert.deepEqual(await state(), expected, `after Escape ${index + 1}`);
   }
-}, 'RD-LOOK-1');
+});
 
 for (const [width, height] of [[1040, 720], [720, 520]]) {
   test(`LK-2: the shortcuts dialog fits ${width}x${height} and its Close button is reachable`, async (page) => {
@@ -150,7 +150,7 @@ for (const [width, height] of [[1040, 720], [720, 520]]) {
     const rows = await page.locator('.dialog.help .key-row').evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); const d = document.querySelector('.dialog.help').getBoundingClientRect(); return r.bottom <= d.bottom + 1; }));
     const visible = rows.filter(Boolean).length;
     assert.ok(visible === rows.length || fit.scrolls, 'rows are outside the card with no way to scroll');
-  }, 'LK-2');
+  });
 }
 
 test('LK-2: the shortcut list names each key once and covers M, comma, period and the 3D group', async (page) => {
@@ -165,7 +165,7 @@ test('LK-2: the shortcut list names each key once and covers M, comma, period an
   assert.ok(headings.includes('3D models'));
   const plainA = rows.filter(([key]) => /^A$|^A \//.test(key));
   assert.equal(plainA.length, 1, `A is listed ${plainA.length} times: ${JSON.stringify(plainA)}`);
-}, 'LK-2');
+});
 
 test('LK-1: an error toast goes away on its own', async (page) => {
   await page.clock.install();
@@ -177,7 +177,7 @@ test('LK-1: an error toast goes away on its own', async (page) => {
   await toast.waitFor({ state: 'visible' });
   await page.clock.fastForward(20000);
   assert.equal(await toast.isVisible(), false, 'the error toast is still shown after 20 s');
-}, 'LK-1');
+});
 
 test('LK-1: an error toast does not carry over to the next file', async (page) => {
   await open(page);
@@ -188,13 +188,13 @@ test('LK-1: an error toast does not carry over to the next file', async (page) =
   await page.evaluate(() => window.__mock.send('open', '/fixtures/other.md'));
   await settle(page);
   assert.equal(await toast.isVisible(), false, 'the old error is shown on the new file');
-}, 'LK-1');
+});
 
 test('Actions (A) with no peers says so', async (page) => {
   await open(page, { linkAvailable: false });
   await page.keyboard.press('a');
   await page.getByText('No connected apps can take this file').waitFor({ state: 'visible', timeout: 1500 });
-}, 'A-EMPTY');
+});
 
 let failures = 0;
 for (const { name, fn, known } of tests) {
