@@ -22,6 +22,7 @@ if [ "$(uname -s)" = Linux ]; then
   PLAYWRIGHT_CHROMIUM=${PLAYWRIGHT_CHROMIUM:-$(node -e "console.log(require('playwright').chromium.executablePath())")}
   export PLAYWRIGHT_CHROMIUM
   "$python" "$link/tools/e2e.py" run -- node scripts/ui-checks/check.mjs
+  "$python" "$link/tools/e2e.py" run -- node scripts/ui-checks/behaviour.mjs
   "$python" "$link/tools/e2e.py" run -- cargo test --manifest-path src-tauri/Cargo.toml --locked --test link_consumer -- --ignored --test-threads=1
   ARCADE_SHELF_BIN=$("$python" scripts/fetch-test-peer.py)
   export ARCADE_SHELF_BIN APPIMAGE_EXTRACT_AND_RUN=1

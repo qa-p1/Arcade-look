@@ -10,7 +10,8 @@
     "fixtures": "python3 scripts/make-fixtures.py fixtures",
     "format": "prettier --write src index.html vite.config.ts tsconfig.json package.json",
     "format:check": "prettier --check src index.html vite.config.ts tsconfig.json package.json",
-    "test:ui": "node scripts/ui-checks/check.mjs"
+    "test:ui": "node scripts/ui-checks/check.mjs",
+    "test:behaviour": "node scripts/ui-checks/behaviour.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",
