@@ -1,0 +1,34 @@
+Arcade Look: Press Space, see anything.
+
+USAGE:
+    arcade-look [OPTIONS] [PATH]
+
+ARGS:
+    PATH                     File or folder to preview (a file:// URI works too)
+
+OPTIONS:
+    --background             Start in the background without a window
+    --service                Compatibility alias for --background
+    --status                 Print running, version and Link state as one-line JSON
+    --show                   Show the preview
+    --hide                   Hide the preview
+    --toggle                 Preview the selection or close the preview
+    --settings               Open Settings
+    --restart                Restart the running instance
+    --install [--silent] [--no-launch] [--keep-download] [--channel C]
+                             Install this AppImage or move this macOS app bundle
+    --install-integration    Alias for --install
+    --uninstall [--silent] [--remove-data]
+                             Remove this installation using its receipt
+    --uninstall-integration  Alias for --uninstall
+    --repair                 Repair integration recorded in the install receipt
+    --integration-status     Print receipt and integration status as JSON
+    --quit                   Quit the running instance
+    --arcade-manifest        Print the Arcade Link manifest (no side effects)
+    --arcade-invoke          Run one Arcade Link request from stdin, without any UI
+    -h, --help               Show this help
+    -V, --version            Show the version
+
+KEYS (in the preview window):
+    Space / Esc  close         ←/→  previous / next file     Enter  open with default app
+    I  info panel   F  fullscreen   +/-/0  zoom   ?  all shortcuts   Ctrl+Q  quit

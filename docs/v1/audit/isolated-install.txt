@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "id": "arcade.look",
+  "version": "0.4.3",
+  "channel": "stable",
+  "method": "appimage",
+  "managedBy": "self",
+  "path": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/Applications/Arcade/Arcade-Look.AppImage",
+  "integration": {
+    "desktopEntry": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.local/share/applications/dev.arcade.Look.desktop",
+    "icons": [
+      "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.local/share/icons/hicolor/32x32/apps/dev.arcade.Look.png",
+      "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.local/share/icons/hicolor/64x64/apps/dev.arcade.Look.png",
+      "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.local/share/icons/hicolor/128x128/apps/dev.arcade.Look.png",
+      "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.local/share/icons/hicolor/256x256/apps/dev.arcade.Look.png",
+      "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.local/share/icons/hicolor/512x512/apps/dev.arcade.Look.png"
+    ],
+    "cli": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.local/bin/arcade-look",
+    "autostart": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.config/autostart/dev.arcade.Look.desktop",
+    "uninstaller": null
+  },
+  "installedAt": "2026-11-06T13:42:50Z",
+  "updatedAt": "2026-11-06T13:42:50Z"
+}
+arcade-look: fish_add_path '/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-lfl/home/.local/bin'

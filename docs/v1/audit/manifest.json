@@ -1,0 +1,82 @@
+{
+  "actions": [
+    {
+      "accepts": [
+        "file/*",
+        "file/*[]",
+        "folder/reference",
+        "text/url"
+      ],
+      "available": true,
+      "effects": [
+        "opens-ui"
+      ],
+      "id": "look.preview",
+      "interactive": true,
+      "platforms": [
+        "linux",
+        "windows",
+        "macos"
+      ],
+      "privacy": "local",
+      "produces": [],
+      "title": "Quick Look",
+      "verb": "preview",
+      "version": 1
+    },
+    {
+      "accepts": [
+        "file/*",
+        "folder/reference"
+      ],
+      "available": true,
+      "effects": [],
+      "id": "look.inspect",
+      "interactive": false,
+      "platforms": [
+        "linux",
+        "windows",
+        "macos"
+      ],
+      "privacy": "local",
+      "produces": [
+        "structured/file-info"
+      ],
+      "title": "Inspect file",
+      "verb": "inspect",
+      "version": 1
+    }
+  ],
+  "docs": {
+    "version": "0.4.3"
+  },
+  "executable": "/home/harneet/Applications/Arcade/Arcade-Look.AppImage",
+  "id": "arcade.look",
+  "install": "appimage",
+  "launch": {
+    "background": [
+      "--background"
+    ],
+    "invoke": [
+      "--arcade-invoke"
+    ]
+  },
+  "link": {
+    "protocol": [
+      1
+    ]
+  },
+  "name": "Arcade Look",
+  "schema": 1,
+  "settings": {
+    "linkEnabled": true
+  },
+  "shortcuts": [
+    {
+      "accelerator": "Ctrl+Alt+Shift+Space",
+      "id": "preview-selection"
+    }
+  ],
+  "version": "0.4.3",
+  "writtenAt": ""
+}

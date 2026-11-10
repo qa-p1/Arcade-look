@@ -1,0 +1,4 @@
+37653 arcade-look rss=199MB thr=67 fd=62 ticks=427
+38706 WebKitNetworkPr rss=60MB thr=11 fd=26 ticks=5
+38746 WebKitWebProces rss=421MB thr=76 fd=42 ticks=2143
+46491 WebKitWebProces rss=240MB thr=49 fd=38 ticks=93
