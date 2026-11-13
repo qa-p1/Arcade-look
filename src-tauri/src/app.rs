@@ -274,8 +274,10 @@ fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                     payload.url()
                 );
             })
-            .inner_size(760.0, 560.0)
-            .min_inner_size(720.0, 520.0)
+            // Wider than the kit's 760 px breakpoint, so the sidebar keeps its
+            // labels instead of collapsing to icons (LK-9).
+            .inner_size(880.0, 600.0)
+            .min_inner_size(800.0, 520.0)
             .decorations(true)
             .visible(false)
             .resizable(true)
