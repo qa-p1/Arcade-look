@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Escape steps back one level: the actions menu, then Info, then fullscreen, then the preview (RD-LOOK-1, LK-10). The keyboard shortcuts dialog scrolls and lists every key once (LK-2). Error messages go away on their own and never carry over to the next file (LK-1). Actions (A) with no connected apps says so.
+- Valid AVIF images preview on Linux. An image format this system can't decode (such as HEIC on Linux) says so instead of showing a hex dump (LK-11).
+- Unreadable files say "Permission denied." and broken links name their target (LK-3).
+- `arcade-look --unknown-option` prints usage and exits 2; a path that doesn't exist prints "not found" and exits 1 (LK-7).
+- Preview failures are written to the support log, without file paths (LK-8).
+- Settings shows its section names, and About points to Arcade Tools for updates (LK-9).
+- "1 row", not "1 rows"; an empty file says so; zip dates match tar's (LK-4, LK-5).
+
 ## 0.4.3 — 2026-11-06
 
 - Sanitize the restart successor's environment as well as its descriptors, so a fresh AppImage launcher cannot load incompatible libraries from its predecessor. Gate the actual Linux package on Settings/preview release, stable resident identity and explicit Restart/Quit.
