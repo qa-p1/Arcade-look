@@ -170,15 +170,24 @@ fn list_zip(path: &Path) -> Res<Listing> {
             break;
         }
         let Ok(e) = z.by_index_raw(i) else { continue };
-        let modified = e.last_modified().map(|d| {
-            util::civil_to_millis(
-                d.year() as i64,
-                d.month() as u32,
-                d.day() as u32,
-                d.hour() as u32,
-                d.minute() as u32,
-                d.second() as u32,
-            )
+        // The UTC "extended timestamp" when present; else the DOS time,
+        // which is local time (LK-5: read as UTC it landed hours off).
+        let utc = e.extra_data_fields().find_map(|f| match f {
+            zip::ExtraField::ExtendedTimestamp(t) => t.mod_time().map(|s| s as i64 * 1000),
+            _ => None,
+        });
+        let modified = utc.or_else(|| {
+            e.last_modified().map(|d| {
+                let wall = util::civil_to_millis(
+                    d.year() as i64,
+                    d.month() as u32,
+                    d.day() as u32,
+                    d.hour() as u32,
+                    d.minute() as u32,
+                    d.second() as u32,
+                );
+                wall - util::local_offset_ms(wall)
+            })
         });
         l.total_size += e.size();
         l.packed_size += e.compressed_size();
@@ -511,6 +520,38 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    /// LK-5: zip times agree with tar's: the UTC extended timestamp when
+    /// present, else the DOS time read as local time.
+    #[test]
+    fn zip_times_are_utc() {
+        let d = tmpdir("zip-time");
+        let p = d.join("t.zip");
+        let dos = zip::DateTime::from_date_and_time(2024, 1, 2, 3, 4, 6).unwrap();
+        {
+            let mut z = zip::ZipWriter::new(File::create(&p).unwrap());
+            let plain = zip::write::SimpleFileOptions::default().last_modified_time(dos);
+            z.start_file("local.txt", plain).unwrap();
+            let mut ut = zip::write::FullFileOptions::default().last_modified_time(dos);
+            let mut field = vec![1u8];
+            field.extend_from_slice(&1_700_000_000u32.to_le_bytes());
+            ut.add_extra_data(0x5455, field, false).unwrap();
+            z.start_file("utc.txt", ut).unwrap();
+            z.finish().unwrap();
+        }
+        let l = list(&p, "zip").unwrap();
+        let at = |name: &str| {
+            l.entries
+                .iter()
+                .find(|e| e.path == name)
+                .unwrap()
+                .modified
+                .unwrap()
+        };
+        assert_eq!(at("utc.txt"), 1_700_000_000_000);
+        let wall = util::civil_to_millis(2024, 1, 2, 3, 4, 6);
+        assert_eq!(at("local.txt"), wall - util::local_offset_ms(wall));
     }
 
     #[test]

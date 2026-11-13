@@ -1,4 +1,3 @@
-import { formatCount } from '../design/format';
 // The universal fallback: a file card plus a virtualised hex view that reads on demand,
 // so even a 100 GB disk image previews instantly.
 import './info.css';
@@ -172,7 +171,7 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
     },
   });
 
-  ctx.setStatus(`${formatCount(rows)} rows of 16 bytes`);
+  ctx.setStatus(`${fmt.plural(rows, 'row')} of 16 bytes`);
   return {
     keydown(e) {
       if (e.key === 'Home') {

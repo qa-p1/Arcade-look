@@ -28,7 +28,8 @@ pub fn read_text(path: &Path, max: u64) -> Res<TextData> {
     let (bytes, size) = read_capped(path, max)?;
     let truncated = (bytes.len() as u64) < size;
     let (text, encoding) = decode(&bytes);
-    let lines = text.lines().count().max(1);
+    // An empty file has no lines (LK-4: it said "1 line").
+    let lines = text.lines().count();
     Ok(TextData {
         text,
         encoding,
@@ -66,6 +67,22 @@ pub fn decode(bytes: &[u8]) -> (String, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// LK-4: an empty file has no lines; one without a final newline has one.
+    #[test]
+    fn line_counts() {
+        let dir = std::env::temp_dir().join(format!("look-lines-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let count = |text: &str| {
+            let p = dir.join("t.txt");
+            std::fs::write(&p, text).unwrap();
+            read_text(&p, 1 << 20).unwrap().lines
+        };
+        assert_eq!(count(""), 0);
+        assert_eq!(count("one"), 1);
+        assert_eq!(count("one\ntwo\n"), 2);
+        std::fs::remove_dir_all(dir).ok();
+    }
 
     #[test]
     fn decodes_variants() {

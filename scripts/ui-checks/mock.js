@@ -27,6 +27,7 @@
       if (command === 'link_available') return window.__mock.linkAvailable;
       if (command === 'link_actions') return window.__mock.actions;
       if (command === 'neighbor') return null;
+      if (command === 'read_text') return window.__mock.text ?? { text: '', encoding: 'UTF-8', truncated: false, size: 0, lines: 0 };
       if (command === 'set_config') { Object.assign(config, args.patch); send('config', { ...config }); return { ...config }; }
       if (command === 'link_save_shortcut') { config.globalShortcut = args.accelerator; send('config', { ...config }); return { ...config }; }
       if (command === 'link_shortcut_owner') return args.accelerator === 'Ctrl+Alt+F' ? 'Arcade Find' : null;

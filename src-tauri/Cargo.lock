@@ -94,6 +94,7 @@ dependencies = [
  "infer 0.22.0",
  "kamadak-exif",
  "ksni",
+ "libc",
  "lofty",
  "lzma-rust2",
  "notify-rust",

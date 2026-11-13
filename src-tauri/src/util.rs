@@ -82,6 +82,26 @@ pub fn civil_to_millis(y: i64, m: u32, d: u32, hh: u32, mm: u32, ss: u32) -> i64
     ((days * 86400) + hh as i64 * 3600 + mm as i64 * 60 + ss as i64) * 1000
 }
 
+/// The local time zone's offset from UTC at about `at` (ms since the epoch,
+/// read as wall-clock time), in ms. 0 where the platform gives none.
+pub fn local_offset_ms(at: i64) -> i64 {
+    #[cfg(unix)]
+    {
+        let t = (at / 1000) as libc::time_t;
+        // SAFETY: localtime_r writes only into `tm`.
+        let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+        if unsafe { libc::localtime_r(&t, &mut tm) }.is_null() {
+            return 0;
+        }
+        tm.tm_gmtoff as i64 * 1000
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = at;
+        0
+    }
+}
+
 /// Natural, case-insensitive ordering: "file2" < "file10".
 pub fn natural_cmp(a: &str, b: &str) -> Ordering {
     let (mut ai, mut bi) = (a.chars().peekable(), b.chars().peekable());

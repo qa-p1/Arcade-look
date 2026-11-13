@@ -3,6 +3,7 @@ import { formatCount } from '../design/format';
 import './table.css';
 import { api, type TableData } from '../lib/backend';
 import { h } from '../lib/dom';
+import * as fmt from '../lib/format';
 import { virtualList, type Virtual } from '../lib/virtual';
 import type { Mounted, ViewCtx } from './types';
 
@@ -117,9 +118,7 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
     });
 
     const more = d.truncatedRows ? ' (first 10,000)' : '';
-    ctx.setStatus(
-      `${formatCount(rows.length)} rows${more}  ·  ${cols} ${cols === 1 ? 'column' : 'columns'}`,
-    );
+    ctx.setStatus(`${fmt.plural(rows.length, 'row')}${more}  ·  ${fmt.plural(cols, 'column')}`);
     ctx.setDetails([
       ['Rows', `${formatCount(rows.length)}${more}`],
       ['Columns', `${cols}${d.truncatedCols ? ' (first 256)' : ''}`],

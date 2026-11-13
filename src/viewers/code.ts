@@ -25,7 +25,7 @@ export function renderCode(host: HTMLElement, ctx: ViewCtx, t: TextData, lang: s
       ),
     );
   }
-  const lines = t.text.endsWith('\n') ? t.lines : Math.max(1, t.lines);
+  const lines = t.text === '' ? 0 : t.text.endsWith('\n') ? t.lines : Math.max(1, t.lines);
   const gutter = h('pre.gutter', { 'aria-hidden': 'true' });
   gutter.textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
   const code = h('code');
@@ -92,7 +92,7 @@ export function renderCode(host: HTMLElement, ctx: ViewCtx, t: TextData, lang: s
 
   if (!ctx.nested) {
     const enc = t.encoding !== 'UTF-8' ? `  ·  ${t.encoding}` : '';
-    ctx.setStatus(`${fmt.plural(lines, 'line')}${enc}`);
+    ctx.setStatus(lines === 0 ? 'Empty file' : `${fmt.plural(lines, 'line')}${enc}`);
     ctx.setDetails([
       ['Language', label],
       ['Lines', formatCount(lines)],

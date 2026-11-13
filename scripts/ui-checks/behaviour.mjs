@@ -224,6 +224,28 @@ test('LK-11: an image with no decoder here says so, with no hex dump', async (pa
   assert.ok(logged.some((m) => m.includes('heic') && !m.includes('/fixtures/')), `no path-free warning was logged: ${JSON.stringify(logged)}`);
 });
 
+test('LK-9: Settings shows labelled sections and leaves updates to Tools', async (page) => {
+  await page.setViewportSize({ width: 800, height: 520 });
+  await page.addInitScript(mock);
+  await page.goto(url + '/?settings');
+  await page.getByRole('tab', { name: 'About', exact: true }).waitFor();
+  const labels = await page.locator('.tab-button .label').evaluateAll((els) => els.map((el) => el.getClientRects().length > 0));
+  assert.ok(labels.length > 0 && labels.every(Boolean), 'the sidebar shows icons without labels');
+  assert.equal(await page.locator('.tab-button[title]').count(), 0, 'tabs still carry native tooltips');
+  await page.getByRole('tab', { name: 'About', exact: true }).click();
+  await page.getByText('Updates are managed by Arcade Tools').waitFor();
+  assert.equal(await page.getByText('Check for updates').count(), 0);
+});
+
+test('LK-4: counts are singular for one and an empty file says so', async (page) => {
+  await open(page);
+  await preview(page, { name: 'one.bin', ext: 'bin', kind: 'binary', format: 'binary', size: 10, mime: 'application/octet-stream' });
+  await page.getByText('1 row of 16 bytes', { exact: false }).first().waitFor({ state: 'visible' });
+  await preview(page, { name: 'empty.txt', ext: 'txt', kind: 'text', format: 'text', size: 0, mime: 'text/plain' });
+  await page.getByText('Empty file', { exact: false }).first().waitFor({ state: 'visible' });
+  assert.equal(await page.getByText('1 line', { exact: false }).count(), 0, 'an empty file claims a line');
+});
+
 let failures = 0;
 for (const { name, fn, known } of tests) {
   const page = await browser.newPage({ viewport: { width: 1040, height: 720 } });
