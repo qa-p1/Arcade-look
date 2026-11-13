@@ -39,6 +39,13 @@ pub fn run() {
     let argv: Vec<String> = std::env::args().collect();
     let args = cli::parse(&argv);
 
+    if let Some(option) = &args.unknown {
+        integration::attach_console();
+        eprintln!("arcade-look: unknown option {option}\n");
+        eprint!("{}", cli::HELP);
+        std::process::exit(2);
+    }
+
     if args.status {
         integration::attach_console();
         cli::print_status();
@@ -83,6 +90,12 @@ pub fn run() {
             cli::run_maintenance(&args);
         }
         return;
+    }
+
+    if let Some(path) = cli::missing_path(&args) {
+        integration::attach_console();
+        eprintln!("arcade-look: not found: {}", path.display());
+        std::process::exit(1);
     }
 
     #[cfg(target_os = "linux")]
