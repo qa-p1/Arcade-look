@@ -93,7 +93,10 @@ pub fn local_offset_ms(at: i64) -> i64 {
         if unsafe { libc::localtime_r(&t, &mut tm) }.is_null() {
             return 0;
         }
-        tm.tm_gmtoff as i64 * 1000
+        // `c_long`: i64 on 64-bit targets, i32 on 32-bit ones.
+        #[allow(clippy::unnecessary_cast)]
+        let offset = tm.tm_gmtoff as i64;
+        offset * 1000
     }
     #[cfg(not(unix))]
     {
