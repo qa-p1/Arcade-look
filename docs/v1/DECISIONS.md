@@ -41,3 +41,10 @@ a minimum of 800x520, so labels always show; tabs use `aria-label` instead of na
 Zip entries use the UTC extended-timestamp field when present, else the DOS time read as local time (it was read as
 UTC, which put entries hours off, so they showed as absolute dates next to tar's relative ones). Windows has no local
 offset lookup here and keeps the old reading; zips made on Windows usually carry the NTFS or UT field anyway.
+
+## D7 - Text and Markdown previews read 1 MiB by default (LK1)
+
+A 5 MB text or Markdown file peaked near 880 RSS / 654 PSS because up to 4 MiB went into one DOM. The read limit
+(`textLimitMb`, never shown in Settings) is now 1 MiB; the "Showing the first ... Open the file to see everything"
+banner already explains the cut, so the UX cost is none (AUDIT/memory.md LK1). A saved 4, which was only ever 0.4's
+default, is read as 1; any other saved value is kept. Virtualizing the code view was not needed for the budget.
