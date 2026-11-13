@@ -20,7 +20,8 @@ pub struct Config {
     pub explorer_space: bool,
     /// Linux: answer GNOME Files' Space-bar previewer requests over D-Bus.
     pub nautilus_previewer: bool,
-    /// Text previews read at most this many MiB.
+    /// Text previews read at most this many MiB (not in Settings; 1 by default:
+    /// a 5 MB text or Markdown preview peaked near 900 MB, LK1).
     pub text_limit_mb: u64,
     /// Syntax highlighting is skipped above this many KiB.
     pub highlight_limit_kb: u64,
@@ -46,7 +47,7 @@ impl Default for Config {
             global_shortcut: default_shortcut(std::env::consts::OS).into(),
             explorer_space: true,
             nautilus_previewer: true,
-            text_limit_mb: 4,
+            text_limit_mb: 1,
             highlight_limit_kb: 512,
             autoplay: true,
             plugins: true,
@@ -79,6 +80,16 @@ mod tests {
             assert_eq!(roundtrip.global_shortcut, saved);
         }
     }
+    /// LK1: big text previews are capped at 1 MiB, also for 0.4 settings.
+    #[test]
+    fn the_text_limit_moves_from_the_old_default() {
+        assert_eq!(Config::default().text_limit_mb, 1);
+        let old: Config = serde_json::from_value(serde_json::json!({"textLimitMb": 4})).unwrap();
+        assert_eq!(upgrade(old).text_limit_mb, 1);
+        let chosen: Config = serde_json::from_value(serde_json::json!({"textLimitMb": 8})).unwrap();
+        assert_eq!(upgrade(chosen).text_limit_mb, 8);
+    }
+
     #[test]
     fn migration_keeps_preferences_unknown_fields_and_plugin_files() {
         let root = std::env::temp_dir().join(format!(
@@ -178,7 +189,18 @@ pub fn load() -> Config {
 /// Read the config file, failing (instead of falling back to defaults) if it is unreadable.
 pub fn try_load() -> Result<Config, String> {
     let s = std::fs::read_to_string(config_path()).map_err(|e| e.to_string())?;
-    serde_json::from_str(&s).map_err(|e| e.to_string())
+    serde_json::from_str(&s)
+        .map(upgrade)
+        .map_err(|e| e.to_string())
+}
+
+/// Saved values that were only ever the old default move to the new one.
+/// `textLimitMb` was never in Settings, so 4 is 0.4's default, not a choice (LK1).
+fn upgrade(mut c: Config) -> Config {
+    if c.text_limit_mb == 4 {
+        c.text_limit_mb = 1;
+    }
+    c
 }
 
 /// Modification time of the config file, to notice edits made while we run.
