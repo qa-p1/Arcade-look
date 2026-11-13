@@ -22,7 +22,7 @@
       if (command === 'bootstrap') return { platform: 'linux', version: '0.4.0', config: { ...config }, configPath: '/home/user/.config/arcade/look/settings.json', pluginsDir: '/home/user/.config/arcade/look/plugins', infoPanel: false, service: true, debug: false, mediaBase: null, integration: [['GNOME Files', true], ['Dolphin', true], ['Nemo', false]], shortcutSupported: true };
       if (command === 'get_autostart') return false;
       if (command === 'frontend_ready') { if (!location.search.includes('settings')) setTimeout(() => send('open', file.path), 0); return; }
-      if (command === 'inspect') return { ...file, path: args.path };
+      if (command === 'inspect') return { ...file, ...(window.__mock.inspectPatch ?? {}), path: args.path };
       if (command === 'render_markdown') return { html: '<h1>Getting started</h1><p>Press Space, see anything.</p><h2>One file, one preview</h2><p>Select a file in your file manager and press <kbd>Space</kbd>. Browse images, documents, media, code and archives without opening a full editor.</p><h2>Keep your place</h2><ul><li>Use the arrow keys to move between files.</li><li>Press I to inspect metadata.</li><li>Press A for connected actions.</li></ul><pre><code>arcade-look --settings</code></pre>', truncated: false };
       if (command === 'link_available') return window.__mock.linkAvailable;
       if (command === 'link_actions') return window.__mock.actions;

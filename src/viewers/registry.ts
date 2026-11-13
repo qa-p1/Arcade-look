@@ -1,7 +1,7 @@
 // Maps a file to an ordered chain of viewers. Each viewer is a lazily loaded chunk; if
 // one throws, the next is tried, ending with the info card + hex view, which always works.
 import type { FileInfo } from '../lib/backend';
-import { errorMessage } from '../lib/backend';
+import { api, errorMessage } from '../lib/backend';
 import { clear } from '../lib/dom';
 import type { Mounted, ViewCtx, ViewerModule } from './types';
 
@@ -28,6 +28,8 @@ const loaders: Record<string, () => Promise<ViewerModule>> = {
 };
 
 export function chainFor(info: FileInfo): string[] {
+  // Unreadable: only the info card can say why (LK-3).
+  if (info.problem) return ['info'];
   const c: string[] = [];
   if (info.plugin) c.push('plugin');
   switch (info.kind) {
@@ -131,6 +133,13 @@ export async function mountChain(host: HTMLElement, base: ViewCtx): Promise<Moun
       if (base.signal.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
       previousError = errorMessage(e);
       console.warn(`viewer "${name}" failed for ${base.info.path}:`, e);
+      // The support log gets the viewer, the type and the reason, not the path (LK-8).
+      void api
+        .log(
+          'warn',
+          `viewer "${name}" failed for a ${base.info.ext || base.info.kind} file: ${previousError}`,
+        )
+        .catch(() => {});
     }
   }
   // Unreachable in practice: the info viewer never throws.

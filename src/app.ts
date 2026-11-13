@@ -295,6 +295,7 @@ export class App {
       info = missingInfo(path);
       inspectError = errorMessage(e);
     }
+    if (info.problem) inspectError = info.problem;
     if (gen !== this.gen) return clearTimeout(loadingTimer);
     this.trace(
       `inspected: ${info.kind}/${info.format}${inspectError ? ` error=${inspectError}` : ''}`,

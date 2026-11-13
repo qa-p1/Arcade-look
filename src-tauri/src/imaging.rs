@@ -410,6 +410,18 @@ fn packbits(src: &[u8], out: &mut Vec<u8>, row_len: usize) {
 mod tests {
     use super::*;
 
+    /// LK-11: a valid AVIF decodes through the backend on Linux (WebKitGTK
+    /// may lack the codec; WebView2 and WKWebView have their own).
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn avif_decodes() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tiny.avif");
+        let (mime, png) = render(&path, "decode", 512).expect("AVIF decodes");
+        assert_eq!(mime, "image/png");
+        let back = image::load_from_memory(&png).unwrap();
+        assert_eq!((back.width(), back.height()), (16, 16));
+    }
+
     #[test]
     fn packbits_decodes() {
         let mut out = Vec::new();

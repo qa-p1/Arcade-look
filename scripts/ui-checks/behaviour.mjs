@@ -196,6 +196,34 @@ test('Actions (A) with no peers says so', async (page) => {
   await page.getByText('No connected apps can take this file').waitFor({ state: 'visible', timeout: 1500 });
 });
 
+async function preview(page, patch) {
+  await page.evaluate((p) => { window.__mock.inspectPatch = p; window.__mock.send('open', '/fixtures/' + p.name); }, patch);
+}
+
+test('LK-3: an unreadable file says why, with no hex dump', async (page) => {
+  await open(page);
+  await preview(page, { name: 'noperm.txt', ext: 'txt', kind: 'text', format: 'text', size: 7, problem: 'Permission denied.' });
+  await page.locator('.info-error', { hasText: 'Permission denied.' }).waitFor({ state: 'visible' });
+  assert.equal(await page.locator('.hex-scroll').count(), 0, 'a hex dump is shown');
+  assert.equal(await page.getByText("Couldn't render a rich preview", { exact: false }).count(), 0);
+});
+
+test('LK-3: a broken link names its target', async (page) => {
+  await open(page);
+  await preview(page, { name: 'broken.lnk', ext: 'lnk', kind: 'text', format: 'text', size: 8, symlink: 'nonexist', problem: 'Broken link to nonexist.' });
+  await page.locator('.info-error', { hasText: 'Broken link to nonexist.' }).waitFor({ state: 'visible' });
+  assert.equal(await page.locator('.hex-scroll').count(), 0, 'a hex dump is shown');
+});
+
+test('LK-11: an image with no decoder here says so, with no hex dump', async (page) => {
+  await open(page);
+  await preview(page, { name: 'photo.heic', ext: 'heic', kind: 'image', format: 'heic', size: 4000, mime: 'image/heic' });
+  await page.locator('.info-error', { hasText: "This HEIC image can't be decoded on this system." }).waitFor({ state: 'visible' });
+  assert.equal(await page.locator('.hex-scroll').count(), 0, 'a hex dump is shown');
+  const logged = await page.evaluate(() => window.__mock.calls.filter(([n, a]) => n === 'log' && a.level === 'warn').map(([, a]) => a.message));
+  assert.ok(logged.some((m) => m.includes('heic') && !m.includes('/fixtures/')), `no path-free warning was logged: ${JSON.stringify(logged)}`);
+});
+
 let failures = 0;
 for (const { name, fn, known } of tests) {
   const page = await browser.newPage({ viewport: { width: 1040, height: 720 } });
