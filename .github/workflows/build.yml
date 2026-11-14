@@ -128,6 +128,12 @@ jobs:
         shell: bash
         run: scripts/verify-dmg.sh src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg 'Arcade Look' arcade-look arcade.look
 
+      # Tauri names the files after the product ("Arcade Look_0.4.3_amd64.AppImage"); GitHub turns spaces into dots
+      # on upload, so release metadata written for the original names would not match the published files.
+      - name: File names without spaces
+        shell: bash
+        run: for f in ${{ matrix.files }}; do mv "$f" "$(dirname "$f")/$(basename "$f" | tr ' ' '-')"; done
+
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

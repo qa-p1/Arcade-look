@@ -31,14 +31,17 @@ Those browser fixtures do not verify the native backend.
 
 Installer jobs smoke-test AppImage, DMG and Windows setup in temporary profiles.
 They start alongside the source checks rather than waiting for the slowest OS.
-The beta rehearsal requires both the source matrix and installer matrix to pass;
+A release candidate requires both the source matrix and installer matrix to pass;
 release publication still depends on the complete reusable CI workflow.
 Rust caches restore on every ref and save only on main pushes. Linux packaging
 caches the pinned Link runner too and reuses its debug CLI for the tray gate,
 instead of building a second release CLI for the same test.
-The beta package rehearsal checks all three installers, arcade-release.json and
-SHA256SUMS.txt and uploads a candidate artifact without publishing. tag.yml and
-release.yml remain manual; official releases are outside this task’s authorization.
-Do not create tags by hand. A real Hyprland desktop is still needed for overlay
+CI's release preview checks all three installers, arcade-release.json and
+SHA256SUMS.txt and uploads a candidate artifact without publishing. Releases
+are release candidates: "Tag a release" (tag.yml) makes `vX.Y.Z-rc.N` and starts
+"Release", which publishes the installers on the hidden test channel through
+Link's `app-publish`; "Promote" (promote.yml) republishes a verified rc's bytes
+as stable with a signed manifest, and "Nightly" (nightly.yml) republishes main
+CI's installers. Do not create tags by hand. A real Hyprland desktop is still needed for overlay
 shortcut/placement/focus, tray clicks and update-through-Tools; Windows/macOS
 login items and macOS permission re-grant also need their native desktops.
