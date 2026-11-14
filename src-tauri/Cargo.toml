@@ -44,7 +44,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 kamadak-exif = "0.6"
 imagesize = "0.15"
 # Arcade Link (the shared protocol and install/tray runtime).
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.4.4", features = ["install", "trayhost", "design"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.7", features = ["install", "trayhost", "design"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 
@@ -56,12 +56,18 @@ tauri-plugin-global-shortcut = "2.3"
 tauri = { version = "2.11", features = ["tray-icon"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# AVIF: WebKitGTK may lack a decoder, so the image backend decodes it with
+# the system dav1d (LK-11). WebView2 and WKWebView decode AVIF themselves.
+image = { version = "0.25", default-features = false, features = ["avif-native"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 futures-util = { version = "0.3", default-features = false }
 gtk = "0.18"
 webkit2gtk = "2"
 notify-rust = "4"
 ksni = { version = "0.3", default-features = false, features = ["tokio"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [

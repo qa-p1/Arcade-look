@@ -66,7 +66,7 @@ try {
   assert.deepEqual(keyboardFailures, [], keyboardFailures.join('\n'));
   for (const theme of ['light', 'dark']) {
     for (const scale of [1, 1.25]) {
-      const page = await browser.newPage({ viewport: { width: 720, height: 520 }, colorScheme: theme });
+      const page = await browser.newPage({ viewport: { width: 800, height: 520 }, colorScheme: theme });
       const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
       await page.addInitScript(mock);

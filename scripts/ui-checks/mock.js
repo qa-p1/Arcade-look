@@ -6,7 +6,7 @@
   const longName = 'Getting started — a deliberately long file name to verify truncation and keyboard access.md';
   const file = { path: '/fixtures/' + longName, name: longName, dir: '/fixtures', ext: 'md', size: 12400, modified: Date.now(), created: null, accessed: null, readonly: false, hidden: false, symlink: null, mode: null, kind: 'markdown', format: 'markdown', lang: null, mime: 'text/markdown', plugin: null, fallbackPlugin: null };
   const send = (name, payload) => { for (const id of listeners.get(name) ?? []) callbacks.get(id)?.({ event: name, id: 1, payload }); };
-  window.__mock = { calls: [], fail: [], config, file, send };
+  window.__mock = { calls: [], fail: [], config, file, send, actions: [], linkAvailable: true, fullscreen: false };
   window.__TAURI_INTERNALS__ = {
     metadata: { currentWindow: { label: location.search.includes('settings') ? 'settings' : 'main' }, currentWebview: { label: location.search.includes('settings') ? 'settings' : 'main' } },
     transformCallback(callback) { const id = next++; callbacks.set(id, callback); return id; },
@@ -16,15 +16,18 @@
       window.__mock.calls.push([command, args]);
       if (window.__mock.fail.includes(command)) throw new Error('Fixture error');
       if (command === 'plugin:event|listen') { const ids = listeners.get(args.event) ?? []; ids.push(args.handler); listeners.set(args.event, ids); return next++; }
+      if (command === 'plugin:window|is_fullscreen') return window.__mock.fullscreen;
+      if (command === 'plugin:window|set_fullscreen') { window.__mock.fullscreen = !!args.value; return null; }
       if (command.startsWith('plugin:')) return null;
       if (command === 'bootstrap') return { platform: 'linux', version: '0.4.0', config: { ...config }, configPath: '/home/user/.config/arcade/look/settings.json', pluginsDir: '/home/user/.config/arcade/look/plugins', infoPanel: false, service: true, debug: false, mediaBase: null, integration: [['GNOME Files', true], ['Dolphin', true], ['Nemo', false]], shortcutSupported: true };
       if (command === 'get_autostart') return false;
       if (command === 'frontend_ready') { if (!location.search.includes('settings')) setTimeout(() => send('open', file.path), 0); return; }
-      if (command === 'inspect') return { ...file, path: args.path };
+      if (command === 'inspect') return { ...file, ...(window.__mock.inspectPatch ?? {}), path: args.path };
       if (command === 'render_markdown') return { html: '<h1>Getting started</h1><p>Press Space, see anything.</p><h2>One file, one preview</h2><p>Select a file in your file manager and press <kbd>Space</kbd>. Browse images, documents, media, code and archives without opening a full editor.</p><h2>Keep your place</h2><ul><li>Use the arrow keys to move between files.</li><li>Press I to inspect metadata.</li><li>Press A for connected actions.</li></ul><pre><code>arcade-look --settings</code></pre>', truncated: false };
-      if (command === 'link_available') return true;
-      if (command === 'link_actions') return [];
+      if (command === 'link_available') return window.__mock.linkAvailable;
+      if (command === 'link_actions') return window.__mock.actions;
       if (command === 'neighbor') return null;
+      if (command === 'read_text') return window.__mock.text ?? { text: '', encoding: 'UTF-8', truncated: false, size: 0, lines: 0 };
       if (command === 'set_config') { Object.assign(config, args.patch); send('config', { ...config }); return { ...config }; }
       if (command === 'link_save_shortcut') { config.globalShortcut = args.accelerator; send('config', { ...config }); return { ...config }; }
       if (command === 'link_shortcut_owner') return args.accelerator === 'Ctrl+Alt+F' ? 'Arcade Find' : null;

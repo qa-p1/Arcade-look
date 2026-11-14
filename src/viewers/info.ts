@@ -1,4 +1,3 @@
-import { formatCount } from '../design/format';
 // The universal fallback: a file card plus a virtualised hex view that reads on demand,
 // so even a 100 GB disk image previews instantly.
 import './info.css';
@@ -18,6 +17,10 @@ const MAX_CHUNKS = 64;
 export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
   const { info } = ctx;
   const exists = !!info.dir || info.size > 0 || info.modified !== null;
+  // A clear reason replaces the generic banner and the hex view: the file
+  // can't be read (LK-3), or an image format has no decoder here (LK-11).
+  const imageKind = info.kind.startsWith('image') || info.kind === 'svg';
+  const reason = info.problem ?? (imageKind ? ctx.previousError : null);
   const card = h(
     'div.info-card',
     kindBadge(info.kind, info.ext, 34),
@@ -26,9 +29,11 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
       h('div.info-card-name.selectable', info.name),
       h(
         'div.info-card-meta',
-        exists
-          ? `${kindLabel(info)}  ·  ${fmt.bytes(info.size, true)}  ·  Modified ${fmt.date(info.modified)}`
-          : info.path,
+        info.problem
+          ? info.problem
+          : exists
+            ? `${kindLabel(info)}  ·  ${fmt.bytes(info.size, true)}  ·  Modified ${fmt.date(info.modified)}`
+            : info.path,
       ),
     ),
     exists
@@ -64,7 +69,10 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
     ? h(
         'div.notice.danger.info-error',
         icon('alert', 16),
-        h('span', "Couldn't render a rich preview. Retry or open the file in another app."),
+        h(
+          'span',
+          reason ?? "Couldn't render a rich preview. Retry or open the file in another app.",
+        ),
         h(
           'button.btn.ghost',
           {
@@ -81,8 +89,9 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
     : null;
   host.append(h('div.info-top', card, err));
 
-  if (!exists || info.kind === 'folder' || info.size === 0) {
-    if (info.size === 0 && exists) host.append(h('div.center-fill', 'This file is empty.'));
+  if (reason || !exists || info.kind === 'folder' || info.size === 0) {
+    if (!reason && info.size === 0 && exists)
+      host.append(h('div.center-fill', 'This file is empty.'));
     ctx.setStatus('');
     return {};
   }
@@ -162,7 +171,7 @@ export function mount(host: HTMLElement, ctx: ViewCtx): Mounted {
     },
   });
 
-  ctx.setStatus(`${formatCount(rows)} rows of 16 bytes`);
+  ctx.setStatus(`${fmt.plural(rows, 'row')} of 16 bytes`);
   return {
     keydown(e) {
       if (e.key === 'Home') {

@@ -509,6 +509,19 @@ button {
   user-select: text;
   -webkit-user-select: text;
 }
+.dialog.help {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, calc(100vw - 32px));
+  overflow: hidden;
+}
+.dialog.help .help-grid {
+  min-height: 0;
+  overflow-y: auto;
+}
+.dialog.help .dialog-actions {
+  flex: none;
+}
 .help-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

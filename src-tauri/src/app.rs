@@ -134,6 +134,8 @@ impl AppState {
 }
 
 pub const MAIN: &str = "main";
+/// The Settings window's first size, in logical pixels.
+pub const SETTINGS_SIZE: (f64, f64) = (880.0, 600.0);
 pub const SETTINGS: &str = "settings";
 
 /// Ask the UI to preview `path` (or show the welcome screen for `None`).
@@ -274,8 +276,10 @@ fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                     payload.url()
                 );
             })
-            .inner_size(760.0, 560.0)
-            .min_inner_size(720.0, 520.0)
+            // Wider than the kit's 760 px breakpoint, so the sidebar keeps its
+            // labels instead of collapsing to icons (LK-9).
+            .inner_size(SETTINGS_SIZE.0, SETTINGS_SIZE.1)
+            .min_inner_size(800.0, 520.0)
             .decorations(true)
             .visible(false)
             .resizable(true)
@@ -717,6 +721,25 @@ pub fn keep_alive(app: &AppHandle) -> bool {
         && (app.state::<AppState>().service.load(Ordering::SeqCst)
             || crate::integration::has_listeners()
             || crate::tray::active())
+}
+
+/// W1: once no WebKit window is left, end WebKit's network process and trim
+/// (Link `runtime::release_webkit`). A window opened in the meantime cancels it;
+/// WebKit starts a new network process with the next window.
+pub fn release_webkit_when_unused(app: &AppHandle) {
+    let unused = |app: &AppHandle| {
+        app.get_webview_window(MAIN).is_none() && app.get_webview_window(SETTINGS).is_none()
+    };
+    if !unused(app) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(1));
+        if unused(&app) {
+            arcade_link::runtime::release_webkit();
+        }
+    });
 }
 
 /// One-shot release, never a periodic idle poll. Retain only the app handle, so the

@@ -79,7 +79,7 @@ info panel, file-manager integration, idle release and connected actions. Settin
 is a separate native window (760×560, minimum 720×520), created on demand and
 destroyed on close. Identifiers and folders move to `dev.arcade.Look` and
 `arcade/look/` with copy, verify, then remove; saved shortcuts are kept. The
-design kit is Arcade Link `v0.4.4` (readable small text, 4.5:1 in both themes).
+design kit is Arcade Link `v1.0.7` (readable small text, 4.5:1 in both themes).
 
 Checked on Linux in Link's isolated D-Bus/Xvfb runner (`scripts/check`):
 

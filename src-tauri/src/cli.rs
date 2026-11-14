@@ -28,6 +28,8 @@ pub struct Args {
     pub manifest: bool,
     /// Arcade Link one-shot mode: one request on stdin, no UI.
     pub invoke: bool,
+    /// The first option we don't know (a usage error, exit 2).
+    pub unknown: Option<String>,
 }
 
 pub const HELP: &str = "\
@@ -67,8 +69,8 @@ KEYS (in the preview window):
     I  info panel   F  fullscreen   +/-/0  zoom   ?  all shortcuts   Ctrl+Q  quit
 ";
 
-/// Parse argv (including argv[0]). Unknown flags are ignored so that file managers which
-/// append their own arguments never break us.
+/// Parse argv (including argv[0]). An unknown option is recorded in `unknown`; the caller
+/// prints usage and exits 2 (fleet rule, LK-7). `--` ends the options.
 pub fn parse<S: AsRef<str>>(argv: &[S]) -> Args {
     let mut a = Args::default();
     let mut only_paths = false;
@@ -102,10 +104,25 @@ pub fn parse<S: AsRef<str>>(argv: &[S]) -> Args {
             "-V" | "--version" => a.version = true,
             "--arcade-manifest" => a.manifest = true,
             "--arcade-invoke" => a.invoke = true,
-            _ => {}
+            // Read from argv by the installer; legacy no-op.
+            "--keep-download" | "--install-dialog" => {}
+            other => {
+                a.unknown.get_or_insert_with(|| other.to_string());
+            }
         }
     }
     a
+}
+
+/// The first path argument that names nothing on disk (a dangling symlink
+/// still counts as something: its preview explains it).
+pub fn missing_path(args: &Args) -> Option<std::path::PathBuf> {
+    args.paths
+        .iter()
+        .filter_map(|p| crate::util::normalize_arg(p, None))
+        .find(|p| {
+            std::fs::symlink_metadata(p).is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound)
+        })
 }
 
 pub fn run_maintenance(args: &Args) {
@@ -214,7 +231,6 @@ mod tests {
             "--channel",
             "nightly",
             "a.txt",
-            "--weird",
             "--",
             "--literal",
         ]);
@@ -225,6 +241,33 @@ mod tests {
         assert!(parse(&["x", "--repair"]).repair);
         assert!(parse(&["x", "-V"]).version);
     }
+    #[test]
+    fn unknown_options_are_reported_and_missing_paths_found() {
+        let a = parse(&["x", "--bogus", "--other"]);
+        assert_eq!(a.unknown.as_deref(), Some("--bogus"));
+        assert_eq!(parse(&["x", "--", "--bogus"]).unknown, None);
+        assert_eq!(parse(&["x", "--status"]).unknown, None);
+        let dir = std::env::temp_dir().join(format!("look-cli-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let here = dir.join("here.txt");
+        std::fs::write(&here, "x").unwrap();
+        let gone = dir.join("nope.txt");
+        let present = parse(&["x", here.to_str().unwrap()]);
+        assert_eq!(missing_path(&present), None);
+        let absent = parse(&["x", gone.to_str().unwrap()]);
+        assert_eq!(missing_path(&absent), Some(gone.clone()));
+        #[cfg(unix)]
+        {
+            let dangling = dir.join("dangling");
+            std::os::unix::fs::symlink(&gone, &dangling).unwrap();
+            assert_eq!(
+                missing_path(&parse(&["x", dangling.to_str().unwrap()])),
+                None
+            );
+        }
+        std::fs::remove_dir_all(dir).ok();
+    }
+
     #[test]
     fn standard_surface_flags_and_background_aliases_are_kept() {
         assert!(parse(&["look", "--status"]).status);

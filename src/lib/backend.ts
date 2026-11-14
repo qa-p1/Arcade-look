@@ -59,6 +59,8 @@ export interface FileInfo {
   mime: string;
   plugin: Plugin | null;
   fallbackPlugin: Plugin | null;
+  /** Why the file can't be read ("Permission denied.", "Broken link to …"). */
+  problem?: string | null;
 }
 
 export interface Config {

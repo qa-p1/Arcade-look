@@ -108,7 +108,7 @@ export function showHelp(root: HTMLElement, closeHelp: () => void): HTMLElement 
         ['Drag', 'Orbit'],
         ['Scroll', 'Zoom'],
         ['W', 'Wireframe'],
-        ['A / Shift+A', 'Auto-rotate'],
+        ['Shift+A', 'Auto-rotate'],
       ],
     ],
   ];

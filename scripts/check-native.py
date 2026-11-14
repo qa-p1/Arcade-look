@@ -260,7 +260,7 @@ try:
         wait_for(lambda: ready('settings'), 'Settings did not paint')
         if attempt == 0 and not (options.lifecycle_only or options.focus_only):
             native = evaluate("return await window.__TAURI_INTERNALS__.invoke('plugin:window|inner_size');", 'settings')
-            assert native == {'width': 760, 'height': 560}, native
+            assert native == {'width': 880, 'height': 600}, native
             for theme in ('light', 'dark'):
                 evaluate("await window.__TAURI_INTERNALS__.invoke('set_config', {patch: {theme: " + json.dumps(theme) + "}});", 'settings')
                 for factor in (1, 1.25):
@@ -272,10 +272,10 @@ try:
                       document.documentElement.style.setProperty('--lh-'+name, line * FACTOR + 'px');
                     }'''.replace('FACTOR', str(factor)), 'settings')
                     for section in ('General', 'Shortcuts', 'Previews', 'File manager', 'Plugins', 'Connected apps', 'About'):
-                        evaluate('document.querySelector(' + json.dumps('button[title="'+section+'"]') + ').click();', 'settings')
+                        evaluate('document.querySelector(' + json.dumps('button[aria-label="'+section+'"]') + ').click();', 'settings')
                         time.sleep(.15)
                         wait_for(lambda: ready('settings'), 'Settings section did not paint')
-                        capture('settings-' + section.lower().replace(' ', '-') + '-' + theme + '-' + str(factor), 'settings', [720, 520])
+                        capture('settings-' + section.lower().replace(' ', '-') + '-' + theme + '-' + str(factor), 'settings', [800, 520])
         close_settings()
         wait_for(lambda: 'settings' not in window_state()['windows'], 'Closing Settings retained its WebView')
         assert_resident(resident_pid, seconds=2)

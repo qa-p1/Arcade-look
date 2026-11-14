@@ -30,6 +30,24 @@ pub struct FileInfo {
     pub mime: String,
     pub plugin: Option<plugins::Plugin>,
     pub fallback_plugin: Option<plugins::Plugin>,
+    /// Why the file can't be read at all ("Permission denied.", "Broken link
+    /// to …"); the preview shows this instead of trying viewers (LK-3).
+    pub problem: Option<String>,
+}
+
+/// What stops `path` from being read, if anything.
+pub fn read_problem(path: &Path, symlink: Option<&str>) -> Option<String> {
+    let denied = |e: std::io::Error| {
+        (e.kind() == std::io::ErrorKind::PermissionDenied).then(|| "Permission denied.".to_string())
+    };
+    match std::fs::metadata(path) {
+        Err(e) if symlink.is_some() && e.kind() == std::io::ErrorKind::NotFound => {
+            Some(format!("Broken link to {}.", symlink.unwrap_or_default()))
+        }
+        Err(e) => denied(e),
+        Ok(m) if m.is_dir() => std::fs::read_dir(path).err().and_then(denied),
+        Ok(_) => std::fs::File::open(path).err().and_then(denied),
+    }
 }
 
 fn path_arg(p: &str) -> Res<PathBuf> {
@@ -47,6 +65,7 @@ pub fn inspect_path(path: &Path, plugins: &[plugins::Plugin]) -> Res<FileInfo> {
             .map(|t| t.to_string_lossy().to_string())
             .unwrap_or_default()
     });
+    let problem = read_problem(path, symlink.as_deref());
     let meta = std::fs::metadata(path).unwrap_or(lmeta);
     let name = path
         .file_name()
@@ -89,6 +108,7 @@ pub fn inspect_path(path: &Path, plugins: &[plugins::Plugin]) -> Res<FileInfo> {
         mime: d.mime,
         plugin: over.cloned(),
         fallback_plugin: fall.cloned(),
+        problem,
     })
 }
 
@@ -320,10 +340,27 @@ pub fn frontend_ready(app: AppHandle, window: tauri::WebviewWindow) {
     }
 }
 
-/// Frontend diagnostics, printed only with `ALOOK_DEBUG=1`.
+/// Frontend diagnostics: warnings and errors reach the support log (LK-8),
+/// the rest only with `ALOOK_DEBUG=1`.
 #[tauri::command]
 pub fn log(level: String, message: String) {
-    crate::dbg_log!("ui {level}: {message}");
+    match log_line(&level, &message) {
+        Some(line) => eprintln!("{line}"),
+        None => crate::dbg_log!("ui {level}: {message}"),
+    }
+}
+
+/// The log line for a frontend warning or error: one line, at most 500 characters.
+fn log_line(level: &str, message: &str) -> Option<String> {
+    if !matches!(level, "warn" | "error") {
+        return None;
+    }
+    let text: String = message
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .take(500)
+        .collect();
+    Some(format!("arcade-look: ui {level}: {text}"))
 }
 
 #[tauri::command]
@@ -490,4 +527,52 @@ pub async fn diagnostics(app: AppHandle) -> Res<String> {
             ))
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// LK-8: preview failures reach the log, on one bounded line.
+    #[test]
+    fn warnings_and_errors_are_logged_on_one_line() {
+        assert_eq!(log_line("trace", "x"), None);
+        assert_eq!(
+            log_line("warn", "viewer \"image\" failed\nsecond").as_deref(),
+            Some("arcade-look: ui warn: viewer \"image\" failed second")
+        );
+        assert!(log_line("error", &"x".repeat(2000)).unwrap().len() < 600);
+    }
+
+    /// LK-3: unreadable files and dangling links say so.
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_and_broken_links_are_named() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("look-problem-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let ok = dir.join("ok.txt");
+        std::fs::write(&ok, "hello").unwrap();
+        assert_eq!(inspect_path(&ok, &[]).unwrap().problem, None);
+        let link = dir.join("broken.lnk");
+        std::os::unix::fs::symlink(dir.join("nonexist"), &link).unwrap();
+        let info = inspect_path(&link, &[]).unwrap();
+        assert_eq!(
+            info.problem,
+            Some(format!(
+                "Broken link to {}.",
+                dir.join("nonexist").display()
+            ))
+        );
+        let locked = dir.join("noperm.txt");
+        std::fs::write(&locked, "secret!").unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let readable_anyway = std::fs::File::open(&locked).is_ok(); // root
+        let info = inspect_path(&locked, &[]).unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o644)).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+        if !readable_anyway {
+            assert_eq!(info.problem.as_deref(), Some("Permission denied."));
+        }
+    }
 }

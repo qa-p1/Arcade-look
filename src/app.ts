@@ -272,6 +272,7 @@ export class App {
     const ac = new AbortController();
     this.abort = ac;
     this.closeHelp();
+    this.hideToast();
 
     if (path === null) {
       this.teardown();
@@ -294,6 +295,7 @@ export class App {
       info = missingInfo(path);
       inspectError = errorMessage(e);
     }
+    if (info.problem) inspectError = info.problem;
     if (gen !== this.gen) return clearTimeout(loadingTimer);
     this.trace(
       `inspected: ${info.kind}/${info.format}${inspectError ? ` error=${inspectError}` : ''}`,
@@ -562,6 +564,11 @@ export class App {
     this.toast("Couldn't finish the action. Try again.", details);
   }
 
+  private hideToast() {
+    clearTimeout(this.toastTimer);
+    this.toastEl.hidden = true;
+  }
+
   toast(text: string, details?: string) {
     this.toastEl.replaceChildren(
       h('span.message-text', text),
@@ -590,13 +597,12 @@ export class App {
     );
     this.toastEl.hidden = false;
     clearTimeout(this.toastTimer);
-    if (!text.startsWith("Couldn't"))
-      this.toastTimer = window.setTimeout(
-        () => {
-          this.toastEl.hidden = true;
-        },
-        text === 'Copied' ? 1500 : 5000,
-      );
+    this.toastTimer = window.setTimeout(
+      () => {
+        this.toastEl.hidden = true;
+      },
+      text === 'Copied' ? 1500 : text.startsWith("Couldn't") ? 8000 : 5000,
+    );
   }
 
   // ------------------------------------------------------------------ welcome & help
@@ -773,6 +779,11 @@ export class App {
       e.preventDefault();
       return;
     }
+    if (!mod && !e.altKey && !e.shiftKey && k.toLowerCase() === 'a' && !this.strip) {
+      e.preventDefault();
+      this.toast('No connected apps can take this file');
+      return;
+    }
     const plain = !mod && !e.altKey;
     switch (k) {
       case ' ':
@@ -782,6 +793,11 @@ export class App {
         // auto-repeat must not close the preview it just opened.
         if (e.repeat) break;
         if (k === 'Escape') {
+          // One step back: Info, then fullscreen, then the preview (the menu and help took Escape above).
+          if (this.infoOpen) {
+            this.toggleInfo();
+            break;
+          }
           void getCurrentWindow()
             .isFullscreen()
             .then((fs) => (fs ? getCurrentWindow().setFullscreen(false) : this.close()));

@@ -65,7 +65,7 @@ export class Settings {
           {
             type: 'button',
             role: 'tab',
-            title: name,
+            'aria-label': name,
             'aria-controls': 'settings-page',
             'aria-selected': false,
             tabindex: -1,
@@ -473,15 +473,16 @@ export class Settings {
             about.channel,
             h('span.selectable', 'Press Space, see anything.'),
           ),
+          // Arcade Tools installs and updates the apps (LK-9).
           row(
-            about.tools ? 'Updates are managed by Arcade Tools' : 'Updates',
+            'Updates are managed by Arcade Tools',
             '',
-            button(about.tools ? 'Open Tools' : 'Check for updates', () => {
+            button(about.tools ? 'Open Tools' : 'Get Arcade Tools', () => {
               if (about.tools)
                 void invoke('link_open', { appId: 'arcade.tools' }).catch(this.report);
               else
                 void api
-                  .openUrl('https://github.com/qa-p1/Arcade-look/releases/latest')
+                  .openUrl('https://github.com/qa-p1/Arcade-tools/releases/latest')
                   .catch(this.report);
             }),
           ),
