@@ -19,3 +19,14 @@ On `claude/tender-feynman-3vt7dg`, each fix with its regression test (Rust unit 
 
 Left: L1 (move to Link v1.0.7 once tagged, then leave `LEGACY_PENDING`), untangle (step 2), dead code, the memory
 items (U1, W1, OPEN1, W3b, LK1) and budgets, CI targets, Round 5 (notices now include dav1d), release.
+
+## 2026-11-14 (Link v1.0.7, L1)
+
+- Look pins Arcade Link `v1.0.7` (40ec027): Cargo, the design kit (`scripts/sync-design.py`; arcade.css and icons.ts
+  changed, the tray icons render identically so their PNGs are kept), and the Link runner clones in ci.yml and
+  build.yml. Look already lists `arcade-look` and `app.arcadelook` in `legacy_desktop_ids`, so Link 1.0.7's installer
+  retires those entries (L1). Removing `arcade.look` from Link's `LEGACY_PENDING` is a Link change, left to Link's
+  owner once a Look build with this pin is on main.
+- First CI run on the fixes: clippy `unnecessary_cast` on `tm_gmtoff` (fixed), dav1d 0.9 on the 22.04 AppImage runner
+  (now built from source and linked statically, D1), and the native Settings size check (placement now uses the same
+  880x600 constant as the window builder).

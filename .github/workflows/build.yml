@@ -51,7 +51,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: qa-p1/Arcade-Link
-          ref: v0.4.4
+          ref: v1.0.7
           path: Arcade-Link
 
       # The runner context isn't available in job-level env.
