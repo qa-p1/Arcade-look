@@ -75,8 +75,9 @@ pub fn place(app: &AppHandle, window: &WebviewWindow) {
         .lock()
         .map(|state| *state)
         .unwrap_or_default();
+    // Settings opens wider than the kit's 760 px sidebar breakpoint (LK-9).
     let (w, h) = if window.label() == crate::app::SETTINGS {
-        (760.0, 560.0)
+        (crate::app::SETTINGS_SIZE.0, crate::app::SETTINGS_SIZE.1)
     } else {
         (defaults.width, defaults.height)
     };

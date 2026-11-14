@@ -134,6 +134,8 @@ impl AppState {
 }
 
 pub const MAIN: &str = "main";
+/// The Settings window's first size, in logical pixels.
+pub const SETTINGS_SIZE: (f64, f64) = (880.0, 600.0);
 pub const SETTINGS: &str = "settings";
 
 /// Ask the UI to preview `path` (or show the welcome screen for `None`).
@@ -276,7 +278,7 @@ fn build_settings_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             })
             // Wider than the kit's 760 px breakpoint, so the sidebar keeps its
             // labels instead of collapsing to icons (LK-9).
-            .inner_size(880.0, 600.0)
+            .inner_size(SETTINGS_SIZE.0, SETTINGS_SIZE.1)
             .min_inner_size(800.0, 520.0)
             .decorations(true)
             .visible(false)
