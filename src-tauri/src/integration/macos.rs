@@ -62,7 +62,10 @@ fn launch_agent() -> PathBuf {
         .map(|e| e.home)
         .or_else(dirs::home_dir)
         .unwrap_or_default()
-        .join("Library/LaunchAgents/dev.arcade.Look.plist")
+        .join(format!(
+            "Library/LaunchAgents/{}.plist",
+            crate::identity::DESKTOP_ID
+        ))
 }
 
 pub fn autostart_enabled() -> bool {

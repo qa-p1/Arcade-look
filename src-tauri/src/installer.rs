@@ -15,10 +15,7 @@ use arcade_link::receipt::ManagedBy;
 use arcade_link::receipt::{InstallMethod, Receipt};
 use serde::{Deserialize, Serialize};
 
-pub const ME: &str = arcade_link::ids::LOOK;
-pub const NAME: &str = "Arcade Look";
-pub const CLI_NAME: &str = "arcade-look";
-pub const DESKTOP_ID: &str = "dev.arcade.Look";
+use crate::identity::{CLI_NAME, DESKTOP_ID, ME, NAME};
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn app_info() -> AppInfo {

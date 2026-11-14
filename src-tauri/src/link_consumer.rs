@@ -773,7 +773,7 @@ pub async fn link_available(app: AppHandle) -> Res<bool> {
 #[tauri::command]
 pub async fn link_actions(app: AppHandle, path: String, pdf_page: bool) -> Res<Vec<Offer>> {
     blocking(move || {
-        let content = file_content(&path).map_err(|e| e.user_message("Arcade Look"))?;
+        let content = file_content(&path).map_err(|e| e.user_message(crate::identity::NAME))?;
         Ok(consumer().offers(
             &app.state::<crate::app::AppState>().config(),
             &content,
@@ -801,7 +801,7 @@ pub async fn link_invoke(
         {
             let mut jobs = consumer.jobs.lock().unwrap();
             if !jobs.is_empty() {
-                return Err(LinkError::busy().user_message("Arcade Look"));
+                return Err(LinkError::busy().user_message(crate::identity::NAME));
             }
             jobs.insert(request_id.clone(), cancel.clone());
         }
@@ -814,9 +814,10 @@ pub async fn link_invoke(
             let config = app.state::<crate::app::AppState>().config();
             if !config.link_enabled || config.link_disabled_peers.contains(&app_id) {
                 return Err(LinkError::denied(arcade_link::error::reason::DISABLED)
-                    .user_message("Arcade Look"));
+                    .user_message(crate::identity::NAME));
             }
-            let mut content = file_content(&path).map_err(|e| e.user_message("Arcade Look"))?;
+            let mut content =
+                file_content(&path).map_err(|e| e.user_message(crate::identity::NAME))?;
             let mut handoff = None;
             if let Some(png) = pdf_png {
                 if app_id != ids::LENS || action_id != "lens.analyze" || content.kind != "file/pdf"
@@ -887,7 +888,7 @@ pub async fn link_invoke(
                 if let Err(error) = app
                     .notification()
                     .builder()
-                    .title("Arcade Look")
+                    .title(crate::identity::NAME)
                     .body(body)
                     .show()
                 {
@@ -1012,8 +1013,8 @@ fn linux_notification(body: &'static str) -> tauri::async_runtime::JoinHandle<Re
     // on a blocking worker rather than the notification plugin's async task.
     tauri::async_runtime::spawn_blocking(move || {
         let result = notify_rust::Notification::new()
-            .appname("Arcade Look")
-            .summary("Arcade Look")
+            .appname(crate::identity::NAME)
+            .summary(crate::identity::NAME)
             .body(body)
             .icon("arcade-look")
             .show()

@@ -396,7 +396,10 @@ struct Files {
 fn files() -> Files {
     let d = data_home();
     Files {
-        desktop: d.join("applications/dev.arcade.Look.desktop"),
+        desktop: d.join(format!(
+            "applications/{}.desktop",
+            crate::identity::DESKTOP_ID
+        )),
         dbus: d.join("dbus-1/services/org.gnome.NautilusPreviewer.service"),
         dolphin: d.join("kio/servicemenus/arcade-look.desktop"),
         nemo: d.join("nemo/actions/arcade-look.nemo_action"),
@@ -410,7 +413,7 @@ fn autostart_file() -> PathBuf {
         .map(|e| e.config)
         .or_else(dirs::config_dir)
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"))
-        .join("autostart/dev.arcade.Look.desktop")
+        .join(format!("autostart/{}.desktop", crate::identity::DESKTOP_ID))
 }
 
 /// Quote a path as one argument of a desktop entry's `Exec` key. The spec applies string

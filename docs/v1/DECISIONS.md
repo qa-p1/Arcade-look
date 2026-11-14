@@ -66,3 +66,11 @@ as "Tauri's app identifier". So `--uninstall --remove-data` left `~/.cache/dev.a
 `~/.local/share/dev.arcade.Look` and, on macOS, `~/Library/WebKit/dev.arcade.Look`. Uninstall now removes the folders
 of both the current identifier (`DESKTOP_ID`) and the old one, and a test checks that `DESKTOP_ID` is
 `tauri.conf.json`'s identifier, so the two can't drift again.
+
+## D10 - Untangle (step 2): one place for Look's identity
+
+Look's ids and name lived in the 1,100-line `installer` and were repeated as literals: "Arcade Look" in eight places
+(titles, error messages, notifications, the tray tooltip), `dev.arcade.Look` in GTK's program name and the Linux and
+macOS entry paths, and `arcade-look` as the log name and the cache folder, which uninstall's data list also names.
+`identity.rs` holds them and everything reads them there. Left literal: icon-theme names and the old ids, which
+mean something else.

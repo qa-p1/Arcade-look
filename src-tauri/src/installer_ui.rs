@@ -5,7 +5,8 @@
 
 use std::path::PathBuf;
 
-use crate::installer::{self, DialogState, Options, ME, NAME};
+use crate::identity::{ME, NAME};
+use crate::installer::{self, DialogState, Options};
 use arcade_link::install::{strings, Detection, Environment, Runtime};
 use arcade_link::receipt::ManagedBy;
 
@@ -162,7 +163,7 @@ fn ask(
     let (title, body, buttons) = text(state);
     let dialog = gtk::Dialog::new();
     dialog.set_title(&format!("{NAME} — Installation"));
-    dialog.set_icon_name(Some(installer::DESKTOP_ID));
+    dialog.set_icon_name(Some(crate::identity::DESKTOP_ID));
     dialog.set_resizable(false);
     dialog.set_position(gtk::WindowPosition::Center);
     dialog.set_default_size(460, -1);
@@ -358,7 +359,7 @@ fn ask(
             DialogState::MoveToApplications | DialogState::Install
         )
     {
-        let offer = format!("Add the {} terminal command?", installer::CLI_NAME);
+        let offer = format!("Add the {} terminal command?", crate::identity::CLI_NAME);
         options.install_cli = osascript(&format!(
             "button returned of (display dialog {} with title {} buttons {{\"Not now\", \"Add\"}} default button \"Add\")",
             quote(&offer),
