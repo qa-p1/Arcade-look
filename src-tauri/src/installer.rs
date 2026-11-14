@@ -582,31 +582,35 @@ pub fn stop_running_copy(environment: &Environment) {
     }
 }
 
-/// Tauri's app identifier (tauri.conf.json).
-const IDENTIFIER: &str = "app.arcadelook";
+/// Tauri's app identifier before 0.4.0. Its WebView storage and cache stay on disk after an update.
+const OLD_IDENTIFIER: &str = "app.arcadelook";
+
+/// What `--remove-data` deletes. The WebView keeps its storage and cache under Tauri's app identifier
+/// (tauri.conf.json, the same as `DESKTOP_ID`), and under the old one for installs from before 0.4.0.
+fn data_folders() -> Vec<PathBuf> {
+    let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+    let mut folders = vec![crate::config::dir(), cache.join(CLI_NAME)];
+    let dirs = arcade_link::paths::app_dirs(ME);
+    folders.extend([dirs.config, dirs.data, dirs.cache]);
+    folders.extend(
+        arcade_link::paths::legacy_dirs(ME)
+            .into_iter()
+            .map(|legacy| legacy.path),
+    );
+    for identifier in [DESKTOP_ID, OLD_IDENTIFIER] {
+        folders.push(cache.join(identifier));
+        folders.extend(dirs::data_local_dir().map(|d| d.join(identifier)));
+        #[cfg(target_os = "macos")]
+        folders.extend(dirs::home_dir().map(|h| h.join("Library/WebKit").join(identifier)));
+    }
+    folders
+}
 
 pub fn uninstall(environment: &Environment, remove_data: bool) -> io::Result<bool> {
     quit_running_instance();
     #[cfg(target_os = "linux")]
     crate::integration::linux::remove_installed_entries(environment);
-    let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
-    // The WebView's storage and cache live under the app identifier.
-    #[allow(unused_mut)]
-    let mut data_folders = vec![
-        crate::config::dir(),
-        cache.join("arcade-look"),
-        cache.join(IDENTIFIER),
-    ];
-    let dirs = arcade_link::paths::app_dirs(ME);
-    data_folders.extend([dirs.config, dirs.data, dirs.cache]);
-    data_folders.extend(
-        arcade_link::paths::legacy_dirs(ME)
-            .into_iter()
-            .map(|legacy| legacy.path),
-    );
-    data_folders.extend(dirs::data_local_dir().map(|d| d.join(IDENTIFIER)));
-    #[cfg(target_os = "macos")]
-    data_folders.extend(dirs::home_dir().map(|h| h.join("Library/WebKit").join(IDENTIFIER)));
+    let data_folders = data_folders();
     #[cfg(target_os = "macos")]
     let cli = bundle_cli(environment)?;
     let removed = install::uninstall(
@@ -786,6 +790,30 @@ pub fn first_run_prompt(args: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remove_data_covers_the_webview_folders_of_the_current_and_the_old_identifier() {
+        // Tauri names the WebView's folders after tauri.conf.json's identifier; it changed in 0.4.0 and uninstall
+        // kept removing only the old one.
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(conf["identifier"], DESKTOP_ID);
+        let folders = data_folders();
+        for identifier in [DESKTOP_ID, OLD_IDENTIFIER] {
+            let local = dirs::data_local_dir().unwrap().join(identifier);
+            assert!(
+                folders.contains(&local),
+                "{} missing from {folders:?}",
+                local.display()
+            );
+            let cache = dirs::cache_dir().unwrap().join(identifier);
+            assert!(
+                folders.contains(&cache),
+                "{} missing from {folders:?}",
+                cache.display()
+            );
+        }
+    }
 
     fn bundle_receipt(environment: &Environment) -> Receipt {
         Receipt {

@@ -57,3 +57,12 @@ one, as on first open. `runtime::cap_malloc_arenas()` runs first in `main` (Tool
 on timing). The 30 s keep-warm (0.15 s re-show) is unchanged. W3b (page out the hidden process) is not applied: the
 owner listed paging-out as a UX trade (LOCAL.md item 4) to decide explicitly. U1 (unpacked runtime) comes with the
 packaging step.
+
+## D9 - Untangle (step 2): `--remove-data` missed the WebView data after the identifier change
+
+Hidden link: Tauri names the WebView's storage and cache after `tauri.conf.json`'s identifier, which became
+`dev.arcade.Look` in 0.4.0 (491d46a), while uninstall kept its own copy, still `app.arcadelook` and still described
+as "Tauri's app identifier". So `--uninstall --remove-data` left `~/.cache/dev.arcade.Look`,
+`~/.local/share/dev.arcade.Look` and, on macOS, `~/Library/WebKit/dev.arcade.Look`. Uninstall now removes the folders
+of both the current identifier (`DESKTOP_ID`) and the old one, and a test checks that `DESKTOP_ID` is
+`tauri.conf.json`'s identifier, so the two can't drift again.
