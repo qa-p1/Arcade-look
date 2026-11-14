@@ -48,3 +48,12 @@ A 5 MB text or Markdown file peaked near 880 RSS / 654 PSS because up to 4 MiB w
 (`textLimitMb`, never shown in Settings) is now 1 MiB; the "Showing the first ... Open the file to see everything"
 banner already explains the cut, so the UX cost is none (AUDIT/memory.md LK1). A saved 4, which was only ever 0.4's
 default, is read as 1; any other saved value is kept. Virtualizing the code view was not needed for the budget.
+
+## D8 - Memory: W1, arena cap and W0 from Link 1.0.7; page-out (W3b) not taken
+
+Once no WebKit window is left (the 30 s preview release, or Settings closed), Look calls Link
+`runtime::release_webkit()`, which ends WebKit's network process and trims (W1 + W0); the next window starts a new
+one, as on first open. `runtime::cap_malloc_arenas()` runs first in `main` (Tools D18: arena count made memory depend
+on timing). The 30 s keep-warm (0.15 s re-show) is unchanged. W3b (page out the hidden process) is not applied: the
+owner listed paging-out as a UX trade (LOCAL.md item 4) to decide explicitly. U1 (unpacked runtime) comes with the
+packaging step.

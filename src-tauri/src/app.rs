@@ -723,6 +723,25 @@ pub fn keep_alive(app: &AppHandle) -> bool {
             || crate::tray::active())
 }
 
+/// W1: once no WebKit window is left, end WebKit's network process and trim
+/// (Link `runtime::release_webkit`). A window opened in the meantime cancels it;
+/// WebKit starts a new network process with the next window.
+pub fn release_webkit_when_unused(app: &AppHandle) {
+    let unused = |app: &AppHandle| {
+        app.get_webview_window(MAIN).is_none() && app.get_webview_window(SETTINGS).is_none()
+    };
+    if !unused(app) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(1));
+        if unused(&app) {
+            arcade_link::runtime::release_webkit();
+        }
+    });
+}
+
 /// One-shot release, never a periodic idle poll. Retain only the app handle, so the
 /// timer itself cannot keep a destroyed webview alive. Stale timers cannot destroy
 /// a reopened window (including one still loading) or a later window generation.

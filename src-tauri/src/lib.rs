@@ -285,6 +285,13 @@ pub fn run() {
                 app::settings_destroyed(app);
             }
         }
+        if let RunEvent::WindowEvent {
+            event: WindowEvent::Destroyed,
+            ..
+        } = &event
+        {
+            app::release_webkit_when_unused(app);
+        }
         if let RunEvent::Exit = event {
             link::stop();
         }
