@@ -64,16 +64,24 @@ def descendants(resident):
         family |= children
 
 
-def renderers(resident):
+def helpers(resident, name):
     result = []
     for pid in descendants(resident):
         try:
             executable = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')[0]
-            if executable.endswith(b'WebKitWebProcess'):
+            if executable.endswith(name):
                 result.append(pid)
         except OSError:
             pass
     return result
+
+
+def renderers(resident):
+    return helpers(resident, b'WebKitWebProcess')
+
+
+def network_processes(resident):
+    return helpers(resident, b'WebKitNetworkProcess')
 
 
 def memory(resident):
@@ -136,6 +144,9 @@ def main():
                                      stderr=subprocess.STDOUT, start_new_session=True)
             try:
                 original = wait(pid, 'initial resident endpoint')
+                # U1 (D12): the launcher hands over to the unpacked copy and exits 0; the endpoint names the copy.
+                copy = os.readlink(f'/proc/{original}/exe')
+                assert '/arcade/runtime/look-' in copy, f'The resident runs from {copy}, not from its unpacked copy'
                 for cycle in range(3):
                     run(*opening)
                     identifier = wait(visible, 'native window')[0]
@@ -147,12 +158,17 @@ def main():
                     # quick Settings create/destroy cycles.
                     deadline = time.monotonic() + (26 if cycle == 0 else 1)
                     while time.monotonic() < deadline:
-                        assert child.poll() is None, 'Closing a window exited/restarted the app'
+                        # The installed AppImage hands over to its unpacked copy (Link U1): its launcher exits 0 and
+                        # the resident named by the endpoint carries on, so follow that PID.
+                        assert child.poll() in (None, 0), f'launcher exited {child.returncode}'
+                        assert Path(f'/proc/{original}').exists(), 'Closing a window exited the app'
                         assert pid() == original, 'Closing a window changed the resident PID'
                         time.sleep(.1)
                     wait(lambda: not renderers(original), 'closed WebView releases its renderer', seconds=10)
+                    # W1 (D12): with no window left WebKit's network process ends too (3 s after the last close).
+                    wait(lambda: not network_processes(original), 'closed WebView ends the network process', seconds=10)
                     assert pid() == original
-                    print(f'Cycle {cycle + 1}: PID {original} stable, 0 renderers, group PSS {memory(original)} MiB', flush=True)
+                    print(f'Cycle {cycle + 1}: PID {original} stable, 0 renderers and network processes, group PSS {memory(original)} MiB', flush=True)
                 if app == 'arcade.look':
                     title = 'Arcade Look'
                     run('--show')
@@ -162,10 +178,11 @@ def main():
                     wait(lambda: not visible(), 'preview closes')
                     def preview_released():
                         assert pid() == original, 'Preview cleanup changed resident PID'
-                        assert child.poll() is None, 'Preview cleanup exited the app'
+                        assert child.poll() in (None, 0), f'launcher exited {child.returncode}'
                         return not renderers(original)
                     wait(preview_released, 'preview renderer released after normal 30s delay', seconds=45)
-                    print(f'Preview: PID {original} stable, 0 renderers, group PSS {memory(original)} MiB', flush=True)
+                    wait(lambda: not network_processes(original), 'released preview ends the network process', seconds=10)
+                    print(f'Preview: PID {original} stable, 0 renderers and network processes, group PSS {memory(original)} MiB', flush=True)
                 run('--restart')
                 successor = wait(lambda: (p if (p := pid()) and p != original else None),
                                  'explicit Restart replaces the process')

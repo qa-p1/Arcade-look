@@ -10,29 +10,68 @@ import sys
 import tempfile
 
 
-def survives(executable, env, work, *args, seconds=15):
-    """Starts `executable` from the user's directory `work` and fails if it
-    exits within `seconds`; then stops it and everything it started."""
+def unpacked_copies(root):
+    """Processes running Look from an unpacked copy under `root` (Link U1)."""
+    found = []
+    for proc in Path("/proc").iterdir():
+        try:
+            exe = os.readlink(proc / "exe")
+        except OSError:
+            continue
+        if exe.startswith(str(root) + "/") and "/arcade/runtime/look-" in exe and exe.endswith("/arcade-look"):
+            found.append(int(proc.name))
+    return found
+
+
+def preloads_trimmer(pid):
+    """Whether the process will pass libarcade-trim.so on to WebKit's helpers (OPEN1)."""
+    try:
+        environment = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
+    except OSError:
+        return False
+    return any(v.startswith(b"LD_PRELOAD=") and b"/usr/lib/libarcade-trim.so" in v for v in environment)
+
+
+def survives(executable, env, work, root, *args, seconds=15):
+    """Starts `executable` from the user's directory `work` and fails unless Look
+    is still running `seconds` later from its unpacked copy under `root`, with the
+    WebKit trimmer preloaded; then stops it and everything it started. The launcher
+    copies the image once to <data>/arcade/runtime/, starts Look from there and
+    exits 0 (U1, D12), so a shell holds the session open after it."""
     work.mkdir(exist_ok=True)
     with tempfile.TemporaryFile() as log:
         child = subprocess.Popen(
-            [str(executable), *args], cwd=work, env=dict(env, OWD=str(work)),
+            ["sh", "-c", '"$0" "$@" || exit $?; exec sleep 600', str(executable), *args],
+            cwd=work, env=dict(env, OWD=str(work)),
             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
         )
+        unpacked = []
+        trimmer = False
         try:
             code = child.wait(timeout=seconds)
         except subprocess.TimeoutExpired:
             code = None
+            unpacked = unpacked_copies(root)
+            trimmer = bool(unpacked) and all(preloads_trimmer(pid) for pid in unpacked)
         finally:
+            for pid in unpacked_copies(root):
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
             try:
                 os.killpg(child.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
             child.wait()
-        if code is not None:
+        if code is not None or not unpacked or not trimmer:
             log.seek(0)
             output = log.read().decode(errors="replace")[-4000:]
-            raise RuntimeError(f"{executable} {' '.join(args)} exited {code} within {seconds}s:\n{output}")
+            if code is not None:
+                raise RuntimeError(f"{executable} {' '.join(args)} exited {code} within {seconds}s:\n{output}")
+            if not unpacked:
+                raise RuntimeError(f"{executable} {' '.join(args)} is not running from its unpacked copy (U1):\n{output}")
+            raise RuntimeError(f"{executable} {' '.join(args)} does not preload libarcade-trim.so (OPEN1):\n{output}")
 
 
 def main():
@@ -79,6 +118,14 @@ def main():
                 raise RuntimeError(f"{executable} {' '.join(args)} exited {result.returncode}\n{result.stdout}\n{result.stderr}")
             return result.stdout
 
+        # OPEN1 (D12): Look preloads the trimmer into WebKit's helper processes (memory.rs).
+        extracted = root / "extracted"
+        extracted.mkdir()
+        subprocess.run([str(download), "--appimage-extract"], cwd=extracted, env=env, check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
+        assert (extracted / "squashfs-root/usr/lib/libarcade-trim.so").is_file(), "AppImage lacks libarcade-trim.so"
+        shutil.rmtree(extracted)
+
         version = run(download, "--version").strip().split()[-1]
         run(download, "--install", "--silent", "--no-launch")
         receipt_path = root / "arcade/installs" / (app_id + ".json")
@@ -112,10 +159,11 @@ def main():
         # $APPDIR/usr and the mounting runtime sets $OWD (extract-and-run
         # doesn't, so it is set here); WebKit finds its helpers relative to
         # $APPDIR/usr and aborts the whole app when they aren't there.
+        # With U1 (D12) the launcher hands over to Look's unpacked copy and exits 0, so the copy is what is checked.
         work = root / "work"
         work.mkdir()
         (work / "note.md").write_text("# Arcade Look\n", encoding="utf-8")
-        survives(installed, env, work, "note.md")
+        survives(installed, env, work, root, "note.md")
 
         # Reproduce an in-place upgrade from pre-overhaul ids. Tools creates
         # the new receipt-owned entries, but an older customized launcher and
@@ -129,14 +177,14 @@ def main():
             path.write_text(contents, encoding="utf-8")
             legacy_entries[path] = contents
         owned_entries = {path: path.read_bytes() for path in (desktop, autostart)}
-        survives(installed, env, work, "--settings")
+        survives(installed, env, work, root, "--settings")
         for path, contents in legacy_entries.items():
             assert path.read_text(encoding="utf-8") == contents, f"Upgrade changed conflicting entry: {path}"
         # Exercise a login-entry conflict independently of the launcher conflict.
         legacy_launcher = desktop.parent / "arcade-look.desktop"
         legacy_launcher.unlink()
         del legacy_entries[legacy_launcher]
-        survives(installed, env, work, "note.md")
+        survives(installed, env, work, root, "note.md")
         for path, contents in legacy_entries.items():
             assert path.read_text(encoding="utf-8") == contents, f"Upgrade changed conflicting entry: {path}"
         for path, contents in owned_entries.items():
