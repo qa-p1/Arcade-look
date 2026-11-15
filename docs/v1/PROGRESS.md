@@ -2,6 +2,12 @@
 
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-15 (cloud session) - Link 1.0.11
+
+- D14: Link 1.0.7 → 1.0.11 (crate, workflows, Link checkouts, design kit record). The first-run prompt, the trimmer
+  preload and the stale-copy cleanup ask `runtime::is_unpacked_copy()`, so a marker inherited from another copy no
+  longer counts.
+
 ## 2026-11-15 (cloud session) - step 7: release gates
 
 D13: `gates.yml` on Link `app-gates.yml@v1.0.9` for the published rc, and `scripts/verify-upgrade.py`, the upgrade

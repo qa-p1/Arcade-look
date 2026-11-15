@@ -21,12 +21,12 @@ concurrency:
 
 jobs:
   gates:
-    uses: qa-p1/Arcade-Link/.github/workflows/app-gates.yml@v1.0.9
+    uses: qa-p1/Arcade-Link/.github/workflows/app-gates.yml@v1.0.11
     with:
       app: arcade.look
       name: look
       previous: ${{ inputs.previous }}
-      link-ref: v1.0.9
+      link-ref: v1.0.11
       linux-packages: >-
         libwebkit2gtk-4.1-0 libayatana-appindicator3-1 python3-dbus
         gstreamer1.0-plugins-base gstreamer1.0-plugins-good
@@ -45,7 +45,7 @@ jobs:
   # Tier 2 (sway, KWin, Mutter, X11) blocks on a crash or data loss.
   desktop-tier2:
     needs: gates
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.9
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.11
     with:
       artifact: gate-appimage
-      link-ref: v1.0.9
+      link-ref: v1.0.11

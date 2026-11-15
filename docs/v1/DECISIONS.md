@@ -161,3 +161,19 @@ and the Tier 2 desktop smoke. "Promote" runs only after a green Gates run on the
   without `--remove-data` keeps the data. Connected apps stay on in the seeded settings: Look finds its resident
   through Link, so `--status` cannot see a resident with it off. CI runs it from 0.4.3 on every Linux build.
 - No Tier 1 script yet; the previews' behaviour on a real compositor is the owner's desktop harness run.
+
+## D14 - Link 1.0.11 (step 8 prep)
+
+Look moves from Link 1.0.7 to 1.0.11. What touches Look:
+- 1.0.11 gives the unpacked copy's marker (`ARCADE_UNPACKED`) its own folder and drops a marker that does not
+  contain the running executable, so a restart's successor or a Look started from another app's unpacked copy
+  relaunches into its own copy instead of staying on the FUSE mount. Look read the marker in three places as "set
+  means I am the copy": the first-run prompt, the WebKit trimmer preload (D12, OPEN1) and the stale-copy cleanup. An
+  inherited marker would have skipped the install prompt, preloaded the trimmer from the launcher's mount (gone once
+  the copy runs) and cleaned copies from a process that is not one. All three now ask
+  `runtime::is_unpacked_copy()`. 1.0.11 also publishes release files under names GitHub keeps.
+- 1.0.10: uninstall removes Look's own copies under `<data>/arcade/runtime/look-*` (D12 relied on Look's own
+  cleanup at startup; `--uninstall` now clears them too).
+- 1.0.9 is the gates workflow D13 already uses; 1.0.8's changes are in the Qt/QML and Dart kits Look does not use.
+The design kit is byte-identical at v1.0.11 (only the recorded tag moves); the WebKit trimmer sources did not
+change since v1.0.7, so their record stays. Every Link workflow and checkout is pinned to `v1.0.11`.

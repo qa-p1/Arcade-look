@@ -68,8 +68,8 @@ pub(crate) fn reclaim_after(app: &AppHandle, delay: Duration) {
 pub(crate) fn after_startup(app: &AppHandle) {
     reclaim_after(app, RELEASE_AFTER_STARTUP);
     #[cfg(target_os = "linux")]
-    if let Some(appdir) = std::env::var_os("APPDIR")
-        .filter(|_| std::env::var_os(arcade_link::runtime::UNPACKED_ENV).is_some())
+    if let Some(appdir) =
+        std::env::var_os("APPDIR").filter(|_| arcade_link::runtime::is_unpacked_copy())
     {
         std::thread::spawn(move || {
             std::thread::sleep(RELEASE_AFTER_STARTUP);
@@ -120,7 +120,7 @@ fn in_use(dir: &std::path::Path) -> bool {
 /// Call it while Look still has one thread.
 #[cfg(target_os = "linux")]
 pub fn preload_webkit_trimmer() {
-    let unpacked = std::env::var_os(arcade_link::runtime::UNPACKED_ENV).is_some();
+    let unpacked = arcade_link::runtime::is_unpacked_copy();
     if !unpacked && std::env::var_os("APPIMAGE").is_some() {
         return;
     }

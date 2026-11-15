@@ -114,10 +114,9 @@ pub fn run() {
         std::process::exit(1);
     }
 
-    // The launcher already asked (and was told to continue): its unpacked copy must not ask again.
-    if std::env::var_os(arcade_link::runtime::UNPACKED_ENV).is_none()
-        && installer::first_run_prompt(&argv)
-    {
+    // The launcher already asked (and was told to continue): its unpacked copy must not ask again. A marker
+    // inherited from another app's copy is not this process's (Link 1.0.11), so that start still asks.
+    if !arcade_link::runtime::is_unpacked_copy() && installer::first_run_prompt(&argv) {
         return;
     }
 
