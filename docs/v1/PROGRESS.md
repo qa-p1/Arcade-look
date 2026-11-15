@@ -2,6 +2,13 @@
 
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-15 (cloud session) - step 7: release gates
+
+D13: `gates.yml` on Link `app-gates.yml@v1.0.9` for the published rc, and `scripts/verify-upgrade.py`, the upgrade
+gate Look did not have (CI runs it from the published 0.4.3).
+
+Tested locally: `scripts/verify-upgrade.py` in Link's isolated runner (`tools/e2e.py run`) on the real published
+AppImages, 0.4.1 → 0.4.3: passed. The workflow files parse.
 
 ## 2026-11-15 (cloud session) - step 5
 

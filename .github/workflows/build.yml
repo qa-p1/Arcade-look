@@ -122,6 +122,17 @@ jobs:
           # The runner builds this debug CLI before executing the tray gate.
           /usr/bin/python3 "$GITHUB_WORKSPACE/Arcade-Link/tools/e2e.py" run -- /usr/bin/python3 tests/tray-registration.py src-tauri/target/release/arcade-look "$GITHUB_WORKSPACE/Arcade-Link/target/debug/arcade-link" look
 
+      - name: Upgrade the real previous release with a user's data (isolated)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh api repos/qa-p1/Arcade-look/releases/tags/v0.4.3 --jq '.assets[] | select(.name | endswith(".AppImage")) | .id')
+          gh api -H 'Accept: application/octet-stream' "repos/qa-p1/Arcade-look/releases/assets/$id" > "$RUNNER_TEMP/previous.AppImage"
+          chmod +x "$RUNNER_TEMP/previous.AppImage"
+          /usr/bin/python3 "$GITHUB_WORKSPACE/Arcade-Link/tools/e2e.py" run -- /usr/bin/python3 scripts/verify-upgrade.py "$RUNNER_TEMP/previous.AppImage" src-tauri/target/release/bundle/appimage/*.AppImage
+
       - name: Verify NSIS silent install and uninstall
         if: runner.os == 'Windows'
         shell: pwsh
