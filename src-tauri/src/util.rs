@@ -308,8 +308,8 @@ pub fn path_from_url_segments(encoded: &str) -> PathBuf {
     }
 }
 
-/// Inverse of `path_from_url_segments`, used by the backend when it emits URLs
-/// (e.g. relative images in Markdown).
+/// Inverse of `path_from_url_segments`; the tests build protocol URLs with it.
+#[cfg(all(test, unix))]
 pub fn url_segments_from_path(path: &Path) -> String {
     const SEG: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
         .remove(b'-')
@@ -322,19 +322,6 @@ pub fn url_segments_from_path(path: &Path) -> String {
         .map(|seg| percent_encoding::utf8_percent_encode(seg, SEG).to_string())
         .collect::<Vec<_>>()
         .join("/")
-}
-
-/// Base URL of our custom protocol as seen by the webview on this platform.
-pub fn protocol_base() -> &'static str {
-    if cfg!(windows) {
-        "http://alook.localhost/"
-    } else {
-        "alook://localhost/"
-    }
-}
-
-pub fn file_url(path: &Path) -> String {
-    format!("{}f/{}", protocol_base(), url_segments_from_path(path))
 }
 
 pub fn escape_html(s: &str) -> String {
