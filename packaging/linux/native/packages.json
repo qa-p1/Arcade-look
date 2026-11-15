@@ -1,0 +1,881 @@
+{
+  "host": "Ubuntu 22.04",
+  "packages": {
+    "dconf-gsettings-backend": {
+      "source": "dconf"
+    },
+    "gir1.2-atk-1.0": {
+      "source": "atk1.0"
+    },
+    "gir1.2-atspi-2.0": {
+      "source": "at-spi2-core"
+    },
+    "gir1.2-ayatanaappindicator3-0.1": {
+      "source": "libayatana-appindicator"
+    },
+    "gir1.2-ayatanaido3-0.4": {
+      "source": "ayatana-ido"
+    },
+    "gir1.2-dazzle-1.0": {
+      "source": "libdazzle"
+    },
+    "gir1.2-dbusmenu-glib-0.4": {
+      "source": "libdbusmenu"
+    },
+    "gir1.2-freedesktop": {
+      "source": "gobject-introspection"
+    },
+    "gir1.2-gdkpixbuf-2.0": {
+      "source": "gdk-pixbuf"
+    },
+    "gir1.2-glib-2.0": {
+      "source": "gobject-introspection"
+    },
+    "gir1.2-gtk-3.0": {
+      "source": "gtk+3.0"
+    },
+    "gir1.2-harfbuzz-0.0": {
+      "source": "harfbuzz"
+    },
+    "gir1.2-json-1.0": {
+      "source": "json-glib"
+    },
+    "gir1.2-pango-1.0": {
+      "source": "pango1.0"
+    },
+    "gir1.2-polkit-1.0": {
+      "source": "policykit-1"
+    },
+    "gir1.2-rsvg-2.0": {
+      "source": "librsvg"
+    },
+    "gir1.2-secret-1": {
+      "source": "libsecret"
+    },
+    "gir1.2-soup-3.0": {
+      "source": "libsoup3"
+    },
+    "glib-networking": {
+      "source": "glib-networking"
+    },
+    "gsettings-desktop-schemas": {
+      "source": "gsettings-desktop-schemas"
+    },
+    "gstreamer1.0-gl": {
+      "source": "gst-plugins-base1.0"
+    },
+    "gstreamer1.0-libav": {
+      "source": "gst-libav1.0"
+    },
+    "gstreamer1.0-plugins-bad": {
+      "source": "gst-plugins-bad1.0"
+    },
+    "gstreamer1.0-plugins-base": {
+      "source": "gst-plugins-base1.0"
+    },
+    "gstreamer1.0-plugins-good": {
+      "source": "gst-plugins-good1.0"
+    },
+    "gstreamer1.0-x": {
+      "source": "gst-plugins-base1.0"
+    },
+    "libaa1": {
+      "source": "aalib"
+    },
+    "libaom3": {
+      "source": "aom"
+    },
+    "libapparmor1": {
+      "source": "apparmor"
+    },
+    "libass9": {
+      "source": "libass"
+    },
+    "libasyncns0": {
+      "source": "libasyncns"
+    },
+    "libatk-bridge2.0-0": {
+      "source": "at-spi2-atk"
+    },
+    "libatk1.0-0": {
+      "source": "atk1.0"
+    },
+    "libatomic1": {
+      "source": "gcc-12"
+    },
+    "libatspi2.0-0": {
+      "source": "at-spi2-core"
+    },
+    "libavahi-client3": {
+      "source": "avahi"
+    },
+    "libavahi-common3": {
+      "source": "avahi"
+    },
+    "libavc1394-0": {
+      "source": "libavc1394"
+    },
+    "libavcodec58": {
+      "source": "ffmpeg"
+    },
+    "libavfilter7": {
+      "source": "ffmpeg"
+    },
+    "libavformat58": {
+      "source": "ffmpeg"
+    },
+    "libavutil56": {
+      "source": "ffmpeg"
+    },
+    "libayatana-appindicator3-1": {
+      "source": "libayatana-appindicator"
+    },
+    "libayatana-ido3-0.4-0": {
+      "source": "ayatana-ido"
+    },
+    "libayatana-indicator3-7": {
+      "source": "libayatana-indicator"
+    },
+    "libblas3": {
+      "source": "lapack"
+    },
+    "libblkid1": {
+      "source": "util-linux"
+    },
+    "libbluray2": {
+      "source": "libbluray"
+    },
+    "libbrotli1": {
+      "source": "brotli"
+    },
+    "libbs2b0": {
+      "source": "libbs2b"
+    },
+    "libbsd0": {
+      "source": "libbsd"
+    },
+    "libbz2-1.0": {
+      "source": "bzip2"
+    },
+    "libcaca0": {
+      "source": "libcaca"
+    },
+    "libcairo-gobject2": {
+      "source": "cairo"
+    },
+    "libcairo2": {
+      "source": "cairo"
+    },
+    "libcap2": {
+      "source": "libcap2"
+    },
+    "libcdparanoia0": {
+      "source": "cdparanoia"
+    },
+    "libchromaprint1": {
+      "source": "chromaprint"
+    },
+    "libcodec2-1.0": {
+      "source": "codec2"
+    },
+    "libcolord2": {
+      "source": "colord"
+    },
+    "libcups2": {
+      "source": "cups"
+    },
+    "libcurl3-gnutls": {
+      "source": "curl"
+    },
+    "libdatrie1": {
+      "source": "libdatrie"
+    },
+    "libdav1d5": {
+      "source": "dav1d"
+    },
+    "libdb5.3": {
+      "source": "db5.3"
+    },
+    "libdbus-1-3": {
+      "source": "dbus"
+    },
+    "libdbusmenu-glib4": {
+      "source": "libdbusmenu"
+    },
+    "libdbusmenu-gtk3-4": {
+      "source": "libdbusmenu"
+    },
+    "libdc1394-25": {
+      "source": "libdc1394"
+    },
+    "libdca0": {
+      "source": "libdca"
+    },
+    "libde265-0": {
+      "source": "libde265"
+    },
+    "libdecor-0-0": {
+      "source": "libdecor-0"
+    },
+    "libdeflate0": {
+      "source": "libdeflate"
+    },
+    "libdv4": {
+      "source": "libdv"
+    },
+    "libdvdnav4": {
+      "source": "libdvdnav"
+    },
+    "libdvdread8": {
+      "source": "libdvdread"
+    },
+    "libdw1": {
+      "source": "elfutils"
+    },
+    "libelf1": {
+      "source": "elfutils"
+    },
+    "libenchant-2-2": {
+      "source": "enchant-2"
+    },
+    "libepoxy0": {
+      "source": "libepoxy"
+    },
+    "libevdev2": {
+      "source": "libevdev"
+    },
+    "libfaad2": {
+      "source": "faad2"
+    },
+    "libffi8": {
+      "source": "libffi"
+    },
+    "libflac8": {
+      "source": "flac"
+    },
+    "libflite1": {
+      "source": "flite"
+    },
+    "libfluidsynth3": {
+      "source": "fluidsynth"
+    },
+    "libfreeaptx0": {
+      "source": "libfreeaptx"
+    },
+    "libgcrypt20": {
+      "source": "libgcrypt20"
+    },
+    "libgdk-pixbuf-2.0-0": {
+      "source": "gdk-pixbuf"
+    },
+    "libgdk-pixbuf-2.0-dev": {
+      "source": "gdk-pixbuf"
+    },
+    "libgfortran5": {
+      "source": "gcc-12"
+    },
+    "libglib2.0-0": {
+      "source": "glib2.0"
+    },
+    "libglib2.0-dev": {
+      "source": "glib2.0"
+    },
+    "libgme0": {
+      "source": "game-music-emu"
+    },
+    "libgnutls30": {
+      "source": "gnutls28"
+    },
+    "libgomp1": {
+      "source": "gcc-12"
+    },
+    "libgpm2": {
+      "source": "gpm"
+    },
+    "libgraphene-1.0-0": {
+      "source": "graphene"
+    },
+    "libgraphite2-3": {
+      "source": "graphite2"
+    },
+    "libgsm1": {
+      "source": "libgsm"
+    },
+    "libgssapi-krb5-2": {
+      "source": "krb5"
+    },
+    "libgssdp-1.2-0": {
+      "source": "gssdp"
+    },
+    "libgstreamer-gl1.0-0": {
+      "source": "gst-plugins-base1.0"
+    },
+    "libgstreamer-plugins-bad1.0-0": {
+      "source": "gst-plugins-bad1.0"
+    },
+    "libgstreamer-plugins-base1.0-0": {
+      "source": "gst-plugins-base1.0"
+    },
+    "libgstreamer-plugins-good1.0-0": {
+      "source": "gst-plugins-good1.0"
+    },
+    "libgstreamer1.0-0": {
+      "source": "gstreamer1.0"
+    },
+    "libgtk-3-0": {
+      "source": "gtk+3.0"
+    },
+    "libgtk-3-common": {
+      "source": "gtk+3.0"
+    },
+    "libgudev-1.0-0": {
+      "source": "libgudev"
+    },
+    "libgupnp-1.2-1": {
+      "source": "gupnp"
+    },
+    "libgupnp-igd-1.0-4": {
+      "source": "gupnp-igd"
+    },
+    "libharfbuzz-icu0": {
+      "source": "harfbuzz"
+    },
+    "libhogweed6": {
+      "source": "nettle"
+    },
+    "libhyphen0": {
+      "source": "hyphen"
+    },
+    "libicu70": {
+      "source": "icu"
+    },
+    "libidn2-0": {
+      "source": "libidn2"
+    },
+    "libiec61883-0": {
+      "source": "libiec61883"
+    },
+    "libilmbase25": {
+      "source": "ilmbase"
+    },
+    "libinstpatch-1.0-2": {
+      "source": "libinstpatch"
+    },
+    "libjavascriptcoregtk-4.1-0": {
+      "source": "webkit2gtk"
+    },
+    "libjbig0": {
+      "source": "jbigkit"
+    },
+    "libjpeg-turbo8": {
+      "source": "libjpeg-turbo"
+    },
+    "libjson-glib-1.0-0": {
+      "source": "json-glib"
+    },
+    "libk5crypto3": {
+      "source": "krb5"
+    },
+    "libkate1": {
+      "source": "libkate"
+    },
+    "libkeyutils1": {
+      "source": "keyutils"
+    },
+    "libkrb5-3": {
+      "source": "krb5"
+    },
+    "libkrb5support0": {
+      "source": "krb5"
+    },
+    "liblapack3": {
+      "source": "lapack"
+    },
+    "liblcms2-2": {
+      "source": "lcms2"
+    },
+    "libldacbt-enc2": {
+      "source": "libldac"
+    },
+    "libldap-2.5-0": {
+      "source": "openldap"
+    },
+    "liblilv-0-0": {
+      "source": "lilv"
+    },
+    "libltc11": {
+      "source": "libltc"
+    },
+    "liblz4-1": {
+      "source": "lz4"
+    },
+    "liblzma5": {
+      "source": "xz-utils"
+    },
+    "libmanette-0.2-0": {
+      "source": "libmanette"
+    },
+    "libmd0": {
+      "source": "libmd"
+    },
+    "libmfx1": {
+      "source": "intel-mediasdk"
+    },
+    "libmjpegutils-2.1-0": {
+      "source": "mjpegtools"
+    },
+    "libmodplug1": {
+      "source": "libmodplug"
+    },
+    "libmount1": {
+      "source": "util-linux"
+    },
+    "libmp3lame0": {
+      "source": "lame"
+    },
+    "libmpcdec6": {
+      "source": "libmpc"
+    },
+    "libmpeg2encpp-2.1-0": {
+      "source": "mjpegtools"
+    },
+    "libmpg123-0": {
+      "source": "mpg123"
+    },
+    "libmplex2-2.1-0": {
+      "source": "mjpegtools"
+    },
+    "libmysofa1": {
+      "source": "libmysofa"
+    },
+    "libncurses6": {
+      "source": "ncurses"
+    },
+    "libncursesw6": {
+      "source": "ncurses"
+    },
+    "libnettle8": {
+      "source": "nettle"
+    },
+    "libnghttp2-14": {
+      "source": "nghttp2"
+    },
+    "libnice10": {
+      "source": "libnice"
+    },
+    "libnorm1": {
+      "source": "norm"
+    },
+    "libnspr4": {
+      "source": "nspr"
+    },
+    "libnss3": {
+      "source": "nss"
+    },
+    "libnuma1": {
+      "source": "numactl"
+    },
+    "libogg0": {
+      "source": "libogg"
+    },
+    "libopenal1": {
+      "source": "openal-soft"
+    },
+    "libopenexr25": {
+      "source": "openexr"
+    },
+    "libopenh264-6": {
+      "source": "openh264"
+    },
+    "libopenjp2-7": {
+      "source": "openjpeg2"
+    },
+    "libopenmpt0": {
+      "source": "libopenmpt"
+    },
+    "libopenni2-0": {
+      "source": "openni2"
+    },
+    "libopus0": {
+      "source": "opus"
+    },
+    "liborc-0.4-0": {
+      "source": "orc"
+    },
+    "libp11-kit0": {
+      "source": "p11-kit"
+    },
+    "libpango-1.0-0": {
+      "source": "pango1.0"
+    },
+    "libpango1.0-dev": {
+      "source": "pango1.0"
+    },
+    "libpangocairo-1.0-0": {
+      "source": "pango1.0"
+    },
+    "libpangoft2-1.0-0": {
+      "source": "pango1.0"
+    },
+    "libpcre2-8-0": {
+      "source": "pcre2"
+    },
+    "libpcre3": {
+      "source": "pcre3"
+    },
+    "libpgm-5.3-0": {
+      "source": "libpgm"
+    },
+    "libpixman-1-0": {
+      "source": "pixman"
+    },
+    "libpng16-16": {
+      "source": "libpng1.6"
+    },
+    "libpocketsphinx3": {
+      "source": "pocketsphinx"
+    },
+    "libpostproc55": {
+      "source": "ffmpeg"
+    },
+    "libproxy1v5": {
+      "source": "libproxy"
+    },
+    "libpsl5": {
+      "source": "libpsl"
+    },
+    "libpulse0": {
+      "source": "pulseaudio"
+    },
+    "libqrencode4": {
+      "source": "qrencode"
+    },
+    "libquadmath0": {
+      "source": "gcc-12"
+    },
+    "librabbitmq4": {
+      "source": "librabbitmq"
+    },
+    "libraw1394-11": {
+      "source": "libraw1394"
+    },
+    "libreadline8": {
+      "source": "readline"
+    },
+    "librsvg2-2": {
+      "source": "librsvg"
+    },
+    "librsvg2-common": {
+      "source": "librsvg"
+    },
+    "librsvg2-dev": {
+      "source": "librsvg"
+    },
+    "librtmp1": {
+      "source": "rtmpdump"
+    },
+    "librubberband2": {
+      "source": "rubberband"
+    },
+    "libsamplerate0": {
+      "source": "libsamplerate"
+    },
+    "libsasl2-2": {
+      "source": "cyrus-sasl2"
+    },
+    "libsbc1": {
+      "source": "sbc"
+    },
+    "libsdl2-2.0-0": {
+      "source": "libsdl2"
+    },
+    "libseccomp2": {
+      "source": "libseccomp"
+    },
+    "libsecret-1-0": {
+      "source": "libsecret"
+    },
+    "libselinux1": {
+      "source": "libselinux"
+    },
+    "libserd-0-0": {
+      "source": "serd"
+    },
+    "libshine3": {
+      "source": "shine"
+    },
+    "libshout3": {
+      "source": "libshout"
+    },
+    "libslang2": {
+      "source": "slang2"
+    },
+    "libsnappy1v5": {
+      "source": "snappy"
+    },
+    "libsndfile1": {
+      "source": "libsndfile"
+    },
+    "libsndio7.0": {
+      "source": "sndio"
+    },
+    "libsodium23": {
+      "source": "libsodium"
+    },
+    "libsord-0-0": {
+      "source": "sord"
+    },
+    "libsoundtouch1": {
+      "source": "soundtouch"
+    },
+    "libsoup-3.0-0": {
+      "source": "libsoup3"
+    },
+    "libsoup2.4-1": {
+      "source": "libsoup2.4"
+    },
+    "libsoxr0": {
+      "source": "libsoxr"
+    },
+    "libspandsp2": {
+      "source": "spandsp"
+    },
+    "libspeex1": {
+      "source": "speex"
+    },
+    "libsphinxbase3": {
+      "source": "sphinxbase"
+    },
+    "libsqlite3-0": {
+      "source": "sqlite3"
+    },
+    "libsratom-0-0": {
+      "source": "sratom"
+    },
+    "libsrt1.4-gnutls": {
+      "source": "srt"
+    },
+    "libsrtp2-1": {
+      "source": "libsrtp2"
+    },
+    "libssh-4": {
+      "source": "libssh"
+    },
+    "libssh-gcrypt-4": {
+      "source": "libssh"
+    },
+    "libssl3": {
+      "source": "openssl"
+    },
+    "libswresample3": {
+      "source": "ffmpeg"
+    },
+    "libswscale5": {
+      "source": "ffmpeg"
+    },
+    "libsystemd0": {
+      "source": "systemd"
+    },
+    "libtag1v5-vanilla": {
+      "source": "taglib"
+    },
+    "libtasn1-6": {
+      "source": "libtasn1-6"
+    },
+    "libthai0": {
+      "source": "libthai"
+    },
+    "libtheora0": {
+      "source": "libtheora"
+    },
+    "libtiff5": {
+      "source": "tiff"
+    },
+    "libtinfo6": {
+      "source": "ncurses"
+    },
+    "libtwolame0": {
+      "source": "twolame"
+    },
+    "libudev1": {
+      "source": "systemd"
+    },
+    "libudfread0": {
+      "source": "libudfread"
+    },
+    "libunistring2": {
+      "source": "libunistring"
+    },
+    "libunwind8": {
+      "source": "libunwind"
+    },
+    "libv4l-0": {
+      "source": "v4l-utils"
+    },
+    "libv4lconvert0": {
+      "source": "v4l-utils"
+    },
+    "libva-drm2": {
+      "source": "libva"
+    },
+    "libva-x11-2": {
+      "source": "libva"
+    },
+    "libva2": {
+      "source": "libva"
+    },
+    "libvdpau1": {
+      "source": "libvdpau"
+    },
+    "libvidstab1.1": {
+      "source": "libvidstab"
+    },
+    "libvisual-0.4-0": {
+      "source": "libvisual"
+    },
+    "libvo-aacenc0": {
+      "source": "vo-aacenc"
+    },
+    "libvo-amrwbenc0": {
+      "source": "vo-amrwbenc"
+    },
+    "libvorbis0a": {
+      "source": "libvorbis"
+    },
+    "libvorbisenc2": {
+      "source": "libvorbis"
+    },
+    "libvorbisfile3": {
+      "source": "libvorbis"
+    },
+    "libvpx7": {
+      "source": "libvpx"
+    },
+    "libwavpack1": {
+      "source": "wavpack"
+    },
+    "libwayland-cursor0": {
+      "source": "wayland"
+    },
+    "libwayland-egl1": {
+      "source": "wayland"
+    },
+    "libwayland-server0": {
+      "source": "wayland"
+    },
+    "libwebkit2gtk-4.1-0": {
+      "source": "webkit2gtk"
+    },
+    "libwebp7": {
+      "source": "libwebp"
+    },
+    "libwebpdemux2": {
+      "source": "libwebp"
+    },
+    "libwebpmux3": {
+      "source": "libwebp"
+    },
+    "libwebrtc-audio-processing1": {
+      "source": "webrtc-audio-processing"
+    },
+    "libwildmidi2": {
+      "source": "wildmidi"
+    },
+    "libwmf-dev": {
+      "source": "libwmf"
+    },
+    "libwoff1": {
+      "source": "woff2"
+    },
+    "libx264-163": {
+      "source": "x264"
+    },
+    "libx265-199": {
+      "source": "x265"
+    },
+    "libxau6": {
+      "source": "libxau"
+    },
+    "libxcb-randr0": {
+      "source": "libxcb"
+    },
+    "libxcb-render0": {
+      "source": "libxcb"
+    },
+    "libxcb-shm0": {
+      "source": "libxcb"
+    },
+    "libxcomposite1": {
+      "source": "libxcomposite"
+    },
+    "libxcursor1": {
+      "source": "libxcursor"
+    },
+    "libxdamage1": {
+      "source": "libxdamage"
+    },
+    "libxdmcp6": {
+      "source": "libxdmcp"
+    },
+    "libxext6": {
+      "source": "libxext"
+    },
+    "libxfixes3": {
+      "source": "libxfixes"
+    },
+    "libxi6": {
+      "source": "libxi"
+    },
+    "libxinerama1": {
+      "source": "libxinerama"
+    },
+    "libxkbcommon0": {
+      "source": "libxkbcommon"
+    },
+    "libxml2": {
+      "source": "libxml2"
+    },
+    "libxrandr2": {
+      "source": "libxrandr"
+    },
+    "libxrender1": {
+      "source": "libxrender"
+    },
+    "libxslt1.1": {
+      "source": "libxslt"
+    },
+    "libxss1": {
+      "source": "libxss"
+    },
+    "libxv1": {
+      "source": "libxv"
+    },
+    "libxvidcore4": {
+      "source": "xvidcore"
+    },
+    "libxxf86vm1": {
+      "source": "libxxf86vm"
+    },
+    "libzbar0": {
+      "source": "zbar"
+    },
+    "libzimg2": {
+      "source": "zimg"
+    },
+    "libzmq5": {
+      "source": "zeromq3"
+    },
+    "libzstd1": {
+      "source": "libzstd"
+    },
+    "libzvbi0": {
+      "source": "zvbi"
+    },
+    "libzxingcore1": {
+      "source": "zxing-cpp"
+    },
+    "ocl-icd-libopencl1": {
+      "source": "ocl-icd"
+    }
+  }
+}
