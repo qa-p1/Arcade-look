@@ -508,12 +508,17 @@ export class Settings {
           ),
           row(
             'Licences',
-            'MIT · Inter SIL Open Font License · third-party notices',
+            'MIT · Inter SIL Open Font License',
             button('Open licences', () => {
               void api
                 .openUrl('https://github.com/qa-p1/Arcade-look/blob/main/LICENSE')
                 .catch(this.report);
             }),
+          ),
+          row(
+            'Third-party notices',
+            'Every open-source part Look contains, with its licence.',
+            button('Open notices', () => void api.openNotices().catch(this.report)),
           ),
           row(
             'Config file',

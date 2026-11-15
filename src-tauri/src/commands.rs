@@ -289,6 +289,30 @@ pub fn open_url(app: AppHandle, url: String) -> Res<()> {
     app.opener().open_url(url, None::<&str>).or_str()
 }
 
+const NOTICES: &str = "THIRD_PARTY_NOTICES.md";
+
+/// The notices file to open: the one bundled as a resource, else (a development build) the repository's copy.
+fn notices_path(resource_dir: Option<&Path>, repository_dir: Option<&Path>) -> Option<PathBuf> {
+    [resource_dir, repository_dir]
+        .into_iter()
+        .flatten()
+        .map(|dir| dir.join(NOTICES))
+        .find(|path| path.is_file())
+}
+
+/// Settings → About → "Third-party notices": opens the bundled file in the default app.
+#[tauri::command]
+pub fn open_notices(app: AppHandle) -> Res<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let resources = app.path().resource_dir().ok();
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent();
+    let path = notices_path(resources.as_deref(), repository)
+        .ok_or("The third-party notices file isn't in this installation.")?;
+    app.opener()
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .or_str()
+}
+
 #[tauri::command]
 pub fn reveal(app: AppHandle, path: String) -> Res<()> {
     use tauri_plugin_opener::OpenerExt;
@@ -524,6 +548,28 @@ pub async fn diagnostics(app: AppHandle) -> Res<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// About opens the notices that ship with the app; a development build finds the repository's.
+    #[test]
+    fn the_notices_come_from_the_bundle_else_the_repository() {
+        let root = std::env::temp_dir().join(format!("look-notices-{}", std::process::id()));
+        let (bundle, repo) = (root.join("bundle"), root.join("repo"));
+        std::fs::create_dir_all(&bundle).unwrap();
+        std::fs::create_dir_all(&repo).unwrap();
+        assert_eq!(notices_path(Some(&bundle), Some(&repo)), None);
+        std::fs::write(repo.join(NOTICES), "repo").unwrap();
+        assert_eq!(
+            notices_path(Some(&bundle), Some(&repo)),
+            Some(repo.join(NOTICES))
+        );
+        std::fs::write(bundle.join(NOTICES), "bundle").unwrap();
+        assert_eq!(
+            notices_path(Some(&bundle), Some(&repo)),
+            Some(bundle.join(NOTICES))
+        );
+        assert_eq!(notices_path(None, None), None);
+        std::fs::remove_dir_all(&root).ok();
+    }
 
     /// Links in a previewed document open in the browser or mail app, and nothing else does.
     #[test]

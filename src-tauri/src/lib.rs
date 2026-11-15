@@ -222,6 +222,7 @@ pub fn run() {
             commands::run_plugin,
             commands::open_default,
             commands::open_url,
+            commands::open_notices,
             commands::reveal,
             commands::log,
             commands::show_window,

@@ -249,6 +249,7 @@ export const api = {
   runPlugin: (id: string, path: string) => invoke<PluginOutput>('run_plugin', { id, path }),
   openDefault: (path: string) => invoke<void>('open_default', { path }),
   openUrl: (url: string) => invoke<void>('open_url', { url }),
+  openNotices: () => invoke<void>('open_notices'),
   reveal: (path: string) => invoke<void>('reveal', { path }),
   log: (level: string, message: string) => invoke<void>('log', { level, message }),
   showWindow: () => invoke<void>('show_window'),
