@@ -274,14 +274,16 @@ pub fn open_default(app: AppHandle, path: String) -> Res<()> {
     app.opener().open_path(path, None::<&str>).or_str()
 }
 
+/// Links a document may ask Look to open: web and mail addresses, never `file:`, `javascript:` or an app's own scheme.
+fn is_web_or_mail_link(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("mailto:")
+}
+
 #[tauri::command]
 pub fn open_url(app: AppHandle, url: String) -> Res<()> {
     use tauri_plugin_opener::OpenerExt;
-    let lower = url.to_ascii_lowercase();
-    if !(lower.starts_with("https://")
-        || lower.starts_with("http://")
-        || lower.starts_with("mailto:"))
-    {
+    if !is_web_or_mail_link(&url) {
         return Err("only web and mail links can be opened".into());
     }
     app.opener().open_url(url, None::<&str>).or_str()
@@ -522,6 +524,31 @@ pub async fn diagnostics(app: AppHandle) -> Res<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Links in a previewed document open in the browser or mail app, and nothing else does.
+    #[test]
+    fn open_url_takes_web_and_mail_links_only() {
+        for ok in [
+            "https://example.com/a?b=c#d",
+            "HTTP://example.com",
+            "mailto:someone@example.com",
+        ] {
+            assert!(is_web_or_mail_link(ok), "{ok}");
+        }
+        for refused in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "data:text/html,<b>x</b>",
+            "alook://localhost/f/etc/passwd",
+            "ms-msdt:/id",
+            "smb://host/share",
+            "/usr/bin/xterm",
+            "C:\\Windows\\System32\\calc.exe",
+            "",
+        ] {
+            assert!(!is_web_or_mail_link(refused), "{refused}");
+        }
+    }
 
     /// LK-8: preview failures reach the log, on one bounded line.
     #[test]
