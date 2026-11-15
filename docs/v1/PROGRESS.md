@@ -3,6 +3,27 @@
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
 
+## 2026-11-15 (cloud session) - step 4
+
+Dead code (D11), on `local/look-step4`: `util::file_url` and `protocol_base` removed (`url_segments_from_path` is now
+test-only), the `reload_plugins` command and `api.reloadPlugins`, `rafThrottle` and `nextFrame`, three unused CSS
+rules. No unused npm or Cargo dependencies, files or commands were found beyond that.
+
+Tested locally:
+- `npm run format:check`, `npm run typecheck`, `npm run build`: pass.
+- `python3 scripts/check-version.py`, `check-docs.py`, `check-vendored.py`, `check-design.py`: pass.
+- `python3 -m unittest discover -s scripts -p 'test_*.py'`: 12 tests OK.
+- `cargo +1.88.0 fmt --all --check`: pass.
+- `cargo +1.88.0 clippy --all-targets --locked -- -D warnings`: pass.
+- `cargo +1.88.0 clippy --all-targets --locked --target x86_64-pc-windows-gnu -- -D warnings`: pass (needed
+  `binutils-mingw-w64-x86-64` for `windres`).
+- `python3 scripts/isolate.py cargo +1.88.0 test --manifest-path src-tauri/Cargo.toml --locked`: 88 passed.
+- `node scripts/ui-checks/check.mjs` and `behaviour.mjs` (PLAYWRIGHT_CHROMIUM set, run directly, not through Link's
+  `e2e.py` runner): PASS.
+- Not run here: the `--ignored` link_consumer and real_shelf tests, `tauri build --features e2e`, `check-native.py`.
+
+macOS code compiles only in CI.
+
 ## 2026-11-13 (step 3: fixes)
 
 On `claude/tender-feynman-3vt7dg`, each fix with its regression test (Rust unit tests, and

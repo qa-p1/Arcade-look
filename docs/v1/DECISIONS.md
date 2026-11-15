@@ -74,3 +74,31 @@ Look's ids and name lived in the 1,100-line `installer` and were repeated as lit
 macOS entry paths, and `arcade-look` as the log name and the cache folder, which uninstall's data list also names.
 `identity.rs` holds them and everything reads them there. Left literal: icon-theme names and the old ids, which
 mean something else.
+
+## D11 - Dead code (step 4)
+
+Removed, each in its own commit with the proof in its message:
+
+- `util::file_url` and `util::protocol_base`: with every module in `lib.rs` made private (so `pub` no longer hides
+  anything), rustc's `dead_code` lint on the Linux and `x86_64-pc-windows-gnu` builds names them, and a grep of
+  `src-tauri` (cfg(windows) and macOS branches included), `scripts/` and `tests/` finds no caller. The frontend has
+  its own `protocolBase`. `util::url_segments_from_path` is only called by three unix tests, so it is now
+  `#[cfg(all(test, unix))]`.
+- The `reload_plugins` command and `api.reloadPlugins`: the command was registered, but the only wrapper is never
+  called (no `invoke('reload_plugins')` anywhere, `mock.js` included).
+- `rafThrottle` and `nextFrame` in `src/lib/dom.ts`: `grep -w` matches only the definitions.
+- CSS `.info-row`, `.info-key` and `.title-navigation .icon-btn:disabled`: no markup, script or Rust string builds
+  those classes.
+
+Every other `#[tauri::command]` is both registered and invoked by name from `src/` (checked with
+`invoke(<T>)('name'`, and `about_info` through `settings.ts`). No unregistered commands exist. No unused npm
+dependency (each is imported in `src/`, `vite.config.ts`, a script or a workflow) and no unused Cargo dependency or
+feature (`cargo machete` reports only `tauri-build`, a build dependency used by `build.rs`).
+
+Kept on purpose: `Consumer::invoke` (called only by the ignored integration tests, which are CI code); `Source::Explorer`
+and `Source::Finder` and the Windows/macOS-only items the Linux build flags (constructed under cfg); the `#[allow]`s
+in `rtf.rs` (removing `unused_assignments` brings back two warnings from `emit_char!`), `util.rs` and
+`integration/mod.rs`; no `#[allow(dead_code)]` exists; exports used only inside their own module (types in
+`backend.ts`, `chainFor`, `parseExact`, ...) because they are live code with a redundant `export`; `footnote-definition`,
+`hljs-*`, `markdown-alert-*`, `jv-*`, `lvl-N` (generated class names); `src/design`, vendored files and `docs/v1/audit`
+evidence.
