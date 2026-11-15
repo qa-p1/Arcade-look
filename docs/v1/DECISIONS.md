@@ -177,3 +177,14 @@ Look moves from Link 1.0.7 to 1.0.11. What touches Look:
 - 1.0.9 is the gates workflow D13 already uses; 1.0.8's changes are in the Qt/QML and Dart kits Look does not use.
 The design kit is byte-identical at v1.0.11 (only the recorded tag moves); the WebKit trimmer sources did not
 change since v1.0.7, so their record stays. Every Link workflow and checkout is pinned to `v1.0.11`.
+
+## D15 - Tier 1 on headless Hyprland (step 7)
+
+D13 left the previews' behaviour on a real compositor to the owner's desktop run. `tests/desktop/look_desktop.py`
+runs on Link's headless Hyprland harness (`desktop-e2e.yml`) in CI on every build and in the gates on the published
+rc, from the AppImage as a user starts it (without the harness's `ARCADE_UNPACKED`, so Look hands over to its
+unpacked copy): the window's class is `dev.arcade.Look` (ID-1); the preview has keyboard focus when it opens; with
+Info open the first Escape closes only Info and the second the preview (RD-LOOK-1, LK-10, so far only checked in
+the browser by `behaviour.mjs`); Space closes it; it stays open when the pointer moves into another application's
+window (fleet popup rule; `tests/desktop/other_window.py` is that window); a second file reuses the running Look
+(same process for both windows); `--quit` stops it. Tier 1 blocks the gates on any failure.

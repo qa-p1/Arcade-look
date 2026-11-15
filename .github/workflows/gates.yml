@@ -42,7 +42,16 @@ jobs:
         -Id arcade.look -Name 'Arcade Look' -CliName arcade-look
       macos-check: scripts/verify-dmg.sh rc/*.dmg 'Arcade Look' arcade-look arcade.look
 
-  # Tier 2 (sway, KWin, Mutter, X11) blocks on a crash or data loss.
+  # Tier 1 (headless Hyprland) blocks on any failure; Tier 2 (sway, KWin, Mutter, X11) on a crash or data loss.
+  desktop:
+    needs: gates
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.11
+    with:
+      name: look
+      test: tests/desktop/look_desktop.py
+      args: '"$APP"'
+      artifact: gate-appimage
+      link-ref: v1.0.11
   desktop-tier2:
     needs: gates
     uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.11

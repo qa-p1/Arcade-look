@@ -7,6 +7,8 @@ Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 - D14: Link 1.0.7 → 1.0.11 (crate, workflows, Link checkouts, design kit record). The first-run prompt, the trimmer
   preload and the stale-copy cleanup ask `runtime::is_unpacked_copy()`, so a marker inherited from another copy no
   longer counts.
+- D15: Tier 1 on headless Hyprland (`tests/desktop/look_desktop.py`) in CI and in the gates. Written for the harness,
+  which runs only in CI; its first run is this PR's.
 
 ## 2026-11-15 (cloud session) - step 7: release gates
 
