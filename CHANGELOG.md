@@ -9,6 +9,8 @@
 - Preview failures are written to the support log, without file paths (LK-8).
 - Settings shows its section names, and About points to Arcade Tools for updates (LK-9).
 - "1 row", not "1 rows"; an empty file says so; zip dates match tar's (LK-4, LK-5).
+- Linux: the AppImage starts faster and no helper process stays running. Look unpacks itself once per version (about 440 MB under `~/.local/share/arcade/runtime/`, removed by `--uninstall`) and runs from there.
+- Less memory in the background: once no window is left, WebKit's network process ends and Look's idle memory is returned (or moved to swap when memory is short), and a preview that stays open trims itself. A preview or Settings opens as fast as before.
 
 ## 0.4.3 — 2026-11-06
 
