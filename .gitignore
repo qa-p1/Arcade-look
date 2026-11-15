@@ -3,6 +3,8 @@ dist/
 public/vendor/
 src-tauri/target/
 src-tauri/gen/
+# Built by scripts/prepare-trimmer.py for the AppImage.
+src-tauri/binaries/
 *.log
 .DS_Store
 fixtures/

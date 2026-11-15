@@ -4,6 +4,8 @@
 tools/validate_shortcuts.py -text
 spec/shortcut-sheet.schema.json -text
 assets/strings/install.json -text
+packaging/linux/arcade-trim-preload.c -text
+packaging/linux/arcade_trim.h -text
 scripts/arcade-release.py -text
 scripts/test_arcade_release.py -text
 scripts/test_validate_shortcuts.py -text
