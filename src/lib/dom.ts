@@ -80,22 +80,3 @@ export function isEditable(t: EventTarget | null): boolean {
   if (t.isContentEditable || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return true;
   return t instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(t.type);
 }
-
-/** Run `fn` at most once per animation frame. */
-export function rafThrottle<T extends unknown[]>(fn: (...a: T) => void): (...a: T) => void {
-  let queued = false;
-  let last: T;
-  return (...a: T) => {
-    last = a;
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(() => {
-      queued = false;
-      fn(...last);
-    });
-  };
-}
-
-export function nextFrame(): Promise<void> {
-  return new Promise((r) => requestAnimationFrame(() => r()));
-}
