@@ -208,7 +208,6 @@ pub fn run() {
             commands::set_autostart,
             commands::integration_status,
             commands::set_config,
-            commands::reload_plugins,
             link_consumer::link_available,
             link_consumer::link_actions,
             link_consumer::link_invoke,

@@ -184,10 +184,6 @@ button {
   flex: none;
   gap: 2px;
 }
-.title-navigation .icon-btn:disabled {
-  opacity: 0.35;
-  pointer-events: none;
-}
 .title-actions {
   display: flex;
   gap: 2px;
@@ -354,16 +350,6 @@ button {
   letter-spacing: normal;
   color: var(--text-3);
   font-weight: 600;
-}
-.info-row {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 10px;
-  padding: 4px 0;
-  font-size: var(--fs-control);
-}
-.info-key {
-  color: var(--text-2);
 }
 .info-val {
   word-break: break-word;
