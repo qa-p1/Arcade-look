@@ -1,0 +1,47 @@
+# cargo deny check (CI): advisories, licences, bans and sources.
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+# Accepted advisories, each with its reason (also in SECURITY.md and docs/v1/DECISIONS.md D15). None is a known
+# vulnerability that Look can reach: one is an unsound iterator nothing calls, the rest are "unmaintained" notices for
+# crates that come through Tauri's Linux stack, zbus 5 and Look's own font and tag readers, with no maintained
+# replacement they can take yet. Revisit when those move.
+ignore = [
+  { id = "RUSTSEC-2024-0429", reason = "glib 0.18 (unsound VariantStrIter): Tauri 2's Linux stack (gtk, webkit2gtk, wry, tao) is on gtk-rs 0.18, the fix is glib 0.20; only Variant::array_iter_str builds that iterator, and nothing in Look's dependency tree calls it" },
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: build-time macro of gtk-rs 0.18 (glib-macros, gtk3-macros), which Tauri 2 pins on Linux" },
+  { id = "RUSTSEC-2024-0436", reason = "paste: build-time macro of lofty (audio tags) and of exr's pulp (the image crate's EXR decoder)" },
+  { id = "RUSTSEC-2026-0192", reason = "ttf-parser 0.25, Look's font reader: unmaintained, no known vulnerability; the crate forbids unsafe code and panics become a preview error (util::blocking). The maintained replacement is skrifa, a rewrite of font.rs to schedule" },
+  { id = "RUSTSEC-2025-0075", reason = "unic-char-range: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2025-0080", reason = "unic-common: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2025-0081", reason = "unic-char-property: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2025-0098", reason = "unic-ucd-version: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2025-0100", reason = "unic-ucd-ident: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2026-0370", reason = "zvariant: merged into zbus 6; Look's D-Bus code, ksni, notify-rust and the Tauri plugins are on zbus 5" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names: merged into zbus 6; Look's D-Bus code, ksni, notify-rust and the Tauri plugins are on zbus 5" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: merged into zbus 6; Look's D-Bus code, ksni, notify-rust and the Tauri plugins are on zbus 5" },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = [
+  "0BSD", "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "ISC",
+  "Unicode-3.0", "Zlib", "CC0-1.0", "MPL-2.0", "Unlicense", "BSL-1.0",
+  # libbz2-rs-sys, the bzip2 crate's pure-Rust bzip2 (archive previews).
+  "bzip2-1.0.6",
+]
+unused-allowed-license = "allow"
+# Arcade Look itself is MIT and never published to crates.io.
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = ["https://github.com/qa-p1/Arcade-Link"]
