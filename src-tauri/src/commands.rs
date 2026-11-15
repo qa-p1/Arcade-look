@@ -443,16 +443,6 @@ pub async fn set_config(
 }
 
 #[tauri::command]
-pub fn reload_plugins(state: State<'_, app::AppState>) -> usize {
-    let list = plugins::load_all(state.config().plugins);
-    let n = list.len();
-    if let Ok(mut p) = state.plugins.write() {
-        *p = list;
-    }
-    n
-}
-
-#[tauri::command]
 pub fn open_settings(app: AppHandle) {
     app::open_settings(&app);
 }

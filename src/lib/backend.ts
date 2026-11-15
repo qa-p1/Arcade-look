@@ -261,7 +261,6 @@ export const api = {
   setAutostart: (enabled: boolean) => invoke<boolean>('set_autostart', { enabled }),
   integrationStatus: () => invoke<[string, boolean][]>('integration_status'),
   setConfig: (patch: Partial<Config>) => invoke<Config>('set_config', { patch }),
-  reloadPlugins: () => invoke<number>('reload_plugins'),
 };
 
 /** Normalise any thrown value (Tauri rejects with strings) into a message. */
