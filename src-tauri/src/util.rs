@@ -169,7 +169,7 @@ pub fn image_mime_from_name(name: &str) -> &'static str {
 /// pre-create it and control the files Look reads back.
 pub fn temp_root() -> PathBuf {
     match dirs::cache_dir() {
-        Some(cache) => cache.join("arcade-look"),
+        Some(cache) => cache.join(crate::identity::CLI_NAME),
         None => {
             let user = std::env::var("USER")
                 .or_else(|_| std::env::var("USERNAME"))

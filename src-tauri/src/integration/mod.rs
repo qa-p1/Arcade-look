@@ -387,7 +387,7 @@ pub fn attach_console() {
 /// `APPIMAGE` is only ours if we run from that AppImage's mount (`APPDIR`); a process started
 /// from another AppImage inherits both variables.
 pub fn launcher_path() -> PathBuf {
-    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("arcade-look"));
+    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from(crate::identity::CLI_NAME));
     if let (Some(appimage), Some(appdir)) =
         (std::env::var_os("APPIMAGE"), std::env::var_os("APPDIR"))
     {

@@ -5,7 +5,7 @@ use arcade_link::trayhost::{TrayHostWatcher, TrayState, WatcherConfig};
 use std::sync::atomic::{AtomicU8, Ordering};
 use tauri::{AppHandle, Manager};
 
-const TOOLTIP: &str = "Arcade Look";
+const TOOLTIP: &str = crate::identity::NAME;
 const TOOLTIP_DETAIL: &str = "Press Space, see anything.";
 static VISIBLE_STATE: AtomicU8 = AtomicU8::new(0);
 

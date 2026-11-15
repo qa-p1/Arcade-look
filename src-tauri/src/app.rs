@@ -492,7 +492,7 @@ pub fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .ready = false;
     let ws = state.window_state.lock().map(|s| *s).unwrap_or_default();
     let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
-        .title("Arcade Look")
+        .title(crate::identity::NAME)
         .inner_size(
             ws.width.clamp(720.0, 6000.0),
             ws.height.clamp(520.0, 4000.0),

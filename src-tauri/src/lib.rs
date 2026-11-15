@@ -8,6 +8,7 @@ pub mod config;
 pub mod detect;
 pub mod font;
 pub mod fsx;
+pub mod identity;
 pub mod imaging;
 pub mod installer;
 pub mod installer_ui;
@@ -118,7 +119,7 @@ pub fn run() {
     arcade_link::childenv::enter_image_dir();
 
     #[cfg(target_os = "linux")]
-    gtk::glib::set_prgname(Some("dev.arcade.Look"));
+    gtk::glib::set_prgname(Some(crate::identity::DESKTOP_ID));
     tray::wait_for_predecessor();
     std::thread::spawn(util::clean_temp);
     let config = config::load();
@@ -230,7 +231,7 @@ pub fn run() {
             // Started from the menu, at login or by Tools, stderr goes nowhere:
             // keep it next to the settings instead.
             if let Err(error) =
-                arcade_link::logs::capture_stderr(&commands::logs_dir(), "arcade-look")
+                arcade_link::logs::capture_stderr(&commands::logs_dir(), crate::identity::CLI_NAME)
             {
                 eprintln!("arcade-look: log unavailable: {error}");
             }

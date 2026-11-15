@@ -437,7 +437,7 @@ pub async fn set_config(
     blocking(move || {
         crate::link::update_config(&app, patch)
             .map(|(config, _)| config)
-            .map_err(|error| error.user_message("Arcade Look"))
+            .map_err(|error| error.user_message(crate::identity::NAME))
     })
     .await
 }
