@@ -18,11 +18,12 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import re
 import time
-import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = tomllib.loads((ROOT / 'src-tauri/Cargo.toml').read_text(encoding='utf-8'))['package']['version']
+# A regular expression, not tomllib: CI's Linux job runs Ubuntu 22.04's Python 3.10.
+VERSION = re.search(r'^version = "([^"]+)"', (ROOT / 'src-tauri/Cargo.toml').read_text(encoding='utf-8'), re.M).group(1)
 
 SETTINGS = {
     'theme': 'dark', 'idleMinutes': 5, 'keepReady': True, 'notifications': True,
