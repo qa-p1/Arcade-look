@@ -796,19 +796,19 @@ mod tests {
             serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         assert_eq!(conf["identifier"], DESKTOP_ID);
         let folders = data_folders();
+        // The known folders can be unavailable (a Windows CI service profile has no LocalAppData);
+        // removal then falls back to the temp directory for the cache and skips the local data folder.
+        let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
         for identifier in [DESKTOP_ID, OLD_IDENTIFIER] {
-            let local = dirs::data_local_dir().unwrap().join(identifier);
-            assert!(
-                folders.contains(&local),
-                "{} missing from {folders:?}",
-                local.display()
-            );
-            let cache = dirs::cache_dir().unwrap().join(identifier);
-            assert!(
-                folders.contains(&cache),
-                "{} missing from {folders:?}",
-                cache.display()
-            );
+            let expected = std::iter::once(cache.join(identifier))
+                .chain(dirs::data_local_dir().map(|d| d.join(identifier)));
+            for folder in expected {
+                assert!(
+                    folders.contains(&folder),
+                    "{} missing from {folders:?}",
+                    folder.display()
+                );
+            }
         }
     }
 
