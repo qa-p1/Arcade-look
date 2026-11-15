@@ -11,7 +11,7 @@ idle heap, hidden only), W0 (release 15 s after start), OPEN1 (self-trim while a
 `libarcade-trim.so` for WebKit's helpers, vendored from Link v1.0.7). The arena cap and LK1 were already in (D8, D7).
 Also from U1: uninstall removes Look's unpacked copies and the resident removes older versions' copies. Not taken, with
 reasons, in D12: trim after each hide, OPEN2, OPEN3. `verify-appimage.py` and `verify-resident.py` now follow the
-resident (the launcher exits 0), check it runs from the copy with the trimmer preloaded, and that the network
+resident (the launcher exits 0), check it runs from the copy with the trimmer loaded in WebKit's helpers, and that the network
 process is gone after each close.
 
 Tested locally:

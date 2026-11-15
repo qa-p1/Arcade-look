@@ -143,6 +143,6 @@ is about paging out an *open* window, OPEN3, which stays off), and U1 was waitin
 - **Tests:** `memory::tests` (which arguments start a resident, the `LD_PRELOAD` value, which copies are stale and
   in use), the installer test (uninstall removes only Look's copies, with and without data), and the packaged
   checks, which now follow the resident instead of the launcher: `verify-appimage.py` fails unless Look runs from
-  `arcade/runtime/look-*` with the trimmer in `LD_PRELOAD` and the image carries `libarcade-trim.so`;
+  `arcade/runtime/look-*` with `libarcade-trim.so` loaded in WebKit's helpers and the image carries `libarcade-trim.so`;
   `verify-resident.py` takes the resident's PID from its endpoint, checks it is the copy, and that WebKit's network
   process is gone after every close and after the 30 s preview release.

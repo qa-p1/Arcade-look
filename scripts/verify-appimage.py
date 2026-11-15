@@ -23,19 +23,50 @@ def unpacked_copies(root):
     return found
 
 
+def webkit_helpers(pid):
+    """WebKit's helper processes (web and network) started by `pid`, at any depth."""
+    parents = {}
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            stat = (proc / "stat").read_text()
+        except (OSError, ValueError):
+            continue
+        parents[int(proc.name)] = int(stat[stat.rindex(")") + 2:].split()[1])
+    family, found = {pid}, []
+    while True:
+        children = {child for child, parent in parents.items() if parent in family} - family
+        if not children:
+            break
+        family |= children
+    for helper in family - {pid}:
+        try:
+            name = Path(f"/proc/{helper}/comm").read_text().strip()
+        except OSError:
+            continue
+        if name.startswith(("WebKitWebProces", "WebKitNetworkPr")):
+            found.append(helper)
+    return found
+
+
 def preloads_trimmer(pid):
-    """Whether the process will pass libarcade-trim.so on to WebKit's helpers (OPEN1)."""
-    try:
-        environment = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
-    except OSError:
-        return False
-    return any(v.startswith(b"LD_PRELOAD=") and b"/usr/lib/libarcade-trim.so" in v for v in environment)
+    """Whether WebKit's helpers under `pid` run with libarcade-trim.so loaded (OPEN1). Look adds it to LD_PRELOAD
+    at run time, which /proc/<pid>/environ (the environment at exec) never shows, so the helpers' mappings are
+    what counts."""
+    helpers = webkit_helpers(pid)
+    def loaded(helper):
+        try:
+            return "/usr/lib/libarcade-trim.so" in Path(f"/proc/{helper}/maps").read_text()
+        except OSError:
+            return False
+    return bool(helpers) and all(loaded(helper) for helper in helpers)
 
 
 def survives(executable, env, work, root, *args, seconds=15):
     """Starts `executable` from the user's directory `work` and fails unless Look
     is still running `seconds` later from its unpacked copy under `root`, with the
-    WebKit trimmer preloaded; then stops it and everything it started. The launcher
+    WebKit trimmer loaded in WebKit's helpers; then stops it and everything it started. The launcher
     copies the image once to <data>/arcade/runtime/, starts Look from there and
     exits 0 (U1, D12), so a shell holds the session open after it."""
     work.mkdir(exist_ok=True)
