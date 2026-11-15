@@ -68,7 +68,10 @@
         ]
       },
       "appimage": {
-        "bundleMediaFramework": true
+        "bundleMediaFramework": true,
+        "files": {
+          "/usr/lib/libarcade-trim.so": "binaries/libarcade-trim.so"
+        }
       }
     },
     "macOS": {

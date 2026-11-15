@@ -102,3 +102,47 @@ in `rtf.rs` (removing `unused_assignments` brings back two warnings from `emit_c
 `backend.ts`, `chainFor`, `parseExact`, ...) because they are live code with a redundant `export`; `footnote-definition`,
 `hljs-*`, `markdown-alert-*`, `jv-*`, `lvl-N` (generated class names); `src/design`, vendored files and `docs/v1/audit`
 evidence.
+
+## D12 - Memory (step 5): the resident runs unpacked and gives back what windows leave
+
+`AUDIT/memory.md` items for Look, modelled on Box's D14 and Tools' D10/D18 (`src-tauri/src/memory.rs`). Nothing
+changes how Look feels, and no timer runs while Look has no window. It also replaces D8's two deferrals: W3b was held back on a misreading (LOCAL.md item 4
+is about paging out an *open* window, OPEN3, which stays off), and U1 was waiting for this step.
+- **U1 (RT-7):** a resident start from the AppImage runs from its unpacked copy under `<data>/arcade/runtime/look-*`
+  (`runtime::relaunch_unpacked(LOOK, version, false)`), so no FUSE helper stays resident and pages come from the
+  real disk; `$APPIMAGE` still names the installed file (the launcher path, autostart and restart are unchanged).
+  The call sits after everything that never starts a resident (`--status`, `--arcade-invoke`, `--arcade-manifest`,
+  `--restart`, install and uninstall, help, a missing path), after the hand-over to an instance that is already
+  running (that one is a short D-Bus call from the mount) and after the install prompt. `--quit` and `--hide` skip
+  it, since they never keep a process (Box's rule, `memory::starts_resident`). The launcher always passes `wait =
+  false` and exits 0 at once; the copy skips the install prompt the launcher already showed, so Continue does not
+  ask twice. Look has no one-shot mode that needs an exit code from the copy.
+- **Cleanup that U1 needs:** each version unpacks about 440 MB, outside Look's data folders and the receipt, so
+  `--uninstall` removes Look's `look-*` copies (and an interrupted `.look-*`) from Link's runtime folder and from
+  the environment's, whether or not `--remove-data` is given; other apps' copies stay (Link's
+  `remove_unpacked_except` would remove them all). The resident also removes `look-*` copies other than its own 15 s
+  after it starts, unless a process still runs a program from one. Box left both to its step 7 (D19).
+- **W1:** unchanged in effect, now in `memory.rs`: once no window is left, Link `runtime::release_webkit()` ends
+  WebKit's network process and trims. The delay is 3 s (was 1 s), the audit's minimum: the network process holds
+  localStorage, which Look uses for the media volume. The 30 s keep-warm, and so the 0.15 s re-show, stay.
+- **W3b:** `runtime::page_out_hidden()` follows the release, as in Box: the idle heap goes to swap only if memory is
+  short. It applies only with no window; an open window is never paged out (OPEN3 stays off).
+- **W0:** the same release 15 s after the resident starts (a trim if a window is open by then). Look serves no
+  Link request that works on its own while hidden (`inspect` reads metadata; previews open a window), so Box's
+  "trim after hidden Link work" has no counterpart. Not done after each hide: Look destroys the hidden webview 30 s
+  later and W1 trims then, and a trim in between only drops pages the 0.15 s hot re-show reads again.
+- **OPEN1:** while a window is open Look trims itself 2 s after a page loads and every 20 s, and WebKit's helper
+  processes get the same from `libarcade-trim.so` (vendored from Link v1.0.7 into `packaging/linux`, built by
+  `scripts/prepare-trimmer.py`, which `scripts/package` and `build.yml` run before the AppImage, put in `usr/lib` by
+  `tauri.conf.json`, preloaded from there by the copy). The launcher does not set it: its mount is gone once the
+  copy runs, and a stale `LD_PRELOAD` would reach the helpers.
+- **Arena cap:** already in `main` (D8); the copy sets it itself, as Link's relaunch intends.
+- **Not taken:** OPEN2 (compositing off), because Look shows video and PDFs that Box's motion probe never covered
+  and the owner decides it; OPEN3 (page out the open window); LK1 is D7. The 50 PSS / 70 RSS background budget is
+  checked by the fleet gate (step 8), not here.
+- **Tests:** `memory::tests` (which arguments start a resident, the `LD_PRELOAD` value, which copies are stale and
+  in use), the installer test (uninstall removes only Look's copies, with and without data), and the packaged
+  checks, which now follow the resident instead of the launcher: `verify-appimage.py` fails unless Look runs from
+  `arcade/runtime/look-*` with `libarcade-trim.so` loaded in WebKit's helpers and the image carries `libarcade-trim.so`;
+  `verify-resident.py` takes the resident's PID from its endpoint, checks it is the copy, and that WebKit's network
+  process is gone after every close and after the 30 s preview release.

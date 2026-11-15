@@ -3,6 +3,33 @@
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
 
+## 2026-11-15 (cloud session) - step 5
+
+Memory (D12), on `local/look-step5`, from `AUDIT/memory.md` and Box's D14: U1 (the resident runs from
+`<data>/arcade/runtime/look-*`), W1 (3 s after the last window, WebKit's network process ends), W3b (page-out of the
+idle heap, hidden only), W0 (release 15 s after start), OPEN1 (self-trim while a window is open, and
+`libarcade-trim.so` for WebKit's helpers, vendored from Link v1.0.7). The arena cap and LK1 were already in (D8, D7).
+Also from U1: uninstall removes Look's unpacked copies and the resident removes older versions' copies. Not taken, with
+reasons, in D12: trim after each hide, OPEN2, OPEN3. `verify-appimage.py` and `verify-resident.py` now follow the
+resident (the launcher exits 0), check it runs from the copy with the trimmer loaded in WebKit's helpers, and that the network
+process is gone after each close.
+
+Tested locally:
+- `npm ci`, `npm run format:check`, `npm run typecheck`, `npm run build`: pass.
+- `python3 scripts/check-version.py`, `check-docs.py`, `check-vendored.py` (56 files, the two trimmer sources
+  included), `check-design.py`: pass. `python3 -m unittest discover -s scripts -p 'test_*.py'`: 12 tests OK.
+- `cargo +1.88.0 fmt --all --check`: pass.
+- `cargo +1.88.0 clippy --all-targets --locked -- -D warnings`: pass; with `--target x86_64-pc-windows-gnu`: pass.
+- `python3 scripts/isolate.py cargo +1.88.0 test --manifest-path src-tauri/Cargo.toml --locked`: 91 passed (88 +
+  `memory::tests` x3; the installer test now also covers the unpacked copies).
+- `node scripts/ui-checks/check.mjs` and `behaviour.mjs` (PLAYWRIGHT_CHROMIUM set, run directly): PASS.
+- `scripts/prepare-trimmer.py` builds `libarcade-trim.so`; preloaded into a copy of `sleep` named `WebKitWebProcess`
+  it starts its trim thread.
+- `py_compile` of the three scripts changed or added.
+- Not run here (needs an AppImage, a bundle build or more disk than this machine has): `verify-appimage.py`,
+  `verify-resident.py`, `check-native.py`, the `--ignored` link_consumer and real_shelf tests, the memory budget.
+  CI's `build.yml` runs the first two on the packaged AppImage.
+
 ## 2026-11-15 (cloud session) - step 4
 
 Dead code (D11), on `local/look-step4`: `util::file_url` and `protocol_base` removed (`url_segments_from_path` is now

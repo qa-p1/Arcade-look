@@ -182,7 +182,7 @@ Requirements: [Rust](https://rustup.rs) (stable, 1.88+), Node.js 20+, and on Lin
 ```sh
 npm install
 npm run tauri dev            # run with hot reload
-npm run tauri build          # installers in src-tauri/target/release/bundle/
+scripts/package              # installers in src-tauri/target/release/bundle/ (on Linux it builds the WebKit trimmer first)
 ```
 
 Checks:

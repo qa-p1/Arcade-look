@@ -18,6 +18,7 @@ pub mod link_consumer;
 pub mod markdown;
 pub mod media;
 pub mod mediaserver;
+pub mod memory;
 pub mod office;
 pub mod plugins;
 pub mod portable_settings;
@@ -99,6 +100,10 @@ pub fn run() {
         std::process::exit(1);
     }
 
+    // OPEN1 (D12): before any thread starts, so WebKit's helper processes inherit the trimmer.
+    #[cfg(target_os = "linux")]
+    memory::preload_webkit_trimmer();
+
     #[cfg(target_os = "linux")]
     if integration::linux::forward_to_running(&argv) {
         return;
@@ -109,8 +114,25 @@ pub fn run() {
         std::process::exit(1);
     }
 
-    if installer::first_run_prompt(&argv) {
+    // The launcher already asked (and was told to continue): its unpacked copy must not ask again.
+    if std::env::var_os(arcade_link::runtime::UNPACKED_ENV).is_none()
+        && installer::first_run_prompt(&argv)
+    {
         return;
+    }
+
+    // U1 (D12): a resident started from the AppImage runs from its unpacked copy, so no FUSE helper stays
+    // resident and pages come from the real disk; `$APPIMAGE` still names the installed file. The launcher exits
+    // at once. Nothing above this line starts a resident, and `--quit` and `--hide` never keep one, so they skip
+    // the copy (and its first extraction).
+    if memory::starts_resident(&args) {
+        if let Some(code) = arcade_link::runtime::relaunch_unpacked(
+            arcade_link::ids::LOOK,
+            env!("CARGO_PKG_VERSION"),
+            false,
+        ) {
+            std::process::exit(code);
+        }
     }
 
     // Files on the command line are relative to the user's directory; the
@@ -142,6 +164,11 @@ pub fn run() {
             tauri::async_runtime::spawn_blocking(move || {
                 responder.respond(protocol::handle(&request));
             });
+        })
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                memory::trim_while_open(webview.app_handle());
+            }
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -253,6 +280,7 @@ pub fn run() {
             tray::start(&handle);
             link::start(&handle, &handle.state::<app::AppState>().config());
             link_consumer::start(&handle);
+            memory::after_startup(&handle);
             #[cfg(all(feature = "e2e", unix))]
             e2e::start(&handle);
             app::handle_args(&handle, &start_args, user_dir.as_deref());
@@ -290,7 +318,7 @@ pub fn run() {
             ..
         } = &event
         {
-            app::release_webkit_when_unused(app);
+            memory::reclaim_after(app, memory::RELEASE_AFTER_CLOSE);
         }
         if let RunEvent::Exit = event {
             link::stop();
