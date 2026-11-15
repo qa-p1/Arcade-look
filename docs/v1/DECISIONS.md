@@ -146,3 +146,18 @@ is about paging out an *open* window, OPEN3, which stays off), and U1 was waitin
   `arcade/runtime/look-*` with `libarcade-trim.so` loaded in WebKit's helpers and the image carries `libarcade-trim.so`;
   `verify-resident.py` takes the resident's PID from its endpoint, checks it is the copy, and that WebKit's network
   process is gone after every close and after the 30 s preview release.
+
+## D13 - Release gates (step 7): Link's app gates on the published rc, and an upgrade gate
+
+`.github/workflows/gates.yml` runs PLAN's exit gates on the published files of an rc through Link's reusable
+`app-gates.yml@v1.0.9` (published files and SHA256SUMS, the rc's manifest, conformance, N-1, budgets, the delta
+through Tools' updater, the Windows and macOS smoke on the published installers), with Look's Linux checks on the
+published AppImage (the package smoke, close/reopen and Restart of the resident, the upgrade, the tray's lifecycle)
+and the Tier 2 desktop smoke. "Promote" runs only after a green Gates run on the rc it promotes.
+- **Upgrade:** Look had no upgrade test. `scripts/verify-upgrade.py` installs the real previous release from a
+  download folder, gives it a user's settings (non-default values, a text limit the user chose), the window state with
+  the first-launch setup done and a plugin, runs it, installs the candidate over it, runs that, and checks every
+  setting value, the window state and the plugin are kept, there is one launcher and one login item, and an uninstall
+  without `--remove-data` keeps the data. Connected apps stay on in the seeded settings: Look finds its resident
+  through Link, so `--status` cannot see a resident with it off. CI runs it from 0.4.3 on every Linux build.
+- No Tier 1 script yet; the previews' behaviour on a real compositor is the owner's desktop harness run.
