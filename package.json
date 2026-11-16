@@ -12,7 +12,8 @@
     "format:check": "prettier --check src index.html vite.config.ts tsconfig.json package.json",
     "test:ui": "node scripts/ui-checks/check.mjs",
     "test:behaviour": "node scripts/ui-checks/behaviour.mjs",
-    "test:sanitize": "node scripts/ui-checks/sanitize.mjs"
+    "test:sanitize": "node scripts/ui-checks/sanitize.mjs",
+    "test:a11y": "node scripts/ui-checks/a11y.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "2.12.1",
     "@types/three": "0.186.0",
+    "axe-core": "4.14.0",
     "playwright": "1.64.1",
     "prettier": "3.9.10",
     "typescript": "7.0.2",

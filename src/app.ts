@@ -47,6 +47,7 @@ export class App {
     h('div.drop-card', icon('open', 28), h('span', 'Drop to preview')),
   );
   private helpEl: HTMLElement | null = null;
+  private helpReturn: HTMLElement | null = null;
   private toastTimer = 0;
 
   constructor(private root: HTMLElement) {}
@@ -434,7 +435,8 @@ export class App {
       } else {
         const b = h(
           'button.btn.ghost.tb-btn',
-          { title: it.title, 'aria-label': it.title },
+          // A button with visible text is named from it first (WCAG 2.5.3, label in name): "1:1 Actual size (1)".
+          { title: it.title, 'aria-label': it.label ? `${it.label} ${it.title}` : it.title },
           it.icon ? icon(it.icon, 16) : null,
           it.label ? h('span', it.label) : null,
         );
@@ -644,6 +646,31 @@ export class App {
       ),
     );
     this.root.append(this.helpEl);
+    this.holdFocus(this.helpEl);
+  }
+
+  /** A modal starts on its first control, keeps Tab inside itself and gives focus back when it closes. */
+  private holdFocus(modal: HTMLElement) {
+    this.helpReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modal.querySelector('.dialog')?.setAttribute('aria-modal', 'true');
+    const controls = () =>
+      [
+        ...modal.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => !el.hasAttribute('disabled'));
+    modal.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const items = controls();
+      if (!items.length) return;
+      const [first, last] = [items[0], items[items.length - 1]];
+      const at = document.activeElement;
+      if (e.shiftKey ? at === first || !modal.contains(at) : at === last || !modal.contains(at)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    });
+    controls()[0]?.focus();
   }
 
   private async showHelp() {
@@ -652,11 +679,15 @@ export class App {
     const { showHelp } = await import('./lib/welcome');
     if (gen !== this.gen || this.helpEl) return;
     this.helpEl = showHelp(this.root, () => this.closeHelp());
+    this.holdFocus(this.helpEl);
   }
 
   private closeHelp() {
-    this.helpEl?.remove();
+    if (!this.helpEl) return;
+    this.helpEl.remove();
     this.helpEl = null;
+    if (this.helpReturn?.isConnected) this.helpReturn.focus();
+    this.helpReturn = null;
   }
 
   // ------------------------------------------------------------------ global events

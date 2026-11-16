@@ -6,10 +6,7 @@ import { button, keyChips } from './controls';
 // A valid capture applies immediately; conflicts wait for an explicit choice.
 export class ShortcutRecorder {
   readonly element = h('div');
-  private record = h('button.shortcut-recorder', {
-    type: 'button',
-    'aria-label': 'Record global shortcut',
-  });
+  private record = h('button.shortcut-recorder', { type: 'button' });
   private warning = h('div', { role: 'status', 'aria-live': 'polite' });
   private generation = 0;
   private recording = false;
@@ -80,11 +77,15 @@ export class ShortcutRecorder {
     );
     this.refresh();
   }
+  // The name starts with the visible words (WCAG 2.5.3) and ends with what the button does.
+  private purpose() {
+    return h('span.visually-hidden', ' Record global shortcut');
+  }
   private begin() {
     this.recording = true;
     this.warning.replaceChildren();
     this.record.classList.add('recording');
-    this.record.textContent = 'Press keys…';
+    this.record.replaceChildren('Press keys…', this.purpose());
     this.record.focus();
     void invoke('link_shortcut_recording', { recording: true });
   }
@@ -95,7 +96,10 @@ export class ShortcutRecorder {
     this.paint();
   }
   private paint() {
-    this.record.replaceChildren(this.value ? keyChips(this.value) : h('span', 'No shortcut'));
+    this.record.replaceChildren(
+      this.value ? keyChips(this.value) : h('span', 'No shortcut'),
+      this.purpose(),
+    );
   }
   refresh() {
     if (!this.recording) {

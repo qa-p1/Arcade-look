@@ -153,6 +153,23 @@ for (const [width, height] of [[1040, 720], [720, 520]]) {
   });
 }
 
+test('the shortcuts dialog is modal: focus starts in it, Tab stays in it and returns when it closes', async (page) => {
+  await open(page);
+  const before = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? null);
+  await page.keyboard.press('?');
+  await page.locator('.dialog.help').waitFor();
+  assert.equal(await page.locator('.dialog.help').getAttribute('aria-modal'), 'true');
+  const inside = () => page.evaluate(() => !!document.activeElement?.closest('.dialog.help'));
+  assert.ok(await inside(), 'focus did not move into the dialog');
+  for (const key of ['Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+    await page.keyboard.press(key);
+    assert.ok(await inside(), `${key} left the dialog`);
+  }
+  await page.keyboard.press('Escape');
+  await page.locator('.dialog.help').waitFor({ state: 'detached' });
+  assert.equal(await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? null), before, 'focus did not return');
+});
+
 test('LK-2: the shortcut list names each key once and covers M, comma, period and the 3D group', async (page) => {
   await open(page);
   await page.keyboard.press('?');

@@ -56,11 +56,11 @@ jobs:
     needs: [prepare, stage]
     permissions:
       contents: write
-    uses: qa-p1/Arcade-Link/.github/workflows/app-publish.yml@v1.0.11
+    uses: qa-p1/Arcade-Link/.github/workflows/app-publish.yml@v1.0.12
     with:
       app: arcade.look
       version: ${{ needs.prepare.outputs.version }}
       tag: ${{ needs.prepare.outputs.tag }}
       channel: test
       artifacts: release-look
-      link-ref: v1.0.11
+      link-ref: v1.0.12

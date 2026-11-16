@@ -2,6 +2,22 @@
 
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-16 (cloud session) - Round 5: accessibility pass
+
+D17: `scripts/ui-checks/a11y.mjs` (`npm run test:a11y`, in `scripts/check`) runs axe-core 4.14.0's WCAG 2.1 A/AA rules on
+every viewer with Info closed and open, the shortcuts overlay and every Settings section, in light and dark, and checks
+a visible focus indicator on every Tab stop and no motion over 10 ms with reduced motion. On the sources it found 12
+problems (4 causes), all fixed: toolbar buttons with visible text (the image viewer's "1:1") and the shortcut recorder
+now have names that start with their visible text, the PDF page area is a focusable named region, and links in rendered
+documents are underlined. Look's dialogs (the shortcuts overlay, messages) are modal: focus starts on their first
+control, Tab stays inside and focus returns when they close (a `behaviour.mjs` test that failed before). Not covered:
+3D models, HTML, Office documents, notebooks, slides, plugin output.
+
+Tested locally (frontend only; no Rust built or run, `scripts/check` as a whole not run):
+- `npm run format:check`, `npm run typecheck`, `npm run build`: pass.
+- `scripts/ui-checks/check.mjs`, `behaviour.mjs`, `sanitize.mjs`, `a11y.mjs` through Link's `tools/e2e.py run --`
+  (PLAYWRIGHT_CHROMIUM set to the installed Chromium): pass.
+
 ## 2026-11-15 (cloud session) - Round 5: security, licences and notices
 
 D16: `SECURITY.md` (every row checked against the code, each with a test that exists or "not covered by a test"),

@@ -123,13 +123,13 @@ jobs:
   # Tier 1: the preview on headless Hyprland (Link's desktop harness), from the AppImage built above.
   desktop:
     needs: installers
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.11
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.12
     with:
       name: look
       test: tests/desktop/look_desktop.py
       args: '"$APP"'
       artifact: arcade-look-linux-x86_64
-      link-ref: v1.0.11
+      link-ref: v1.0.12
 
   release-preview:
     name: Beta package and metadata rehearsal (no publication)

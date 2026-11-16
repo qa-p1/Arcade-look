@@ -46,7 +46,8 @@ export async function mount(host: HTMLElement, ctx: ViewCtx): Promise<Mounted> {
   const n = doc.numPages;
   const first = await doc.getPage(1);
   const base = first.getViewport({ scale: 1 });
-  const scroller = h('div.pdf-scroll');
+  // A scroll area the keyboard can reach scrolls with the arrow keys and Page Up/Down.
+  const scroller = h('div.pdf-scroll', { tabindex: 0, role: 'region', 'aria-label': 'PDF pages' });
   const pagesEl = h('div.pdf-pages');
   scroller.append(pagesEl);
   host.append(scroller);
