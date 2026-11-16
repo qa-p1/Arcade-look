@@ -39,7 +39,7 @@ lzma-rust2 = "0.16"
 ruzstd = "0.9"
 sevenz-rust2 = { version = "0.20", default-features = false }
 ttf-parser = "0.25"
-lofty = "0.22"
+lofty = "0.25"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico", "tiff", "tga", "dds", "hdr", "exr", "qoi", "pnm", "ff"] }
 kamadak-exif = "0.6"
 imagesize = "0.15"
