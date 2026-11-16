@@ -310,3 +310,17 @@ migrations are tested from released versions, and an older Look never loses or c
 - Not done: a migration from a schema above 1 (there is none yet; the first one adds its fixture and test), and
   `settings.json` is still written by `update` without a lock against another Look process.
 
+## D20 - Round 5: clean uninstall, and 1.0.0
+
+- `scripts/verify-appimage.py` now checks a clean uninstall the way Arcade Box's does (Box D19). It takes an inventory
+  of the disposable profile before installing. After `--uninstall --silent`, nothing may be new except Look's own kept
+  folders (`arcade/look` under the XDG roots), and no unpacked copy (`arcade/runtime/look-*`, U1) may remain. It then
+  installs again, runs a preview, and after `--uninstall --silent --remove-data` nothing new may remain at all,
+  Look's settings folder included. Not counted: the script's work folder and Link's runtime state (`run`,
+  `arcade/run`, `arcade/handoff`, which the script's SIGKILL leaves). WebKit storage outside Arcade's folders is
+  printed, not failed.
+- The "keeps user data" sentinel was written to `ARCADE_LOOK_HOME`, which Look never reads, so it proved nothing. It now
+  sits in Look's real settings folder (`<XDG_CONFIG_HOME>/arcade/look`, `config.rs`).
+- Version 1.0.0 (`src-tauri/Cargo.toml`, the lock file and the shortcut sheet) for the first release candidate,
+  `v1.0.0-rc.1`. README screenshots stay open, as for Box.
+
