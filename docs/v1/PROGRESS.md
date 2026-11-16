@@ -2,6 +2,14 @@
 
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-16 (cloud session) - Round 5: schema versions, migrations and safe downgrade
+
+D19: `settings.json`, `state.json`, `window-geometry.json` and `install-dismissed.json` get the FS-2 treatment: a `schema`
+(absent = 1, written only above 1, so 0.4.x still reads a v1 file as before), unknown fields kept through a save, a
+newer file read but never written ("made by a newer Arcade Look"), and a file that can't be parsed moved to
+`<name>.unreadable-<seconds>` instead of being replaced. 0.4.3 fixtures in `src-tauri/tests/data/v0.4.3/`; the
+`upgrade()` migration is tested from them. Rust only: no npm or browser checks were run.
+
 ## 2026-11-16 (cloud session) - Round 5: accessibility pass
 
 D17: `scripts/ui-checks/a11y.mjs` (`npm run test:a11y`, in `scripts/check`) runs axe-core 4.14.0's WCAG 2.1 A/AA rules on
