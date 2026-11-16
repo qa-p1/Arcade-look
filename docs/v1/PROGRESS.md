@@ -2,6 +2,12 @@
 
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-16 (cloud session) - Link conformance before rc.2
+
+D21: `arcade-link conformance .` failed 5 checks on rc.1 (ID-1, ID-2, ID-3, REPO-1, REL-1); it now shows 0 failed. Added
+the desktop entry and both icons under `packaging/linux/` and shipped them in the AppImage, moved `CHANGELOG.md` to Keep a
+Changelog 1.1.0, and gave the network steps in `ci.yml` and `build.yml` timeouts. No cargo, npm or tauri build was run.
+
 ## 2026-11-16 (cloud session) - Round 5: clean uninstall; 1.0.0
 
 D20: the AppImage check compares the profile before install with what a plain uninstall and an uninstall with
