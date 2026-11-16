@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Accessibility: links in rendered documents are underlined, the image viewer's "1:1" button and the shortcut recorder are announced by screen readers with the text they show, and the PDF page area can be focused and scrolled with the keyboard.
 - Settings → About has "Third-party notices", which opens the licence notices that ship with Look. Look's package now carries `THIRD_PARTY_NOTICES.md` and `LICENSE`.
 - Linux: Look started from another Arcade app, or restarted, runs from its own unpacked copy too, asks the first-run install question when it should, and its memory trimmer loads in every case.
 - Escape steps back one level: the actions menu, then Info, then fullscreen, then the preview (RD-LOOK-1, LK-10). The keyboard shortcuts dialog scrolls and lists every key once (LK-2). Error messages go away on their own and never carry over to the next file (LK-1). Actions (A) with no connected apps says so.

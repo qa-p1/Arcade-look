@@ -229,3 +229,32 @@ was checked against the code, and each row names a test that exists or says it h
   `https:` images), which tells that server the file was opened. Blocking them would break READMEs with badges; it is
   the owner's call and `SECURITY.md` says so.
 
+## D17 - Accessibility pass (Round 5)
+
+Modelled on Box's D21. `scripts/ui-checks/a11y.mjs` (`npm run test:a11y`; in `scripts/check` next to the other browser
+checks, so in CI) runs against the built UI with the same IPC fixture (`mock.js`) and checks, in light and dark:
+- axe-core's WCAG 2.1 A and AA rules (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`; axe-core 4.14.0, the version Box
+  uses, a dev dependency only) on 30 surfaces: the preview window for each viewer (Markdown, code, JSON, image, table,
+  PDF, archive, font, audio, video and the info card, each file served the way the app's protocol serves it) with the
+  Info panel closed and open, the shortcuts overlay (`?`) and every Settings section. A viewer that does not mount, or
+  falls back to the info card, fails the run, so a surface cannot silently go unchecked;
+- every control Tab reaches on those surfaces looks different when focused (outline, ring, border or background, on the
+  control or the field around it), compared by blurring and refocusing the same element;
+- with reduced motion requested, nothing animates or transitions for longer than 10 ms.
+Not covered: 3D models (WebGL), HTML, Office documents, notebooks, slides and plugin output (no fixture yet), text at
+125% (`check.mjs` covers Settings overflow at 125%), and whether Tab stays inside the shortcuts overlay (it does not:
+Tab leaves the dialog for the toolbar behind it; no WCAG A/AA rule axe runs covers it, so it is left as it is).
+
+On the sources before this change it found 12 problems (4 causes, each in light, dark or both), all fixed. Contrast,
+focus rings and motion passed already:
+- **A toolbar button with visible text was named from its tooltip only.** The image viewer's "1:1" button was named
+  "Actual size (1)" (WCAG 2.5.3, label in name). Toolbar buttons that show text are now named "<text> <tooltip>"
+  ("1:1 Actual size (1)").
+- **The shortcut recorder had the same mismatch.** It showed the keys but was named "Record global shortcut". Its name
+  is now the keys it shows followed by visually hidden "Record global shortcut"; while recording it reads "Press keys…".
+- **The PDF page area scrolled but had no keyboard focus of its own** (axe `scrollable-region-focusable`). It is now a focusable region named "PDF pages", so the arrow keys and Page Up/Down scroll it.
+- **Links in rendered documents were told apart by colour alone** (axe `link-in-text-block`; the dark accent on dark
+  text is under 3:1). They are underlined now (they were underlined only on hover): the one visible change.
+
+Count after each fix, in the order made: 12 before, 8 after the toolbar names, 4 after the PDF region, 2 after the
+underlined links, 0 after the recorder's name.
