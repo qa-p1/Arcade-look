@@ -98,6 +98,16 @@ def active():
         return None
 
 
+def exact_point_in(window):
+    """A point inside `window` the harness's pointer reaches exactly: its virtual pointer sends x/3840 and y/1080 to
+    Hyprland, which reports the cursor truncated, so a fraction that is not exact in binary reads back a pixel short
+    and the harness stops. x a multiple of 15 and y of 135 are exact (Link 1.0.12 will accept a one-pixel difference)."""
+    (x, y), (w, h) = window["at"], window["size"]
+    px = next((v for v in range(x + w // 2, x + w) if v % 15 == 0), x + w // 2)
+    py = next((v for v in range(y, y + h) if v % 135 == 0 and v > y), y + h // 2)
+    return px, py
+
+
 def open_file(path):
     # The launcher hands over to the running Look (or to its unpacked copy) and exits.
     return subprocess.Popen([app, str(path)], env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -115,8 +125,11 @@ try:
         raise SystemExit(1)
     check("ID-1: the window's class is Look's desktop id", window.get("class") == CLASS, window.get("class", ""))
     first_pid = window.get("pid")
-    check("the preview has keyboard focus when it opens",
-          bool(d.wait(lambda: active() == preview()["address"] if preview() else False, 5, "preview focused")))
+    try:
+        d.wait(lambda: active() == preview()["address"] if preview() else False, 5, "preview focused")
+        check("the preview has keyboard focus when it opens", True)
+    except DesktopError:
+        check("the preview has keyboard focus when it opens", False, f"active {active()}")
     resident = status()
     check("--status reports the running Look", bool(resident.get("running")), json.dumps(resident))
 
@@ -135,7 +148,7 @@ try:
     window = shown()
     check("the preview opens again", window is not None)
     if window:
-        x, y = d.center_of(other_window)
+        x, y = exact_point_in(other_window)
         d.pointer_move(x, y)
         time.sleep(1.5)
         check("the preview stays open when the pointer moves into another window", preview() is not None)
@@ -164,9 +177,9 @@ finally:
     other.terminate()
     subprocess.run([app, "--quit"], env=env, capture_output=True, timeout=30)
     log.flush()
+    failed = [r for r in results if r[0] == "FAIL"]
+    print(f"\n{len(results) - len(failed)}/{len(results)} checks passed", flush=True)
+    if failed:  # Also when a check stopped the run early.
+        print(Path(d.artifact("look.log")).read_text(errors="replace")[-6000:], flush=True)
 
-failed = [r for r in results if r[0] == "FAIL"]
-print(f"\n{len(results) - len(failed)}/{len(results)} checks passed", flush=True)
-if failed:
-    print(Path(d.artifact("look.log")).read_text(errors="replace")[-6000:], flush=True)
 sys.exit(1 if failed else 0)

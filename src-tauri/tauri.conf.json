@@ -44,6 +44,10 @@
     "category": "Utility",
     "shortDescription": "Press Space, see anything.",
     "longDescription": "Arcade Look is a fast, light, cross-platform Quick Look: preview images, video, audio, PDFs, archives, code, fonts, Markdown, JSON, Office documents, 3D models and more.",
+    "resources": {
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "../LICENSE": "LICENSE"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

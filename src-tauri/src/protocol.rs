@@ -205,6 +205,20 @@ mod tests {
         assert_eq!(parse_range("items=0-1", 100), None);
     }
 
+    /// A plugin's asset URL cannot climb out of the plugin's folder, however the `..` is written.
+    #[test]
+    fn plugin_routes_refuse_parent_folders() {
+        for uri in [
+            "alook://localhost/plugin/..%2F..%2Fsettings.json/index.js",
+            "alook://localhost/plugin/x/../../settings.json",
+            "alook://localhost/plugin/x/%2e%2e/%2e%2e/settings.json",
+            "alook://localhost/plugin/x/sub%5C..%5C..%5Csettings.json",
+        ] {
+            let req = Request::builder().uri(uri).body(Vec::new()).unwrap();
+            assert_eq!(handle(&req).status(), StatusCode::FORBIDDEN, "{uri}");
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn serves_ranges() {

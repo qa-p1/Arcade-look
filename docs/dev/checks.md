@@ -29,6 +29,14 @@ Playwright separately checks the compiled UI with deterministic
 IPC fixtures, all Settings sections and error/retry/shortcut interactions.
 Those browser fixtures do not verify the native backend.
 
+Security and licences: `scripts/check` also runs `scripts/notices.py --check` (THIRD_PARTY_NOTICES.md is generated:
+Rust crates, JavaScript packages, pdf.js assets, Inter, the files vendored from Link and the native libraries; rewrite it with
+`scripts/notices.py` after any dependency change), and the Linux branch runs `scripts/ui-checks/sanitize.mjs` in the isolated
+runner. CI's `deny` job runs `cargo deny` against `deny.toml` (the accepted advisories are explained there and in D16). The
+native libraries in the AppImage are recorded in `packaging/linux/native/` by `scripts/native-notices.py`; `build.yml` runs its
+`--check` on the 22.04 runner right after `tauri build`. When a package appears or goes, the step fails, prints the corrected
+`packages.json` and uploads the regenerated folder (copyright files included): commit it, then run `scripts/notices.py`.
+
 Installer jobs smoke-test AppImage, DMG and Windows setup in temporary profiles.
 They start alongside the source checks rather than waiting for the slowest OS.
 A release candidate requires both the source matrix and installer matrix to pass;

@@ -100,6 +100,20 @@ jobs:
           if-no-files-found: error
 
 
+  # Advisories, licences, bans and sources (deny.toml). The accepted advisories are listed there with their reasons;
+  # a new one fails the run. The manifest is in src-tauri/, so the action is pointed at it.
+  deny:
+    name: cargo deny (advisories, licences, bans, sources)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2 (v2.1.1, verified with git ls-remote)
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          arguments: --workspace --all-features
+          command: check
+
   installers:
     name: Installers
     # Packaging is independent of source tests. Start it immediately; the

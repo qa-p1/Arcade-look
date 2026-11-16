@@ -192,7 +192,11 @@ fn list_zip(path: &Path) -> Res<Listing> {
         l.total_size += e.size();
         l.packed_size += e.compressed_size();
         l.entries.push(Entry {
-            path: e.name().to_string(),
+            // zip 9 reports a name it cannot decode as an error; show the raw bytes then.
+            path: e.name().map_or_else(
+                |_| String::from_utf8_lossy(e.name_raw()).into_owned(),
+                |name| name.into_owned(),
+            ),
             size: Some(e.size()),
             packed: Some(e.compressed_size()),
             dir: e.is_dir(),
@@ -536,7 +540,7 @@ mod tests {
             let mut ut = zip::write::FullFileOptions::default().last_modified_time(dos);
             let mut field = vec![1u8];
             field.extend_from_slice(&1_700_000_000u32.to_le_bytes());
-            ut.add_extra_data(0x5455, field, false).unwrap();
+            ut.add_extra_field(0x5455, field, false).unwrap();
             z.start_file("utc.txt", ut).unwrap();
             z.finish().unwrap();
         }

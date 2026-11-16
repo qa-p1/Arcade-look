@@ -103,6 +103,24 @@ jobs:
           SYSTEM_DEPS_DAV1D_BUILD_INTERNAL: always
         run: npx tauri build --ci ${{ matrix.args }} -- --locked
 
+      # THIRD_PARTY_NOTICES covers the Ubuntu packages linuxdeploy bundled (WebKitGTK, GTK, GStreamer, ...). This runs
+      # on the 22.04 runner the libraries come from, right after the build. A package that is new or gone fails the
+      # step, which prints the whole corrected packages.json; the regenerated folder (with the copyright files) is
+      # uploaded to commit as packaging/linux/native.
+      - name: Notices cover the bundled native libraries
+        id: native
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        shell: bash
+        run: python3 scripts/native-notices.py --check src-tauri/target/release/bundle/appimage/*.AppImage
+      - name: Upload the regenerated native notices
+        if: failure() && steps.native.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-notices
+          # `uses` steps run from the workspace root, not the job's working directory.
+          path: arcade-look/packaging/linux/native
+
       - name: Verify AppImage install, repair and uninstall in a temporary profile
         if: runner.os == 'Linux'
         shell: bash

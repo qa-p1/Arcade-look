@@ -155,6 +155,10 @@ def main():
         subprocess.run([str(download), "--appimage-extract"], cwd=extracted, env=env, check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
         assert (extracted / "squashfs-root/usr/lib/libarcade-trim.so").is_file(), "AppImage lacks libarcade-trim.so"
+        # Third-party notices and the licence ship inside the image (Tauri resources), so Settings can open them offline.
+        for name in ("THIRD_PARTY_NOTICES.md", "LICENSE"):
+            found = [p for p in (extracted / "squashfs-root").rglob(name) if p.is_file() and p.stat().st_size > 0]
+            assert found, f"AppImage lacks {name}"
         shutil.rmtree(extracted)
 
         version = run(download, "--version").strip().split()[-1]
