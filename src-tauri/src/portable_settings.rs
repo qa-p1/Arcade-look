@@ -53,6 +53,11 @@ impl PortableSettings {
     }
 
     pub fn validate(&self) -> Result<(), LinkError> {
+        if self.schema > 1 {
+            return Err(LinkError::denied(
+                "these settings were made by a newer Arcade Look; update Look to import them",
+            ));
+        }
         if self.schema != 1
             || self.app != arcade_link::ids::LOOK
             || !safe_text(&self.version)
@@ -199,5 +204,13 @@ mod tests {
         let mut document = PortableSettings::from_config(&crate::config::Config::default());
         document.global_shortcut = "Ctrl+Shift+Alt+K".into();
         assert!(document.validate().is_err());
+    }
+
+    #[test]
+    fn a_newer_export_is_refused_with_a_clear_reason() {
+        let mut document = PortableSettings::from_config(&crate::config::Config::default());
+        document.schema = 2;
+        let error = document.validate().unwrap_err();
+        assert!(format!("{error:?}").contains("newer Arcade Look"));
     }
 }

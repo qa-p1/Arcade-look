@@ -184,19 +184,31 @@ pub fn dismissed(path: &Path) -> bool {
 
 /// "Don't ask again for this file": remembers this exact download.
 pub fn dismiss(path: &Path) -> io::Result<()> {
-    let id = identity(path)?;
-    let file = dismissed_file();
-    let mut ids: Vec<FileIdentity> = fs::read(&file)
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default();
+    dismiss_in(&dismissed_file(), identity(path)?)
+}
+
+/// The list is a bare JSON array, as every release wrote it, so it has no `schema` (an object
+/// would make 0.4.x forget it). A list this build can't read is kept aside, not replaced, and
+/// one made by a newer Look is left alone (D19).
+fn dismiss_in(file: &Path, id: FileIdentity) -> io::Result<()> {
+    let mut ids: Vec<FileIdentity> = match fs::read(file) {
+        Ok(bytes) => match serde_json::from_slice(&bytes) {
+            Ok(ids) => ids,
+            Err(_) if crate::config::newer_on_disk(file) => return Ok(()),
+            Err(_) => {
+                crate::config::set_aside(file);
+                Vec::new()
+            }
+        },
+        Err(_) => Vec::new(),
+    };
     ids.retain(|old| old.path != id.path);
     if ids.len() >= 128 {
         ids.remove(0);
     }
     ids.push(id);
     arcade_link::paths::write_atomic(
-        &file,
+        file,
         &serde_json::to_vec(&ids).map_err(io::Error::other)?,
         true,
     )
@@ -818,6 +830,40 @@ pub fn first_run_prompt(args: &[String]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_dismissed_list_keeps_what_it_cannot_read() {
+        let dir = std::env::temp_dir().join(format!("look-dismissed-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("install-dismissed.json");
+        let id = |name: &str| FileIdentity {
+            path: name.into(),
+            size: 1,
+            modified: 2,
+        };
+        // The released shape: a bare array, kept as one.
+        std::fs::write(&file, r#"[{"path":"/a","size":1,"modified":2}]"#).unwrap();
+        dismiss_in(&file, id("/b")).unwrap();
+        let saved: Vec<FileIdentity> =
+            serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert_eq!(saved.len(), 2);
+        // A newer Look's object is left exactly as it is.
+        let newer = r#"{"schema":2,"items":[]}"#;
+        std::fs::write(&file, newer).unwrap();
+        dismiss_in(&file, id("/c")).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), newer);
+        // Garbage is moved aside, then a fresh list is written.
+        std::fs::write(&file, b"garbage").unwrap();
+        dismiss_in(&file, id("/d")).unwrap();
+        let kept: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.to_string_lossy().contains(".unreadable-"))
+            .collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(std::fs::read(&kept[0]).unwrap(), b"garbage");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     use super::*;
 
     #[test]

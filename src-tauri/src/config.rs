@@ -214,36 +214,35 @@ mod tests {
     // kept, and an older Look never loses or corrupts a newer file.
     static HOME: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-    /// A fresh, private config folder (every home variable) for one test; never the real user's.
-    fn private_home() -> (std::sync::MutexGuard<'static, ()>, PathBuf) {
+    /// A private config folder for one test, never the real user's: every home variable points
+    /// at one temp folder for this process, and the Look folder in it is emptied. The temp folder
+    /// itself is left alone because other tests (the archive cache) live under it too.
+    fn private_home() -> std::sync::MutexGuard<'static, ()> {
+        static ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
         let guard = HOME.lock().unwrap_or_else(|e| e.into_inner());
-        let root = std::env::temp_dir().join(format!(
-            "look-schema-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::create_dir_all(&root).unwrap();
-        // Every root Link's `app_dirs` can start from, on Linux, Windows and macOS.
-        for key in [
-            "HOME",
-            "USERPROFILE",
-            "XDG_CONFIG_HOME",
-            "XDG_DATA_HOME",
-            "XDG_CACHE_HOME",
-            "APPDATA",
-            "LOCALAPPDATA",
-        ] {
-            std::env::set_var(key, &root);
-        }
-        std::fs::create_dir_all(dir()).unwrap();
+        let root = ROOT.get_or_init(|| {
+            let root =
+                std::env::temp_dir().join(format!("look-schema-home-{}", std::process::id()));
+            std::fs::create_dir_all(&root).unwrap();
+            // Every root Link's `app_dirs` can start from, on Linux, Windows and macOS.
+            for key in [
+                "HOME",
+                "USERPROFILE",
+                "XDG_CONFIG_HOME",
+                "XDG_DATA_HOME",
+                "APPDATA",
+            ] {
+                std::env::set_var(key, &root);
+            }
+            root
+        });
         assert!(
-            dir().starts_with(&root),
+            dir().starts_with(root),
             "tests must not touch the real config"
         );
-        (guard, root)
+        let _ = std::fs::remove_dir_all(dir());
+        std::fs::create_dir_all(dir()).unwrap();
+        guard
     }
 
     const V043_SETTINGS: &str = include_str!("../tests/data/v0.4.3/settings.json");
@@ -264,7 +263,7 @@ mod tests {
 
     #[test]
     fn v043_settings_load_with_every_value_kept() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         std::fs::write(config_path(), V043_SETTINGS).unwrap();
         let c = load();
         assert_eq!(c.theme, "dark");
@@ -286,24 +285,24 @@ mod tests {
             std::fs::read_to_string(config_path()).unwrap(),
             V043_SETTINGS
         );
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn upgrade_from_the_v043_file_keeps_a_chosen_limit() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         let chosen = V043_SETTINGS.replace("\"textLimitMb\": 4", "\"textLimitMb\": 8");
         assert_ne!(chosen, V043_SETTINGS);
         std::fs::write(config_path(), chosen).unwrap();
         assert_eq!(try_load().unwrap().text_limit_mb, 8);
         std::fs::write(config_path(), V043_SETTINGS).unwrap();
         assert_eq!(try_load().unwrap().text_limit_mb, 1);
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn a_v1_settings_file_stays_in_the_released_shape() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         std::fs::write(config_path(), V043_SETTINGS).unwrap();
         let patch = serde_json::json!({"theme": "light"});
         update(&load(), patch.as_object().unwrap().clone()).unwrap();
@@ -317,12 +316,12 @@ mod tests {
         assert_eq!(saved["idleMinutes"], 25);
         let fresh = serde_json::to_value(Config::default()).unwrap();
         assert!(fresh.get("schema").is_none());
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn missing_fields_default() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         std::fs::write(config_path(), "{}").unwrap();
         let d = Config::default();
         let c = load();
@@ -334,12 +333,12 @@ mod tests {
         assert_eq!(c.link_disabled_peers, d.link_disabled_peers);
         std::fs::write(state_path(), "{}").unwrap();
         assert_eq!(load_state().width, WindowState::default().width);
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn unknown_settings_fields_survive_an_update() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         std::fs::write(
             config_path(),
             r#"{"theme":"dark","futureOption":{"nested":[1,2],"deep":{"x":true}}}"#,
@@ -352,12 +351,12 @@ mod tests {
         assert_eq!(saved["futureOption"]["deep"]["x"], true);
         assert_eq!(saved["futureOption"]["nested"][1], 2);
         assert_eq!(saved["autoplay"], false);
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn v043_window_state_loads_and_unknown_fields_survive_a_save() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         std::fs::write(state_path(), V043_STATE).unwrap();
         let mut s = load_state();
         assert_eq!((s.width, s.height), (1180.0, 800.0));
@@ -379,12 +378,12 @@ mod tests {
         assert_eq!(saved["futureZoom"], 1.5);
         assert_eq!(saved["future"]["a"][0], 1);
         assert!(saved.get("schema").is_none());
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn a_newer_settings_file_is_read_and_never_written_over() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         let newer = r#"{"schema":2,"theme":"dark","idleMinutes":7,"shiny":{"a":1}}"#;
         std::fs::write(config_path(), newer).unwrap();
         let c = load();
@@ -400,12 +399,12 @@ mod tests {
         assert_eq!(load().theme, "system");
         assert_eq!(std::fs::read_to_string(config_path()).unwrap(), odd);
         assert!(aside("settings.json").is_empty());
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn a_newer_window_state_is_never_written_over() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         let newer = r#"{"schema":2,"width":900.0,"layout":"tabs"}"#;
         std::fs::write(state_path(), newer).unwrap();
         let mut s = load_state();
@@ -413,12 +412,12 @@ mod tests {
         s.width = 1500.0;
         save_state(&s);
         assert_eq!(std::fs::read_to_string(state_path()).unwrap(), newer);
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn an_unreadable_settings_file_is_moved_aside_not_destroyed() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         for (n, bytes) in [&b"{not json"[..], br#"{"idleMinutes":"soon"}"#, b"[1,2]"]
             .into_iter()
             .enumerate()
@@ -436,12 +435,12 @@ mod tests {
             assert_eq!(std::fs::read(&kept[0]).unwrap(), bytes);
             std::fs::remove_file(&kept[0]).unwrap();
         }
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]
     fn an_unreadable_window_state_is_moved_aside_not_destroyed() {
-        let (_guard, root) = private_home();
+        let _guard = private_home();
         std::fs::write(state_path(), b"\x00garbage").unwrap();
         let s = load_state();
         assert_eq!(s.width, WindowState::default().width);
@@ -450,7 +449,7 @@ mod tests {
         assert_eq!(std::fs::read(&kept[0]).unwrap(), b"\x00garbage");
         save_state(&s);
         assert_eq!(std::fs::read(&kept[0]).unwrap(), b"\x00garbage");
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(dir()).unwrap();
     }
 
     #[test]

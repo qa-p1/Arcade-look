@@ -11,15 +11,64 @@ struct Rect {
     height: f64,
 }
 type Windows = BTreeMap<String, BTreeMap<String, Rect>>;
+type Document = serde_json::Map<String, serde_json::Value>;
 
 fn path() -> std::path::PathBuf {
     crate::config::dir().join("window-geometry.json")
 }
+/// The saved rectangles. The file has no `schema` while it is v1 (0.4.x reads it strictly);
+/// a file that can't be read is set aside and one from a newer Look is read as far as it parses.
 fn read() -> Windows {
-    std::fs::read(path())
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
+    read_file(&path())
+}
+fn read_file(file: &std::path::Path) -> Windows {
+    windows_in(&crate::config::load_json::<Document>(file))
+}
+fn windows_in(document: &Document) -> Windows {
+    document
+        .iter()
+        .filter(|(label, _)| label.as_str() != "schema")
+        .filter_map(|(label, monitors)| {
+            let monitors = monitors.as_object()?;
+            let rects = monitors
+                .iter()
+                .filter_map(|(key, rect)| {
+                    Some((key.clone(), serde_json::from_value(rect.clone()).ok()?))
+                })
+                .collect();
+            Some((label.clone(), rects))
+        })
+        .collect()
+}
+/// Save one rectangle in the file at `file`, keeping every other entry and field it holds
+/// (including ones a newer Look wrote), and never writing over a newer file.
+fn save(file: &std::path::Path, label: &str, monitor: &str, rect: Rect) -> std::io::Result<()> {
+    if crate::config::newer_on_disk(file) {
+        return Ok(());
+    }
+    let mut document = crate::config::load_json::<Document>(file);
+    let entry = document
+        .entry(label.to_string())
+        .or_insert_with(|| serde_json::json!({}));
+    if !entry.is_object() {
+        *entry = serde_json::json!({});
+    }
+    let fresh = serde_json::to_value(rect).map_err(std::io::Error::other)?;
+    let monitors = entry
+        .as_object_mut()
+        .ok_or_else(|| std::io::Error::other("not an object"))?;
+    let slot = monitors
+        .entry(monitor.to_string())
+        .or_insert_with(|| serde_json::json!({}));
+    match (slot.as_object_mut(), fresh.as_object()) {
+        (Some(old), Some(new)) => old.extend(new.clone()),
+        _ => *slot = fresh,
+    }
+    let bytes = serde_json::to_vec_pretty(&document).map_err(std::io::Error::other)?;
+    if let Some(parent) = file.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    arcade_link::paths::write_atomic(file, &bytes, true)
 }
 fn key(monitor: &tauri::Monitor) -> String {
     format!(
@@ -120,22 +169,99 @@ pub fn remember(window: &WebviewWindow) {
         width: size.width as f64 / scale,
         height: size.height as f64 / scale,
     };
-    let mut windows = read();
-    windows
-        .entry(window.label().into())
-        .or_default()
-        .insert(key(&monitor), rect);
-    if let Ok(bytes) = serde_json::to_vec_pretty(&windows) {
-        let _ = std::fs::create_dir_all(crate::config::dir());
-        if let Err(error) = arcade_link::paths::write_atomic(&path(), &bytes, true) {
-            eprintln!("arcade-look: couldn't remember window geometry: {error}");
-        }
+    if let Err(error) = save(&path(), window.label(), &key(&monitor), rect) {
+        eprintln!("arcade-look: couldn't remember window geometry: {error}");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp_file() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "look-geometry-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join("window-geometry.json")
+    }
+    const V043: &str = include_str!("../tests/data/v0.4.3/window-geometry.json");
+    const RECT: Rect = Rect {
+        x: 1.0,
+        y: 2.0,
+        width: 800.0,
+        height: 600.0,
+    };
+
+    #[test]
+    fn a_v043_geometry_file_loads_with_every_rectangle() {
+        let file = temp_file();
+        std::fs::write(&file, V043).unwrap();
+        let windows = windows_in(&crate::config::load_json::<Document>(&file));
+        assert_eq!(windows["main"].len(), 2);
+        assert_eq!(windows["main"]["eDP-1:1920:1080"].x, 10.5);
+        assert_eq!(windows["settings"]["DP-1:2560:1440"].height, 640.0);
+        // Saving another window keeps those, and writes no `schema` (0.4.x reads it strictly).
+        save(&file, "viewer", "DP-1:2560:1440", RECT).unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert!(saved.get("schema").is_none());
+        assert_eq!(saved["main"]["DP-1:2560:1440"]["width"], 1100.0);
+        assert_eq!(saved["viewer"]["DP-1:2560:1440"]["width"], 800.0);
+        std::fs::remove_dir_all(file.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn unknown_geometry_fields_survive_a_save() {
+        let file = temp_file();
+        std::fs::write(
+            &file,
+            r#"{"main":{"m":{"x":0.0,"y":0.0,"width":900.0,"height":700.0,"maximized":true}},"notes":{"a":1}}"#,
+        )
+        .unwrap();
+        save(&file, "main", "m", RECT).unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert_eq!(saved["main"]["m"]["maximized"], true);
+        assert_eq!(saved["main"]["m"]["width"], 800.0);
+        assert_eq!(saved["notes"]["a"], 1);
+        std::fs::remove_dir_all(file.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn a_newer_geometry_file_is_read_and_never_written_over() {
+        let file = temp_file();
+        let newer = r#"{"schema":2,"main":{"m":{"x":3.0,"y":4.0,"width":850.0,"height":650.0}}}"#;
+        std::fs::write(&file, newer).unwrap();
+        let windows = windows_in(&crate::config::load_json::<Document>(&file));
+        assert_eq!(windows["main"]["m"].width, 850.0);
+        assert!(!windows.contains_key("schema"));
+        save(&file, "main", "m", RECT).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), newer);
+        std::fs::remove_dir_all(file.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn an_unreadable_geometry_file_is_moved_aside_not_destroyed() {
+        let file = temp_file();
+        std::fs::write(&file, b"{broken").unwrap();
+        assert!(read_file(&file).is_empty());
+        save(&file, "main", "m", RECT).unwrap();
+        let kept: Vec<_> = std::fs::read_dir(file.parent().unwrap())
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.to_string_lossy().contains(".unreadable-"))
+            .collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(std::fs::read(&kept[0]).unwrap(), b"{broken");
+        assert!(file.exists());
+        std::fs::remove_dir_all(file.parent().unwrap()).unwrap();
+    }
     #[test]
     fn changed_monitor_never_leaves_a_window_offscreen_or_below_minimum() {
         let rect = fit(
