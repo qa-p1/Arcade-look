@@ -270,3 +270,43 @@ Link 1.0.11's `setup-arcade-link` cached its CLI under `runner.os` only, so a ga
 CLI built on ubuntu-24.04 ("GLIBC_2.39 not found"; Box's rc.2 gates hit it). Every reusable Link workflow and
 `link-ref` is pinned to `v1.0.12`, which keys the cache by runner image. The crate, the build's Link checkout and the
 vendored files stay at `v1.0.11`: 1.0.12 changes no Rust code or design file.
+
+## D19 - Round 5: data files, schema versions and safe downgrade
+
+From the Round 5 audit (modelled on Box's D19). Link's FS-2: every data file Look writes carries a schema version,
+migrations are tested from released versions, and an older Look never loses or corrupts a newer file. Released shape =
+0.4.1, 0.4.2 and 0.4.3 (the three write the same files; the fixtures are 0.4.3's, in `src-tauri/tests/data/v0.4.3/`).
+- **Inventory** (files Look writes and reads back): `settings.json` (`config::load`/`try_load`/`update`),
+  `state.json` (`load_state`/`save_state`), `window-geometry.json` (`window_geometry`), `install-dismissed.json`
+  (`installer::dismiss`). Not data files of Look's own: the portable settings export (`portable_settings`, already a
+  document with `schema: 1`, `app` and `version`, strict on purpose), the Link receipt and manifest (written through
+  arcade-link, its schema), `plugins/<id>/plugin.json` (written by the person, read only), and the caches, temp files
+  and the AppImage's unpacked copy (rebuilt on demand).
+- **`schema` is written only above 1.** No field means 1, the shape every release wrote. 0.4.x reads these files without
+  a `schema` field in mind, and `window-geometry.json` and `install-dismissed.json` have a shape (a map of maps, a bare
+  array) where a new top-level key would make 0.4.x discard the whole file. So a v1 file stays byte for byte what 0.4.x
+  writes (`state.json` is rewritten with exactly the same bytes when it holds nothing unknown). The number is kept once
+  a newer Look wrote it.
+- **Unknown fields survive a save:** `settings.json` (top level; it has no nested objects) as before through `update`;
+  `state.json` now merges what it doesn't know back in; `window-geometry.json` keeps unknown fields in each rectangle,
+  other windows and other monitors. `install-dismissed.json` is a list of records and rewrites its own entries only.
+- **A newer schema is read and never written:** one log line, "made by a newer Arcade Look (schema N ...)", then the
+  fields this build knows are used. `config::update` returns "settings.json was made by a newer Arcade Look" (Settings
+  shows it), `save_state`, geometry saves and the dismissed list do nothing. A newer file this build can't map to its
+  structs is left in place and Look runs on defaults, without writing. A portable settings file above schema 1 is
+  refused with the same words.
+- **A file that can't be parsed** (not JSON, wrong types, not an object) is moved to `<name>.unreadable-<unix seconds>`
+  (a counter is added on a clash), logged, and Look starts with defaults. Before, an invalid `settings.json` fell back
+  to defaults and the next `update` replaced the file. `load()` writes fresh defaults after moving the file away;
+  `update`, `save_state`, geometry and the dismissed list do the same before writing. A file that exists but can't be
+  read for another reason (permissions) is not moved.
+- `upgrade()` (`textLimitMb` 4 to 1, LK1) is unchanged; it runs in memory on load, so the file stays as it was until
+  the next change. Tested from the 0.4.3 fixture, with a chosen 8 kept.
+- Tests: 0.4.3 `settings.json`, `state.json` and `window-geometry.json` fixtures load with every value kept; a v1 file
+  stays free of `schema`; unknown fields survive; a newer schema is kept and not overwritten (each file); an unreadable
+  file is moved aside (each file); missing fields default; `upgrade()`. They use a private home folder, never the real
+  one. Five of the settings and state tests failed on the code before this change (newer settings overwritten by
+  `update`, newer state overwritten, unknown state fields dropped, two unreadable files not set aside).
+- Not done: a migration from a schema above 1 (there is none yet; the first one adds its fixture and test), and
+  `settings.json` is still written by `update` without a lock against another Look process.
+

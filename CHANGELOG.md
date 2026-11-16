@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A settings, window-state or window-position file that Look can't read is kept as `<name>.unreadable-<time>` next to it and Look starts with defaults, instead of the file being replaced by the next save. A file made by a newer Arcade Look is read and never overwritten by an older one, and settings you didn't set from a newer version are kept when you change a setting.
 - Accessibility: links in rendered documents are underlined, the image viewer's "1:1" button and the shortcut recorder are announced by screen readers with the text they show, the PDF page area can be focused and scrolled with the keyboard, and Look's dialogs keep keyboard focus inside them and give it back when they close.
 - Settings → About has "Third-party notices", which opens the licence notices that ship with Look. Look's package now carries `THIRD_PARTY_NOTICES.md` and `LICENSE`.
 - Linux: Look started from another Arcade app, or restarted, runs from its own unpacked copy too, asks the first-run install question when it should, and its memory trimmer loads in every case.
