@@ -29,6 +29,12 @@ Playwright separately checks the compiled UI with deterministic
 IPC fixtures, all Settings sections and error/retry/shortcut interactions.
 Those browser fixtures do not verify the native backend.
 
+`scripts/ui-checks/a11y.mjs` (`npm run test:a11y`, after `npm run build`; D17) runs axe-core's WCAG 2.1 A and AA rules on
+the preview window for each viewer (Markdown, code, JSON, image, table, PDF, archive, font, audio, video and the info
+card) with the Info panel closed and open, on the shortcuts overlay and on every Settings section, in light and dark. It
+also requires a visible focus indicator on every control Tab reaches and that nothing animates or transitions for longer
+than 10 ms when reduced motion is requested. `A11Y_VERBOSE=1` lists the Tab stops it found.
+
 Security and licences: `scripts/check` also runs `scripts/notices.py --check` (THIRD_PARTY_NOTICES.md is generated:
 Rust crates, JavaScript packages, pdf.js assets, Inter, the files vendored from Link and the native libraries; rewrite it with
 `scripts/notices.py` after any dependency change), and the Linux branch runs `scripts/ui-checks/sanitize.mjs` in the isolated
