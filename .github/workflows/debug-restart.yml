@@ -1,0 +1,30 @@
+name: Debug restart (temporary)
+on:
+  push:
+    branches: ['claude/sharp-cori-29w5eg-wip-restart']
+permissions:
+  contents: read
+jobs:
+  restart:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Gates' Linux packages
+        timeout-minutes: 15
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb dbus-x11 xdotool desktop-file-utils libfuse2 python3-gi gir1.2-glib-2.0 \
+            libwebkit2gtk-4.1-0 libayatana-appindicator3-1 python3-dbus gstreamer1.0-plugins-base gstreamer1.0-plugins-good gdb
+      - name: rc.2 AppImage
+        timeout-minutes: 10
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release download v1.0.0-rc.2 --repo "$GITHUB_REPOSITORY" --pattern '*.AppImage' --dir rc
+          chmod +x rc/*.AppImage
+      - name: Resident check, as in Gates (after the AppImage check, in the same order)
+        run: |
+          dbus-run-session -- xvfb-run -a python3 scripts/verify-appimage.py rc/*.AppImage arcade.look Arcade-Look.AppImage arcade-look
+          dbus-run-session -- xvfb-run -a python3 scripts/verify-resident.py rc/*.AppImage

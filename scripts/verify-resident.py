@@ -96,6 +96,23 @@ def memory(resident):
     return round(pss / 1024, 1)
 
 
+def dump(original, endpoint):
+    print('DEBUG endpoint:', endpoint.read_text() if endpoint.exists() else 'missing', flush=True)
+    print('DEBUG original alive:', Path(f'/proc/{original}').exists(), flush=True)
+    try:
+        print('DEBUG original stat:', Path(f'/proc/{original}/stat').read_text(), flush=True)
+        for task in sorted(Path(f'/proc/{original}/task').iterdir()):
+            print('DEBUG task', task.name, (task / 'comm').read_text().strip(), (task / 'wchan').read_text().strip(),
+                  (task / 'stat').read_text().rpartition(') ')[2].split()[0], flush=True)
+    except OSError as e:
+        print('DEBUG', e, flush=True)
+    print(subprocess.run(['ps', '-eo', 'pid,ppid,pgid,stat,etime,wchan:20,args', '--sort=start_time'],
+                         capture_output=True, text=True).stdout[-8000:], flush=True)
+    if Path(f'/proc/{original}').exists():
+        print(subprocess.run(['sudo', 'gdb', '-p', str(original), '-batch', '-ex', 'thread apply all bt 25'],
+                             capture_output=True, text=True, timeout=120).stdout[-20000:], flush=True)
+
+
 def main():
     image = Path(sys.argv[1]).resolve(strict=True)
     app = 'arcade.look'
@@ -184,8 +201,23 @@ def main():
                     wait(lambda: not network_processes(original), 'released preview ends the network process', seconds=10)
                     print(f'Preview: PID {original} stable, 0 renderers and network processes, group PSS {memory(original)} MiB', flush=True)
                 run('--restart')
-                successor = wait(lambda: (p if (p := pid()) and p != original else None),
-                                 'explicit Restart replaces the process')
+                started = time.monotonic()
+                try:
+                    successor = wait(lambda: (p if (p := pid()) and p != original else None),
+                                     'explicit Restart replaces the process')
+                    print(f'DEBUG successor {successor} after {time.monotonic() - started:.1f}s', flush=True)
+                except AssertionError:
+                    dump(original, endpoint)
+                    for _ in range(600):
+                        p = pid()
+                        if p and p != original:
+                            print(f'DEBUG late successor {p} after {time.monotonic() - started:.1f}s', flush=True)
+                            break
+                        time.sleep(.1)
+                    else:
+                        print('DEBUG no successor after 80s', flush=True)
+                        dump(original, endpoint)
+                    raise
                 assert successor != original
                 run('--quit')
                 wait(lambda: not endpoint.exists(), 'explicit Quit stops resident')
