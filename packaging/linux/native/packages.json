@@ -4,6 +4,9 @@
     "dconf-gsettings-backend": {
       "source": "dconf"
     },
+    "gcc-12-base": {
+      "source": "gcc-12"
+    },
     "gir1.2-atk-1.0": {
       "source": "atk1.0"
     },
