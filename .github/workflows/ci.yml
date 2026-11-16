@@ -81,7 +81,7 @@ jobs:
       - name: Arcade Link runner at the same immutable design-kit tag
         if: runner.os == 'Linux'
         shell: bash
-        run: git clone --depth 1 --branch v1.0.7 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
+        run: git clone --depth 1 --branch v1.0.11 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
       - name: Install isolated UI-test prerequisites
         if: runner.os == 'Linux'
         run: |
@@ -100,11 +100,36 @@ jobs:
           if-no-files-found: error
 
 
+  # Advisories, licences, bans and sources (deny.toml). The accepted advisories are listed there with their reasons;
+  # a new one fails the run. The manifest is in src-tauri/, so the action is pointed at it.
+  deny:
+    name: cargo deny (advisories, licences, bans, sources)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2 (v2.1.1, verified with git ls-remote)
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          arguments: --workspace --all-features
+          command: check
+
   installers:
     name: Installers
     # Packaging is independent of source tests. Start it immediately; the
     # aggregate below and release's ci dependency still require both to pass.
     uses: ./.github/workflows/build.yml
+
+  # Tier 1: the preview on headless Hyprland (Link's desktop harness), from the AppImage built above.
+  desktop:
+    needs: installers
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.11
+    with:
+      name: look
+      test: tests/desktop/look_desktop.py
+      args: '"$APP"'
+      artifact: arcade-look-linux-x86_64
+      link-ref: v1.0.11
 
   release-preview:
     name: Beta package and metadata rehearsal (no publication)

@@ -10,6 +10,7 @@ npm run build
 "$python" scripts/check-docs.py
 "$python" scripts/check-vendored.py
 "$python" scripts/check-design.py
+"$python" scripts/notices.py --check
 "$python" -m unittest discover -s scripts -p 'test_*.py'
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
@@ -23,6 +24,7 @@ if [ "$(uname -s)" = Linux ]; then
   export PLAYWRIGHT_CHROMIUM
   "$python" "$link/tools/e2e.py" run -- node scripts/ui-checks/check.mjs
   "$python" "$link/tools/e2e.py" run -- node scripts/ui-checks/behaviour.mjs
+  "$python" "$link/tools/e2e.py" run -- node scripts/ui-checks/sanitize.mjs
   "$python" "$link/tools/e2e.py" run -- cargo test --manifest-path src-tauri/Cargo.toml --locked --test link_consumer -- --ignored --test-threads=1
   ARCADE_SHELF_BIN=$("$python" scripts/fetch-test-peer.py)
   export ARCADE_SHELF_BIN APPIMAGE_EXTRACT_AND_RUN=1

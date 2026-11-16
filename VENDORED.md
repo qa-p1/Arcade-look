@@ -82,8 +82,8 @@ when Tauri is upgraded.
 
 ## Arcade design kit
 
-Copied unchanged from [Arcade Link](https://github.com/qa-p1/Arcade-Link/tree/v1.0.7) tag `v1.0.7` (commit
-`40ec0279095f7a5082b0fbe2912d1a869b98f55d`) by `scripts/sync-design.py`; never edit these files here.
+Copied unchanged from [Arcade Link](https://github.com/qa-p1/Arcade-Link/tree/v1.0.11) tag `v1.0.11` (commit
+`b00a1ca3c5659f8318c468be89c39c6e5ed2b30f`) by `scripts/sync-design.py`; never edit these files here.
 License: MIT OR Apache-2.0; Inter is under the SIL Open Font License 1.1
 (`src/design/fonts/OFL.txt`).
 
