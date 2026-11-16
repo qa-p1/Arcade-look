@@ -1,0 +1,19 @@
+{
+  "theme": "dark",
+  "idleMinutes": 25,
+  "keepReady": false,
+  "notifications": true,
+  "globalShortcut": "Ctrl+Alt+Space",
+  "explorerSpace": false,
+  "nautilusPreviewer": false,
+  "textLimitMb": 4,
+  "highlightLimitKb": 256,
+  "autoplay": false,
+  "plugins": false,
+  "showHidden": true,
+  "linkEnabled": false,
+  "linkDisabledPeers": [
+    "arcade.box",
+    "arcade.tools"
+  ]
+}

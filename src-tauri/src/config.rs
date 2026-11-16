@@ -90,6 +90,249 @@ mod tests {
         assert_eq!(upgrade(chosen).text_limit_mb, 8);
     }
 
+    // FS-2 (D19): every data file carries a schema version, 0.4.3 files load with every value
+    // kept, and an older Look never loses or corrupts a newer file.
+    static HOME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// A fresh, private config folder (every home variable) for one test; never the real user's.
+    fn private_home() -> (std::sync::MutexGuard<'static, ()>, PathBuf) {
+        let guard = HOME.lock().unwrap_or_else(|e| e.into_inner());
+        let root = std::env::temp_dir().join(format!(
+            "look-schema-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        // Every root Link's `app_dirs` can start from, on Linux, Windows and macOS.
+        for key in [
+            "HOME",
+            "USERPROFILE",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "XDG_CACHE_HOME",
+            "APPDATA",
+            "LOCALAPPDATA",
+        ] {
+            std::env::set_var(key, &root);
+        }
+        std::fs::create_dir_all(dir()).unwrap();
+        assert!(
+            dir().starts_with(&root),
+            "tests must not touch the real config"
+        );
+        (guard, root)
+    }
+
+    const V043_SETTINGS: &str = include_str!("../tests/data/v0.4.3/settings.json");
+    const V043_STATE: &str = include_str!("../tests/data/v0.4.3/state.json");
+
+    fn aside(name: &str) -> Vec<PathBuf> {
+        std::fs::read_dir(dir())
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| {
+                p.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with(&format!("{name}.unreadable-"))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn v043_settings_load_with_every_value_kept() {
+        let (_guard, root) = private_home();
+        std::fs::write(config_path(), V043_SETTINGS).unwrap();
+        let c = load();
+        assert_eq!(c.theme, "dark");
+        assert_eq!(c.idle_minutes, 25);
+        assert!(!c.keep_ready);
+        assert!(c.notifications);
+        assert_eq!(c.global_shortcut, "Ctrl+Alt+Space");
+        assert!(!c.explorer_space);
+        assert!(!c.nautilus_previewer);
+        assert_eq!(c.highlight_limit_kb, 256);
+        assert!(!c.autoplay);
+        assert!(!c.plugins);
+        assert!(c.show_hidden);
+        assert!(!c.link_enabled);
+        assert_eq!(c.link_disabled_peers, ["arcade.box", "arcade.tools"]);
+        // 0.4.3's default text limit (4) is the upgrade() migration, not a choice.
+        assert_eq!(c.text_limit_mb, 1);
+        assert_eq!(
+            std::fs::read_to_string(config_path()).unwrap(),
+            V043_SETTINGS
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn upgrade_from_the_v043_file_keeps_a_chosen_limit() {
+        let (_guard, root) = private_home();
+        let chosen = V043_SETTINGS.replace("\"textLimitMb\": 4", "\"textLimitMb\": 8");
+        assert_ne!(chosen, V043_SETTINGS);
+        std::fs::write(config_path(), chosen).unwrap();
+        assert_eq!(try_load().unwrap().text_limit_mb, 8);
+        std::fs::write(config_path(), V043_SETTINGS).unwrap();
+        assert_eq!(try_load().unwrap().text_limit_mb, 1);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_v1_settings_file_stays_in_the_released_shape() {
+        let (_guard, root) = private_home();
+        std::fs::write(config_path(), V043_SETTINGS).unwrap();
+        let patch = serde_json::json!({"theme": "light"});
+        update(&load(), patch.as_object().unwrap().clone()).unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(config_path()).unwrap()).unwrap();
+        assert!(
+            saved.get("schema").is_none(),
+            "0.4.x must read the file as it did"
+        );
+        assert_eq!(saved["theme"], "light");
+        assert_eq!(saved["idleMinutes"], 25);
+        let fresh = serde_json::to_value(Config::default()).unwrap();
+        assert!(fresh.get("schema").is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn missing_fields_default() {
+        let (_guard, root) = private_home();
+        std::fs::write(config_path(), "{}").unwrap();
+        let d = Config::default();
+        let c = load();
+        assert_eq!((c.theme, c.idle_minutes), (d.theme.clone(), d.idle_minutes));
+        std::fs::write(config_path(), r#"{"theme":"light"}"#).unwrap();
+        let c = load();
+        assert_eq!(c.theme, "light");
+        assert_eq!(c.idle_minutes, d.idle_minutes);
+        assert_eq!(c.link_disabled_peers, d.link_disabled_peers);
+        std::fs::write(state_path(), "{}").unwrap();
+        assert_eq!(load_state().width, WindowState::default().width);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn unknown_settings_fields_survive_an_update() {
+        let (_guard, root) = private_home();
+        std::fs::write(
+            config_path(),
+            r#"{"theme":"dark","futureOption":{"nested":[1,2],"deep":{"x":true}}}"#,
+        )
+        .unwrap();
+        let patch = serde_json::json!({"autoplay": false});
+        update(&load(), patch.as_object().unwrap().clone()).unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(config_path()).unwrap()).unwrap();
+        assert_eq!(saved["futureOption"]["deep"]["x"], true);
+        assert_eq!(saved["futureOption"]["nested"][1], 2);
+        assert_eq!(saved["autoplay"], false);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn v043_window_state_loads_and_unknown_fields_survive_a_save() {
+        let (_guard, root) = private_home();
+        std::fs::write(state_path(), V043_STATE).unwrap();
+        let mut s = load_state();
+        assert_eq!((s.width, s.height), (1180.0, 800.0));
+        assert!(s.info_panel && s.setup_done);
+        // A v1 state with nothing unknown is saved exactly as 0.4.3 wrote it.
+        save_state(&s);
+        assert_eq!(std::fs::read_to_string(state_path()).unwrap(), V043_STATE);
+        std::fs::write(
+            state_path(),
+            r#"{"width":1180.0,"height":800.0,"infoPanel":true,"setupDone":true,"futureZoom":1.5,"future":{"a":[1]}}"#,
+        )
+        .unwrap();
+        s = load_state();
+        s.width = 1300.0;
+        save_state(&s);
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(state_path()).unwrap()).unwrap();
+        assert_eq!(saved["width"], 1300.0);
+        assert_eq!(saved["futureZoom"], 1.5);
+        assert_eq!(saved["future"]["a"][0], 1);
+        assert!(saved.get("schema").is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_newer_settings_file_is_read_and_never_written_over() {
+        let (_guard, root) = private_home();
+        let newer = r#"{"schema":2,"theme":"dark","idleMinutes":7,"shiny":{"a":1}}"#;
+        std::fs::write(config_path(), newer).unwrap();
+        let c = load();
+        assert_eq!((c.theme.as_str(), c.idle_minutes), ("dark", 7));
+        let patch = serde_json::json!({"theme": "light"});
+        let error = update(&c, patch.as_object().unwrap().clone()).unwrap_err();
+        assert!(error.contains("newer Arcade Look"), "{error}");
+        assert_eq!(std::fs::read_to_string(config_path()).unwrap(), newer);
+        assert!(aside("settings.json").is_empty());
+        // Even when this build cannot read a field of it, it stays where it is.
+        let odd = r#"{"schema":3,"theme":{"name":"dark"}}"#;
+        std::fs::write(config_path(), odd).unwrap();
+        assert_eq!(load().theme, "system");
+        assert_eq!(std::fs::read_to_string(config_path()).unwrap(), odd);
+        assert!(aside("settings.json").is_empty());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_newer_window_state_is_never_written_over() {
+        let (_guard, root) = private_home();
+        let newer = r#"{"schema":2,"width":900.0,"layout":"tabs"}"#;
+        std::fs::write(state_path(), newer).unwrap();
+        let mut s = load_state();
+        assert_eq!(s.width, 900.0);
+        s.width = 1500.0;
+        save_state(&s);
+        assert_eq!(std::fs::read_to_string(state_path()).unwrap(), newer);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn an_unreadable_settings_file_is_moved_aside_not_destroyed() {
+        let (_guard, root) = private_home();
+        for (n, bytes) in [&b"{not json"[..], br#"{"idleMinutes":"soon"}"#, b"[1,2]"]
+            .into_iter()
+            .enumerate()
+        {
+            std::fs::write(config_path(), bytes).unwrap();
+            let c = load();
+            assert_eq!(c.idle_minutes, Config::default().idle_minutes);
+            let kept = aside("settings.json");
+            assert_eq!(kept.len(), 1, "case {n}");
+            assert_eq!(std::fs::read(&kept[0]).unwrap(), bytes);
+            // The next save writes a good file next to it instead of over the bad one.
+            let patch = serde_json::json!({"autoplay": false});
+            update(&c, patch.as_object().unwrap().clone()).unwrap();
+            assert!(try_load().is_ok());
+            assert_eq!(std::fs::read(&kept[0]).unwrap(), bytes);
+            std::fs::remove_file(&kept[0]).unwrap();
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn an_unreadable_window_state_is_moved_aside_not_destroyed() {
+        let (_guard, root) = private_home();
+        std::fs::write(state_path(), b"\x00garbage").unwrap();
+        let s = load_state();
+        assert_eq!(s.width, WindowState::default().width);
+        let kept = aside("state.json");
+        assert_eq!(kept.len(), 1);
+        assert_eq!(std::fs::read(&kept[0]).unwrap(), b"\x00garbage");
+        save_state(&s);
+        assert_eq!(std::fs::read(&kept[0]).unwrap(), b"\x00garbage");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn migration_keeps_preferences_unknown_fields_and_plugin_files() {
         let root = std::env::temp_dir().join(format!(
