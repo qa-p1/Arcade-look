@@ -4,14 +4,11 @@ All notable changes to Arcade Look. The format follows [Keep a Changelog](https:
 
 ## [Unreleased]
 
-### Added
-
-- The AppImage carries the `dev.arcade.Look` desktop entry and icons (app icon and symbolic tray icon).
-
 ## [1.0.0] - 2026-11-16
 
 ### Added
 
+- The AppImage carries the `dev.arcade.Look` desktop entry and icons (app icon and symbolic tray icon).
 - Settings → About has "Third-party notices", which opens the licence notices that ship with Look. Look's package now carries `THIRD_PARTY_NOTICES.md` and `LICENSE`.
 - Preview failures are written to the support log, without file paths (LK-8).
 
