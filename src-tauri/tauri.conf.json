@@ -74,7 +74,10 @@
       "appimage": {
         "bundleMediaFramework": true,
         "files": {
-          "/usr/lib/libarcade-trim.so": "binaries/libarcade-trim.so"
+          "/usr/lib/libarcade-trim.so": "binaries/libarcade-trim.so",
+          "/usr/share/applications/dev.arcade.Look.desktop": "../packaging/linux/dev.arcade.Look.desktop",
+          "/usr/share/icons/hicolor/scalable/apps/dev.arcade.Look.svg": "../packaging/linux/dev.arcade.Look.svg",
+          "/usr/share/icons/hicolor/symbolic/apps/dev.arcade.Look-symbolic.svg": "../packaging/linux/dev.arcade.Look-symbolic.svg"
         }
       }
     },

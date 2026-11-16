@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Arcade Look
+Comment=Press Space, see anything.
+Exec=arcade-look
+Icon=dev.arcade.Look
+Terminal=false
+Categories=Utility;Viewer;
+StartupWMClass=dev.arcade.Look
+X-Arcade-Id=arcade.look

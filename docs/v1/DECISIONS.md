@@ -324,3 +324,16 @@ migrations are tested from released versions, and an older Look never loses or c
 - Version 1.0.0 (`src-tauri/Cargo.toml`, the lock file and the shortcut sheet) for the first release candidate,
   `v1.0.0-rc.1`. README screenshots stay open, as for Box.
 
+## D21 - Link conformance before rc.2
+
+Arcade Link's static conformance check (`arcade-link conformance .`) was run on `v1.0.0-rc.1`. Everything else in the
+gates passed; five checks failed:
+- **ID-1, ID-2, ID-3:** no `dev.arcade.Look.desktop`, app icon or symbolic icon in the repository. Added
+  `packaging/linux/dev.arcade.Look.desktop` (`X-Arcade-Id=arcade.look`), `dev.arcade.Look.svg` (Link's
+  `design/app-icons/look/icon.svg`, unchanged) and `dev.arcade.Look-symbolic.svg` (Link's `design/glyphs/arcade.look.svg`,
+  unchanged), and listed them in `bundle.linux.appimage.files` in `src-tauri/tauri.conf.json` at the same `/usr/share/...`
+  paths Box uses. The launcher Look writes at install time (`Icon=arcade-look`) is unchanged.
+- **REPO-1:** `CHANGELOG.md` now follows Keep a Changelog 1.1.0, as Box's D18 did: `[Unreleased]`, `## [X.Y.Z] - date`,
+  the 1.0.0 bullets grouped by what each says, older bullets unchanged and grouped by their first verb, and compare links.
+- **REL-1:** every `apt-get`, `npm ci` and `pip install` step in `ci.yml` and `build.yml` has a `timeout-minutes` (10, or 20
+  for the apt installs). No command changed.
