@@ -258,3 +258,15 @@ focus rings and motion passed already:
 
 Count after each fix, in the order made: 12 before, 8 after the toolbar names, 4 after the PDF region, 2 after the
 underlined links, 0 after the recorder's name.
+
+Beyond axe: Tab left the shortcuts overlay for the toolbar behind it, and focus stayed where it was when a dialog opened.
+Look's dialogs (the shortcuts overlay and messages) are now modal (`aria-modal`): focus starts on their first control,
+Tab and Shift+Tab stay inside, and focus returns to where it was when they close. `behaviour.mjs` "the shortcuts dialog
+is modal" failed before the change.
+
+## D18 - Link 1.0.12's workflows
+
+Link 1.0.11's `setup-arcade-link` cached its CLI under `runner.os` only, so a gates job on ubuntu-22.04 could restore a
+CLI built on ubuntu-24.04 ("GLIBC_2.39 not found"; Box's rc.2 gates hit it). Every reusable Link workflow and
+`link-ref` is pinned to `v1.0.12`, which keys the cache by runner image. The crate, the build's Link checkout and the
+vendored files stay at `v1.0.11`: 1.0.12 changes no Rust code or design file.

@@ -9,8 +9,9 @@ every viewer with Info closed and open, the shortcuts overlay and every Settings
 a visible focus indicator on every Tab stop and no motion over 10 ms with reduced motion. On the sources it found 12
 problems (4 causes), all fixed: toolbar buttons with visible text (the image viewer's "1:1") and the shortcut recorder
 now have names that start with their visible text, the PDF page area is a focusable named region, and links in rendered
-documents are underlined. Not covered: 3D models, HTML, Office documents, notebooks, slides, plugin output. Tab is not
-trapped in the shortcuts overlay (left as it is).
+documents are underlined. Look's dialogs (the shortcuts overlay, messages) are modal: focus starts on their first
+control, Tab stays inside and focus returns when they close (a `behaviour.mjs` test that failed before). Not covered:
+3D models, HTML, Office documents, notebooks, slides, plugin output.
 
 Tested locally (frontend only; no Rust built or run, `scripts/check` as a whole not run):
 - `npm run format:check`, `npm run typecheck`, `npm run build`: pass.
