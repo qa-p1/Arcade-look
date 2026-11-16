@@ -7,24 +7,41 @@ permissions:
 jobs:
   restart:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix: { n: [1, 2, 3, 4] }
+    defaults:
+      run: { shell: bash, working-directory: app }
     steps:
       - uses: actions/checkout@v4
+        with: { path: app }
+      - uses: actions/checkout@v4
+        with: { repository: qa-p1/Arcade-Link, ref: v1.0.12, path: Arcade-Link }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { toolchain: '1.88.0' }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - name: Gates' Linux packages
-        timeout-minutes: 15
-        run: |
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb dbus-x11 xdotool desktop-file-utils libfuse2 python3-gi gir1.2-glib-2.0 \
-            libwebkit2gtk-4.1-0 libayatana-appindicator3-1 python3-dbus gstreamer1.0-plugins-base gstreamer1.0-plugins-good gdb
+        timeout-minutes: 20
+        run: ../Arcade-Link/tools/ci/apt-install.sh xvfb dbus-x11 xdotool desktop-file-utils libfuse2 python3-gi gir1.2-glib-2.0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 python3-dbus gstreamer1.0-plugins-base gstreamer1.0-plugins-good gdb
+      - uses: ./Arcade-Link/.github/actions/setup-arcade-link
       - name: rc.2 AppImage
         timeout-minutes: 10
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           gh release download v1.0.0-rc.2 --repo "$GITHUB_REPOSITORY" --pattern '*.AppImage' --dir rc
           chmod +x rc/*.AppImage
-      - name: Resident check, as in Gates (after the AppImage check, in the same order)
+          echo "RC=$PWD/$(ls rc/*.AppImage)" >> "$GITHUB_ENV"
+      - name: Conformance, as in Gates
+        run: arcade-link conformance . --binary "$RC"
+      - name: AppImage check, then the resident check three times
         run: |
-          dbus-run-session -- xvfb-run -a python3 scripts/verify-appimage.py rc/*.AppImage arcade.look Arcade-Look.AppImage arcade-look
-          dbus-run-session -- xvfb-run -a python3 scripts/verify-resident.py rc/*.AppImage
+          dbus-run-session -- xvfb-run -a python3 scripts/verify-appimage.py "$RC" arcade.look Arcade-Look.AppImage arcade-look
+          fails=0
+          for i in 1 2 3; do
+            echo "=== resident run $i"
+            dbus-run-session -- xvfb-run -a python3 scripts/verify-resident.py "$RC" || fails=$((fails + 1))
+          done
+          echo "resident failures: $fails of 3"
+          test "$fails" = 0
