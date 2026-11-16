@@ -23,6 +23,39 @@ def unpacked_copies(root):
     return found
 
 
+def inventory(root):
+    """Every file and symlink under `root`, relative to it (directories are not counted: Link leaves its empty
+    parents behind, and empty folders hold nothing of the user's)."""
+    found = set()
+    for folder, dirs, files in os.walk(root):
+        base = Path(folder)
+        found.update((base / name).relative_to(root) for name in files)
+        found.update((base / name).relative_to(root) for name in dirs if (base / name).is_symlink())
+    return found
+
+
+def leftovers(root, before, env, keep_user_data):
+    """What an uninstall left that was not there before the install: (fails, webview). `keep_user_data` allows
+    Look's own folders (`arcade/look` under the XDG roots), which a plain uninstall keeps on purpose. Not counted:
+    the work folder this script made, and Link's runtime state (sockets and locks in `run` and `handoff`, which the
+    script's SIGKILL of the app leaves behind). WebKit's own storage (a folder next to
+    Arcade's under the XDG roots, not one of Look's data folders) is only reported. Adapted from Arcade Box (D19)."""
+    webview_roots = [Path(env[key]).relative_to(root) for key in ("XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME")]
+    runtime_state = {Path("run"), Path("arcade/run"), Path("arcade/handoff")}
+    fails, webview = [], []
+    for path in sorted(inventory(root) - before):
+        parts = path.parts
+        if parts[0] == "work" or any(path.is_relative_to(state) for state in runtime_state):
+            continue
+        if keep_user_data and any(parts[i:i + 2] == ("arcade", "look") for i in range(len(parts) - 1)):
+            continue
+        if any(path.is_relative_to(base) and path.relative_to(base).parts[:1] != ("arcade",) for base in webview_roots):
+            webview.append(path)
+            continue
+        fails.append(path)
+    return fails, webview
+
+
 def webkit_helpers(pid):
     """WebKit's helper processes (web and network) started by `pid`, at any depth."""
     parents = {}
@@ -162,6 +195,7 @@ def main():
         shutil.rmtree(extracted)
 
         version = run(download, "--version").strip().split()[-1]
+        before = inventory(root)
         run(download, "--install", "--silent", "--no-launch")
         receipt_path = root / "arcade/installs" / (app_id + ".json")
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -234,7 +268,9 @@ def main():
         assert desktop.is_file(), "Repair did not restore the launcher"
         status = json.loads(run(installed, "--integration-status"))
         assert all(entry["exists"] for entry in status["entries"]), status
-        app_home = Path(env["ARCADE_" + app_id.split(".")[-1].upper() + "_HOME"])
+        # Look's settings folder (config.rs: Link's `arcade/look` under XDG_CONFIG_HOME).
+        app_home = Path(env["XDG_CONFIG_HOME"]) / "arcade/look"
+        app_home.mkdir(parents=True, exist_ok=True)
         sentinel = app_home / "keep-user-data.txt"
         sentinel.write_text("preserve", encoding="utf-8")
         run(installed, "--uninstall", "--silent")
@@ -243,7 +279,28 @@ def main():
         assert sentinel.read_text(encoding="utf-8") == "preserve", "Uninstall removed user data"
         for name in (".profile", ".bash_profile", ".bashrc", ".zprofile", ".zshrc"):
             assert not (root / "home" / name).exists(), f"Installer created {name}"
-        print(f"{app_id}: AppImage install, receipt, launcher, icons, CLI, autostart, repair and uninstall passed")
+        # Clean uninstall (Round 5, D20): nothing but Look's kept data is new, and the unpacked copies (U1) are gone.
+        fails, webview = leftovers(root, before, env, keep_user_data=True)
+        assert not fails, "Uninstall left files behind:\n" + "\n".join(map(str, fails))
+        copies = list(root.glob("**/arcade/runtime/look-*")) + list(root.glob("**/arcade/runtime/.look-*"))
+        assert not copies, f"Uninstall left unpacked copies: {copies}"
+        # "Remove my data": install again, run Look once, then nothing of Look's remains, its data folder included.
+        run(download, "--install", "--silent", "--no-launch")
+        assert receipt_path.is_file(), "Second install wrote no receipt"
+        survives(installed, env, work, root, "note.md")
+        sentinel.write_text("remove", encoding="utf-8")
+        run(installed, "--uninstall", "--silent", "--remove-data")
+        for path in [receipt_path, *entries]:
+            assert not path.exists() and not path.is_symlink(), f"Uninstall --remove-data retained {path}"
+        assert not sentinel.exists(), "Uninstall --remove-data kept Look's data"
+        fails, webview_after = leftovers(root, before, env, keep_user_data=False)
+        assert not fails, "Uninstall --remove-data left files behind:\n" + "\n".join(map(str, fails))
+        copies = list(root.glob("**/arcade/runtime/look-*")) + list(root.glob("**/arcade/runtime/.look-*"))
+        assert not copies, f"Uninstall --remove-data left unpacked copies: {copies}"
+        for path in sorted({*webview, *webview_after}):
+            print(f"note: WebView storage outside Look's data folders remains: {path}")
+        print(f"{app_id}: AppImage install, receipt, launcher, icons, CLI, autostart, repair, uninstall and "
+              "uninstall --remove-data passed")
 
 
 if __name__ == "__main__":

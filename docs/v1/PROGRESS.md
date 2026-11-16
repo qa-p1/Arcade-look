@@ -2,6 +2,12 @@
 
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-16 (cloud session) - Round 5: clean uninstall; 1.0.0
+
+D20: the AppImage check compares the profile before install with what a plain uninstall and an uninstall with
+`--remove-data` leave behind (Box's check), and its user-data sentinel now sits in Look's real settings folder. Version
+1.0.0 for `v1.0.0-rc.1`. The check runs only in CI (it needs the built AppImage).
+
 ## 2026-11-16 (cloud session) - Round 5: schema versions, migrations and safe downgrade
 
 D19: `settings.json`, `state.json`, `window-geometry.json` and `install-dismissed.json` get the FS-2 treatment: a `schema`

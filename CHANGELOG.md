@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 1.0.0 — 2026-11-16
+
+- "Remove my data" when uninstalling leaves nothing of Look's behind, and a plain uninstall keeps only Look's settings and data; CI checks both on the AppImage.
 - A settings, window-state or window-position file that Look can't read is kept as `<name>.unreadable-<time>` next to it and Look starts with defaults, instead of the file being replaced by the next save. A file made by a newer Arcade Look is read and never overwritten by an older one, and settings you didn't set from a newer version are kept when you change a setting.
 - Accessibility: links in rendered documents are underlined, the image viewer's "1:1" button and the shortcut recorder are announced by screen readers with the text they show, the PDF page area can be focused and scrolled with the keyboard, and Look's dialogs keep keyboard focus inside them and give it back when they close.
 - Settings → About has "Third-party notices", which opens the licence notices that ship with Look. Look's package now carries `THIRD_PARTY_NOTICES.md` and `LICENSE`.
