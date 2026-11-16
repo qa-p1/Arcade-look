@@ -434,7 +434,8 @@ export class App {
       } else {
         const b = h(
           'button.btn.ghost.tb-btn',
-          { title: it.title, 'aria-label': it.title },
+          // A button with visible text is named from it first (WCAG 2.5.3, label in name): "1:1 Actual size (1)".
+          { title: it.title, 'aria-label': it.label ? `${it.label} ${it.title}` : it.title },
           it.icon ? icon(it.icon, 16) : null,
           it.label ? h('span', it.label) : null,
         );
