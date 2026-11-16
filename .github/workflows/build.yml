@@ -83,6 +83,7 @@ jobs:
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 20
         run: |
           sudo apt-get update
           # The AppImage bundler refuses to run without an appindicator library installed.
@@ -93,6 +94,7 @@ jobs:
             gstreamer1.0-libav xvfb dbus-x11 xdotool python3-dbus python3-gi
 
       - run: npm ci
+        timeout-minutes: 10
 
       - name: WebKit trimmer for the AppImage (OPEN1)
         if: runner.os == 'Linux'

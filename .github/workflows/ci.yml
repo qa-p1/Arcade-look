@@ -61,13 +61,16 @@ jobs:
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 20
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libdav1d-dev \
             libayatana-appindicator3-dev libxdo-dev libssl-dev
 
       - run: npm ci
+        timeout-minutes: 10
       - name: Install test dependencies in a private virtual environment
+        timeout-minutes: 10
         shell: bash
         run: |
           python3 -m venv "$RUNNER_TEMP/look-python"
@@ -84,6 +87,7 @@ jobs:
         run: git clone --depth 1 --branch v1.0.11 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
       - name: Install isolated UI-test prerequisites
         if: runner.os == 'Linux'
+        timeout-minutes: 20
         run: |
           sudo apt-get install -y xvfb xdotool dbus-x11 imagemagick ffmpeg p7zip-full fonts-dejavu-core libgl1-mesa-dri \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
