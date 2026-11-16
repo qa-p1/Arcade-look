@@ -43,12 +43,12 @@ jobs:
       # the toolchain below, and this override wins over that file.
       RUSTUP_TOOLCHAIN: 1.99.1
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: arcade-look
       - name: Pinned Link runner for the isolated tray gate
         if: runner.os == 'Linux'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: qa-p1/Arcade-Link
           ref: v1.0.11
