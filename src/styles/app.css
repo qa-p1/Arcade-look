@@ -722,11 +722,9 @@ button {
 }
 .prose a {
   color: var(--accent);
-  text-decoration: none;
-  cursor: pointer;
-}
-.prose a:hover {
   text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }
 .prose img {
   max-width: 100%;
