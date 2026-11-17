@@ -84,7 +84,7 @@ jobs:
       - name: Arcade Link runner at the same immutable design-kit tag
         if: runner.os == 'Linux'
         shell: bash
-        run: git clone --depth 1 --branch v1.0.11 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
+        run: git clone --depth 1 --branch v1.0.13 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
       - name: Install isolated UI-test prerequisites
         if: runner.os == 'Linux'
         timeout-minutes: 20
@@ -127,13 +127,13 @@ jobs:
   # Tier 1: the preview on headless Hyprland (Link's desktop harness), from the AppImage built above.
   desktop:
     needs: installers
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.12
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.13
     with:
       name: look
       test: tests/desktop/look_desktop.py
       args: '"$APP"'
       artifact: arcade-look-linux-x86_64
-      link-ref: v1.0.12
+      link-ref: v1.0.13
 
   release-preview:
     name: Beta package and metadata rehearsal (no publication)
