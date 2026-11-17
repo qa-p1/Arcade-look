@@ -184,8 +184,16 @@ def main():
                     wait(lambda: not network_processes(original), 'released preview ends the network process', seconds=10)
                     print(f'Preview: PID {original} stable, 0 renderers and network processes, group PSS {memory(original)} MiB', flush=True)
                 run('--restart')
-                successor = wait(lambda: (p if (p := pid()) and p != original else None),
-                                 'explicit Restart replaces the process')
+                try:
+                    successor = wait(lambda: (p if (p := pid()) and p != original else None),
+                                     'explicit Restart replaces the process')
+                except AssertionError:
+                    # What the successor is stuck on: Link 1.0.12's copy ran gsettings on the released mount (D22).
+                    listing = subprocess.run(['ps', '-eo', 'pid,ppid,stat,wchan:20,args'], capture_output=True,
+                                             text=True).stdout.splitlines()
+                    ours = [line for line in listing[1:] if str(root) in line or 'coredump' in line]
+                    print('\n'.join(listing[:1] + ours), file=sys.stderr)
+                    raise
                 assert successor != original
                 run('--quit')
                 wait(lambda: not endpoint.exists(), 'explicit Quit stops resident')

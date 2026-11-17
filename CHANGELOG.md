@@ -26,6 +26,7 @@ All notable changes to Arcade Look. The format follows [Keep a Changelog](https:
 ### Fixed
 
 - Linux: Look started from another Arcade app, or restarted, runs from its own unpacked copy too, asks the first-run install question when it should, and its memory trimmer loads in every case.
+- Linux: Restart, and any start from the installed AppImage, could hang without opening Look when the desktop did not report its colour scheme. The unpacked copy inherited settings that pointed into the AppImage's mount, which closes as the copy starts (Arcade Link 1.0.13).
 - Valid AVIF images preview on Linux. An image format this system can't decode (such as HEIC on Linux) says so instead of showing a hex dump (LK-11).
 - Settings shows its section names, and About points to Arcade Tools for updates (LK-9).
 - "1 row", not "1 rows"; an empty file says so; zip dates match tar's (LK-4, LK-5).

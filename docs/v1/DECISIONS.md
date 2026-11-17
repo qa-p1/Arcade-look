@@ -337,3 +337,16 @@ gates passed; five checks failed:
   the 1.0.0 bullets grouped by what each says, older bullets unchanged and grouped by their first verb, and compare links.
 - **REL-1:** every `apt-get`, `npm ci` and `pip install` step in `ci.yml` and `build.yml` has a `timeout-minutes` (10, or 20
   for the apt installs). No command changed.
+
+## D22 - Restart hung in rc.2's gates: Link 1.0.13
+
+rc.2's Gates failed "explicit Restart replaces the process" in `verify-resident.py`; the same check had passed in the
+release build on the same commit. A diagnostic branch (`claude/sharp-cori-29w5eg-wip-restart`) ran the check 12 times
+on the Gates setup and failed once: the old process had exited, and the successor's unpacked copy was stuck in its
+`AppRun` on `gsettings get org.gnome.desktop.interface color-scheme`, which had crashed and sat in its core dump. Link's
+`relaunch_unpacked` gave the copy the launcher's environment, where the AppImage's `AppRun` had pointed
+`GSETTINGS_SCHEMA_DIR` and `GIO_EXTRA_MODULES` into the mount, and the launcher releases the mount as soon as it has
+started the copy. linuxdeploy's GTK hook calls `gsettings` only when the desktop portal does not answer, as on CI.
+
+Fixed in Link 1.0.13 (the copy gets no reference to the mount), which Look moves to before rc.3. `verify-resident.py`
+now lists the test's processes when Restart times out.
