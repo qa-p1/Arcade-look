@@ -2,6 +2,15 @@
 
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-17 (cloud session) - 1.0.0 promoted
+
+`v1.0.0-rc.3` (b25664e, Link 1.0.13) passed [Gates](https://github.com/qa-p1/Arcade-look/actions/runs/44048439660)
+12/12 on its published files, and [Promote](https://github.com/qa-p1/Arcade-look/actions/runs/44068848634) made it
+[1.0.0](https://github.com/qa-p1/Arcade-look/releases/tag/v1.0.0), now the latest release. The AppImage, dmg, setup.exe
+and SHA256SUMS have the same SHA-256 digests as rc.3. `manifest.json` and `arcade-release.json` differ only in the
+channel (`test` to `stable`) and the tag, and `manifest.json.sig` is new. rc.2's Restart hang in Gates was Link's
+(D22): the unpacked copy inherited the launcher's FUSE-mount environment, fixed in Link 1.0.13.
+
 ## 2026-11-16 (cloud session) - Link conformance before rc.2
 
 D21: `arcade-link conformance .` failed 5 checks on rc.1 (ID-1, ID-2, ID-3, REPO-1, REL-1); it now shows 0 failed. Added
