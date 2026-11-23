@@ -21,7 +21,7 @@ const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const mock = readFileSync(join(root, 'scripts/ui-checks/mock.js'), 'utf8');
 
-const offer = { app: 'arcade.box', action: 'pipeline', title: 'Open in Box', reason: null, outbound: false, pdfPage: false, pipeline: null };
+const offer = { app: 'arcade.box', action: 'pipeline', title: 'Open in Box', reason: null, outbound: false, pdfPage: false };
 
 async function open(page, { actions = [], linkAvailable = true, viewport } = {}) {
   if (viewport) await page.setViewportSize(viewport);

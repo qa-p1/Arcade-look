@@ -33,7 +33,7 @@ jobs:
     env:
       CARGO_BUILD_JOBS: 3
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: arcade-look
 
@@ -43,7 +43,7 @@ jobs:
         run: echo "ARCADE_HOME=$RUNNER_TEMP/arcade-look-registry" >> "$GITHUB_ENV"
 
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -84,7 +84,7 @@ jobs:
       - name: Arcade Link runner at the same immutable design-kit tag
         if: runner.os == 'Linux'
         shell: bash
-        run: git clone --depth 1 --branch v1.0.13 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
+        run: git clone --depth 1 --branch v1.1.1 https://github.com/qa-p1/Arcade-Link ../Arcade-Link
       - name: Install isolated UI-test prerequisites
         if: runner.os == 'Linux'
         timeout-minutes: 20
@@ -97,7 +97,7 @@ jobs:
         run: scripts/check
       - name: Upload UI verification evidence
         if: always() && runner.os == 'Linux'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: look-ui-checks
           path: arcade-look/artifacts/ui
@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2 (v2.1.1, verified with git ls-remote)
         with:
           manifest-path: src-tauri/Cargo.toml
@@ -127,28 +127,28 @@ jobs:
   # Tier 1: the preview on headless Hyprland (Link's desktop harness), from the AppImage built above.
   desktop:
     needs: installers
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.13
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.1.1
     with:
       name: look
       test: tests/desktop/look_desktop.py
       args: '"$APP"'
       artifact: arcade-look-linux-x86_64
-      link-ref: v1.0.13
+      link-ref: v1.1.1
 
   release-preview:
     name: Beta package and metadata rehearsal (no publication)
     needs: [check, installers]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: arcade-look-*
           merge-multiple: true
           path: ${{ runner.temp }}/built
       - name: Prepare and verify the complete beta candidate
         run: python3 scripts/prepare-release.py "$RUNNER_TEMP/built" "$RUNNER_TEMP/release" --channel beta --notes "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: look-release-preview
           path: ${{ runner.temp }}/release/*

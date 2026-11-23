@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use arcade_link::server::{Handler, InvokeContext, Reply, Server, ServerConfig};
 use arcade_link::{
     ids, Action, Content, ErrorCode, InvokeRequest, InvokeResult, LinkError, Locations, Manifest,
-    PeerInfo, Presence,
+    PeerInfo,
 };
 use arcade_look_lib::config::Config;
 use arcade_look_lib::link_consumer::{file_content, me, page_content, Consumer};
@@ -150,11 +150,11 @@ fn peers_first_later_missing_disabled_and_featured_limit() {
         let _ = rx.recv_timeout(Duration::from_millis(10));
         consumer.offers(&config, &content, false).len() == 4
     });
-    assert_eq!(
-        Consumer::new(fixture.locations())
-            .offers(&config, &content, false)
-            .len(),
-        4
+    let fresh = Consumer::new(fixture.locations()).offers(&config, &content, false);
+    assert_eq!(fresh.len(), 4);
+    assert!(
+        fresh.iter().all(|o| o.action != "box.open"),
+        "featured presets rank above More"
     );
     assert!(
         consumer
@@ -212,7 +212,7 @@ fn peers_first_later_missing_disabled_and_featured_limit() {
             .state,
         "Not running"
     );
-    println!("missing peers: no entries; peers first/later: 3 featured + More; disabled: no IPC; wrong kind: presets hidden");
+    println!("missing peers: no entries; peers first/later: 4 per app, best ranked first; disabled: no IPC; wrong kind: presets hidden");
 }
 
 #[test]
@@ -571,118 +571,73 @@ fn app_changed_refreshes_live_availability_without_manifest_rewrite() {
 
 #[test]
 #[ignore = "real peers: run with the isolated ecosystem runner"]
-fn saved_pipelines_are_cached_filtered_and_invoked_by_id() {
+fn the_strip_is_links_answer_with_box_pipelines_as_actions() {
     let mut fixture = Fixture::new(ids::BOX);
-    let pipelines = json!([
-        {"id":"web","name":"Web image","version":1,"accepts":["file/image"],"effects":["writes-files"],"interactive":false},
-        {"id":"capture","name":"Capture first","version":1,"accepts":["file/image"],"effects":["opens-ui"],"interactive":true},
-        {"id":"video","name":"Video","version":1,"accepts":["file/video"],"effects":[],"interactive":false}
-    ]);
+    // Box 1.0: each saved pipeline is its own action; the generic list and runner are offered nowhere.
     fixture.start(json!([
-        {"id":"box.pipelines","title":"Pipelines","produces":["structured/pipelines"],"mock":{"result":{"outputs":[{"type":"structured/pipelines","data":pipelines}]}}},
-        {"id":"box.pipeline.run","title":"Run","accepts":["file/*"],"effects":["writes-files"]}
+        {"id":"box.pipeline:web","title":"Web image","group":"Pipelines","accepts":["file/image"],"effects":["writes-files"],"rank":{"file/image":50}},
+        {"id":"box.pipeline:video","title":"Video","group":"Pipelines","accepts":["file/video"],"effects":["writes-files"]},
+        {"id":"box.pipeline.run","title":"Run a saved pipeline","accepts":["file/*"],"surfaces":["internal"]},
+        {"id":"box.pipelines","title":"Saved pipelines","produces":["structured/pipelines"],"surfaces":["internal"]},
+        {"id":"box:arcade.image.upscale#2x","title":"Upscale 2x","accepts":["file/image"],"rank":{"file/image":70}}
     ]), false);
     let consumer = Consumer::new(fixture.locations());
-    assert!(consumer.watch(|| {}));
     let content = fixture.image();
     let config = Config::default();
-    wait(|| consumer.offers(&config, &content, false).len() == 1);
-    let offer = consumer.offers(&config, &content, false).remove(0);
-    assert_eq!(offer.title, "▶ Web image");
-    assert_eq!(offer.pipeline.as_deref(), Some("web"));
-    let calls = || std::fs::read_to_string(fixture.root.join("calls.jsonl")).unwrap();
-    let before = calls();
-    for _ in 0..50 {
-        assert_eq!(consumer.offers(&config, &content, false).len(), 1);
-    }
-    assert_eq!(
-        calls(),
-        before,
-        "opening the strip must never query pipelines"
-    );
-    let off = Config {
-        link_disabled_peers: vec![ids::BOX.into()],
-        ..config.clone()
+    let listed = |consumer: &Consumer| {
+        consumer
+            .offers(&config, &content, false)
+            .into_iter()
+            .map(|o| (o.action, o.title))
+            .collect::<Vec<_>>()
     };
-    assert!(consumer.offers(&off, &content, false).is_empty());
+    let pair = |a: &str, t: &str| (a.to_string(), t.to_string());
+    assert_eq!(
+        listed(&consumer),
+        [
+            pair("box:arcade.image.upscale#2x", "Upscale 2x"),
+            pair("box.pipeline:web", "Web image")
+        ]
+    );
     consumer
-        .invoke_with_pipeline(
+        .invoke(
             &config,
-            (ids::BOX, "box.pipeline.run", Some("web")),
+            (ids::BOX, "box.pipeline:web"),
             content.clone(),
             &mut |_| {},
             &AtomicBool::new(false),
             Duration::from_secs(2),
         )
         .unwrap();
+    let calls = || std::fs::read_to_string(fixture.root.join("calls.jsonl")).unwrap();
     let call: Value = serde_json::from_str(calls().lines().last().unwrap()).unwrap();
-    assert_eq!(call["options"]["pipeline"], "web");
-    for id in ["capture", "video", "deleted"] {
-        assert_eq!(
-            consumer
-                .invoke_with_pipeline(
-                    &config,
-                    (ids::BOX, "box.pipeline.run", Some(id)),
-                    content.clone(),
-                    &mut |_| {},
-                    &AtomicBool::new(false),
-                    Duration::from_secs(2)
-                )
-                .unwrap_err()
-                .code,
-            ErrorCode::Unavailable
-        );
-    }
-    println!("saved pipelines cached ahead of open; matching noninteractive entry only; options.pipeline preserved");
-}
-
-struct Pipelines(Vec<Action>);
-impl Handler for Pipelines {
-    fn describe(&self) -> Vec<Action> {
-        self.0.clone()
-    }
-    fn invoke(&self, _: InvokeRequest, _: &InvokeContext) -> Result<Reply, LinkError> {
-        let pipelines = json!([{"id":"web","name":"Web image","version":1,"accepts":["file/image"],"effects":["writes-files"],"interactive":false}]);
-        Ok(Reply::Done(
-            serde_json::from_value(
-                json!({"outputs":[{"type":"structured/pipelines","data":pipelines}]}),
-            )
-            .unwrap(),
-        ))
-    }
-}
-#[test]
-#[ignore = "real peers: run with the isolated ecosystem runner"]
-fn pipelines_load_when_box_listens_after_its_manifest_appears() {
-    let fixture = Fixture::new(ids::BOX);
-    let mut manifest = Manifest::new(ids::BOX, "1", cli().to_str().unwrap());
-    manifest.actions = vec![
-        Action::new("box.pipelines", "Pipelines", "list").produces(&["structured/pipelines"]),
-        Action::new("box.pipeline.run", "Run", "run").accepts(&["file/*"]),
-    ];
-    // Presence writes the manifest, then listens; Look can see the manifest
-    // in between. Reproduce that gap deterministically.
-    arcade_link::manifest::write_manifest(&fixture.locations(), &manifest).unwrap();
-    let consumer = Consumer::new(fixture.locations());
-    assert!(consumer.watch(|| {}));
-    let content = fixture.image();
-    let config = Config::default();
-    std::thread::sleep(Duration::from_millis(300));
-    assert!(consumer.offers(&config, &content, false).is_empty());
-    let presence = Presence::start(
-        fixture.locations(),
-        manifest.clone(),
-        Arc::new(Pipelines(manifest.actions.clone())),
+    assert_eq!(call["action"], "box.pipeline:web");
+    // The catalog's corrections and the user's hidden actions apply as in every Arcade menu.
+    let locations = fixture.locations();
+    std::fs::create_dir_all(locations.catalog().parent().unwrap()).unwrap();
+    std::fs::write(
+        locations.catalog(),
+        json!({"apps":[],"rules":{"rename":{"arcade.box/box.pipeline:web":"Web export"}}})
+            .to_string(),
+    )
+    .unwrap();
+    std::fs::write(
+        locations.offer_prefs(),
+        json!({"hidden":["arcade.box/box:arcade.image.upscale#2x"]}).to_string(),
+    )
+    .unwrap();
+    assert_eq!(listed(&consumer), [pair("box.pipeline:web", "Web export")]);
+    // Box before 1.0: the generic runner (no surfaces, so on every menu) needs a pipeline Look doesn't pick.
+    fixture.start(
+        json!([
+            {"id":"box.pipelines","title":"Pipelines","produces":["structured/pipelines"]},
+            {"id":"box.pipeline.run","title":"Run","accepts":["file/*"],"effects":["writes-files"]}
+        ]),
+        false,
     );
-    assert!(presence.last_error().is_none());
-    wait(|| {
-        consumer
-            .offers(&config, &content, false)
-            .first()
-            .is_some_and(|o| o.title == "▶ Web image")
-    });
-    presence.stop();
-    println!("a pipeline fetch that ran before Box listened is retried once its endpoint appears");
+    let consumer = Consumer::new(fixture.locations());
+    assert!(consumer.offers(&config, &content, false).is_empty());
+    println!("Box 1.0 pipelines are actions; catalog rename and user-hidden apply; the pre-1.0 runner stays hidden");
 }
 
 #[test]

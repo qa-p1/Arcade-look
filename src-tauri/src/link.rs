@@ -12,7 +12,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use arcade_link::manifest::{ManifestAdditions, ManifestDocument};
+use arcade_link::manifest::{surface, ManifestAdditions, ManifestDocument};
 use arcade_link::server::{Handler, InvokeContext, Reply};
 use arcade_link::{
     ids, Action, Content, InvokeRequest, InvokeResult, LinkError, Locations, Manifest, Presence,
@@ -53,43 +53,66 @@ pub fn manifest(config: &Config) -> ManifestDocument {
     }
 }
 
-/// The actions Look exposes.
+/// The actions Look exposes. Link 1.1 card fields say where each appears (SPEC §3.2): previewing goes in the file
+/// manager's and browser's menus, ranked below the tools made for a type; `look.inspect` returns data for other
+/// apps, which a menu can't show; previewing the file manager's selection is a palette command.
 pub fn actions() -> Vec<Action> {
-    vec![
-        Action::new("look.preview", "Quick Look", "preview")
-            .accepts(&["file/*", "file/*[]", "folder/reference", "text/url"])
-            .effects(&["opens-ui"])
-            .interactive(true),
-        Action::new("look.inspect", "Inspect file", "inspect")
-            .accepts(&["file/*", "folder/reference"])
-            .produces(&["structured/file-info"]),
-        Action::new(
-            "look.preview_selection",
-            "Preview the file manager's selection",
-            "preview",
-        )
-        .produces(&["file/*[]"])
+    let mut preview = Action::new("look.preview", "Quick Look", "preview")
+        .accepts(&["file/*", "file/*[]", "folder/reference", "text/url"])
         .effects(&["opens-ui"])
-        .interactive(true)
-        .platforms(&["windows", "macos"]),
+        .interactive(true);
+    preview.surfaces = [
+        surface::FILE_MENU,
+        surface::FOLDER_MENU,
+        surface::BROWSER_LINK,
+        surface::BROWSER_DOWNLOAD,
+        surface::PALETTE,
     ]
-    .into_iter()
-    .filter(Action::on_this_platform)
-    .collect()
+    .map(String::from)
+    .to_vec();
+    preview.rank = [("*".to_string(), 30)].into();
+    preview.keywords = ["preview", "view", "open"].map(String::from).to_vec();
+    let mut inspect = Action::new("look.inspect", "Inspect file", "inspect")
+        .accepts(&["file/*", "folder/reference"])
+        .produces(&["structured/file-info"]);
+    // Not a surface constant: unknown surfaces are offered nowhere (SPEC §3.2), which is the point.
+    inspect.surfaces = vec!["internal".into()];
+    let mut selection = Action::new(
+        "look.preview_selection",
+        "Preview the file manager's selection",
+        "preview",
+    )
+    .produces(&["file/*[]"])
+    .effects(&["opens-ui"])
+    .interactive(true)
+    .platforms(&["windows", "macos"]);
+    selection.surfaces = vec![surface::PALETTE.into()];
+    [preview, inspect, selection]
+        .into_iter()
+        .filter(Action::on_this_platform)
+        .collect()
 }
 
-/// The Link file kind for one of Look's kinds.
+/// The Link file kind for one of Look's kinds. Link 1.1 names some kinds more exactly (`svg` is an `image`, `csv`
+/// a `spreadsheet`, `json` and `html` are `code`, `markdown` is `text`, `ebook` a `document`; SPEC §5.1), so an app
+/// that only takes the broader kind still gets the file, and one with tools for the exact kind is offered them.
 pub fn link_kind(kind: Kind) -> &'static str {
     match kind {
         Kind::Folder => "folder",
-        Kind::Image | Kind::ImageDecode | Kind::ImageRaw | Kind::ImagePsd | Kind::Svg => "image",
+        Kind::Svg => "svg",
+        Kind::Image | Kind::ImageDecode | Kind::ImageRaw | Kind::ImagePsd => "image",
         Kind::Video => "video",
         Kind::Audio => "audio",
         Kind::Pdf => "pdf",
-        Kind::Markdown | Kind::Text => "text",
-        Kind::Code | Kind::Json | Kind::Notebook | Kind::Html => "code",
-        Kind::Csv | Kind::Spreadsheet => "spreadsheet",
-        Kind::Document | Kind::Epub => "document",
+        Kind::Markdown => "markdown",
+        Kind::Text => "text",
+        Kind::Json => "json",
+        Kind::Html => "html",
+        Kind::Code | Kind::Notebook => "code",
+        Kind::Csv => "csv",
+        Kind::Spreadsheet => "spreadsheet",
+        Kind::Epub => "ebook",
+        Kind::Document => "document",
         Kind::Presentation => "presentation",
         Kind::Archive => "archive",
         Kind::Font => "font",
@@ -98,10 +121,14 @@ pub fn link_kind(kind: Kind) -> &'static str {
     }
 }
 
-/// The Link content type of a path, from Look's own detection.
+/// The Link content type of a path, from Look's own detection. Subtitles read as text to Look; their extension tells
+/// Link's kind (`file/subtitle`), which subtitle tools take.
 pub fn link_type(path: &Path) -> String {
     match crate::detect::detect(path).kind {
         Kind::Folder => "folder/reference".into(),
+        Kind::Text if arcade_link::content::file_type_for_path(path) == "file/subtitle" => {
+            "file/subtitle".into()
+        }
         k => format!("file/{}", link_kind(k)),
     }
 }
@@ -577,6 +604,67 @@ mod tests {
         assert_eq!(sel.is_some(), cfg!(any(windows, target_os = "macos")));
         if let Some(selection) = sel {
             assert_eq!(selection.produces, ["file/*[]"]);
+        }
+    }
+
+    #[test]
+    fn refined_link_kinds_reach_apps_that_take_the_broader_kind() {
+        let dir = std::env::temp_dir().join(format!("look-kinds-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for (name, body, kind, broader) in [
+            (
+                "a.svg",
+                "<svg xmlns=\"http://www.w3.org/2000/svg\"/>",
+                "file/svg",
+                "file/image",
+            ),
+            ("a.csv", "a,b\n1,2\n", "file/csv", "file/spreadsheet"),
+            ("a.json", "{\"a\": 1}", "file/json", "file/code"),
+            (
+                "a.html",
+                "<!doctype html><p>hi</p>",
+                "file/html",
+                "file/code",
+            ),
+            ("a.md", "# Title\n\ntext\n", "file/markdown", "file/text"),
+            (
+                "a.srt",
+                "1\n00:00:01,000 --> 00:00:02,000\nHello\n",
+                "file/subtitle",
+                "file/subtitle",
+            ),
+            ("a.txt", "plain words\n", "file/text", "file/text"),
+        ] {
+            let path = dir.join(name);
+            std::fs::write(&path, body).unwrap();
+            assert_eq!(link_type(&path), kind, "{name}");
+            assert!(
+                arcade_link::content::type_matches(broader, kind),
+                "{name}: {broader} takes {kind}"
+            );
+        }
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn card_says_where_each_action_is_offered() {
+        let a = actions();
+        let preview = a.iter().find(|a| a.id == "look.preview").unwrap();
+        for s in [
+            surface::FILE_MENU,
+            surface::FOLDER_MENU,
+            surface::BROWSER_LINK,
+            surface::PALETTE,
+        ] {
+            assert!(preview.on_surface(s), "{s}");
+        }
+        assert!(!preview.on_surface(surface::BROWSER_SELECTION));
+        // Below the tools made for a type (Box's and Lens's ranks are 45-70).
+        assert_eq!(preview.rank_for("file/image"), 30);
+        let inspect = a.iter().find(|a| a.id == "look.inspect").unwrap();
+        assert!(surface::ALL.iter().all(|s| !inspect.on_surface(s)));
+        if let Some(selection) = a.iter().find(|a| a.id == "look.preview_selection") {
+            assert_eq!(selection.surfaces(), [surface::PALETTE]);
         }
     }
 

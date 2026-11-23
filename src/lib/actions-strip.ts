@@ -14,7 +14,6 @@ interface Offer {
   reason: string | null;
   outbound: boolean;
   pdfPage: boolean;
-  pipeline: string | null;
 }
 interface Progress {
   fraction?: number;
@@ -208,7 +207,6 @@ export class ActionsStrip {
         path: info.path,
         requestId,
         pdfPng,
-        pipeline: offer.pipeline,
         progress,
       });
       const output = result.outputs.find(

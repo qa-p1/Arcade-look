@@ -4,7 +4,7 @@
 
 use crate::util::{OrStr, Res};
 use quick_xml::events::{BytesStart, Event};
-use quick_xml::Reader;
+use quick_xml::{Reader, XmlVersion};
 use std::io::Read;
 
 pub struct Attrs(pub Vec<(String, String)>);
@@ -36,11 +36,11 @@ fn attrs_of(e: &BytesStart) -> Attrs {
         e.attributes()
             .flatten()
             .map(|a| {
-                let k = String::from_utf8_lossy(a.key.as_ref()).to_string();
+                let k = a.key.as_ref().to_string();
                 let v = a
-                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                    .normalized_value(XmlVersion::Implicit1_0)
                     .map(|c| c.to_string())
-                    .unwrap_or_else(|_| String::from_utf8_lossy(&a.value).to_string());
+                    .unwrap_or_else(|_| a.value.to_string());
                 (k, v)
             })
             .collect(),
@@ -94,37 +94,28 @@ pub fn walk(xml: &str, mut f: impl FnMut(X)) -> Res<()> {
         match ev {
             Event::Start(e) => {
                 flush(&mut text, &mut f);
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 let a = attrs_of(&e);
                 f(X::Open(&name, &a));
             }
             Event::Empty(e) => {
                 flush(&mut text, &mut f);
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 let a = attrs_of(&e);
                 f(X::Open(&name, &a));
                 f(X::Close(&name));
             }
             Event::End(e) => {
                 flush(&mut text, &mut f);
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 f(X::Close(&name));
             }
-            Event::Text(t) => {
-                if let Ok(s) = t.decode() {
-                    text.push_str(&s);
-                }
-            }
-            Event::CData(t) => {
-                if let Ok(s) = t.decode() {
-                    text.push_str(&s);
-                }
-            }
+            // quick-xml 0.42 hands over decoded text; line ends are normalized as XML 1.0 says.
+            Event::Text(t) => text.push_str(&t.xml_content(XmlVersion::Implicit1_0)),
+            Event::CData(t) => text.push_str(&t.xml_content(XmlVersion::Implicit1_0)),
             Event::GeneralRef(r) => {
-                if let Ok(name) = r.decode() {
-                    if let Some(s) = resolve_entity(&name) {
-                        text.push_str(&s);
-                    }
+                if let Some(s) = resolve_entity(&r) {
+                    text.push_str(&s);
                 }
             }
             Event::Eof => break,
