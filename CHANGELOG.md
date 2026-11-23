@@ -4,6 +4,10 @@ All notable changes to Arcade Look. The format follows [Keep a Changelog](https:
 
 ## [Unreleased]
 
+### Changed
+
+- serde_json 1.0.154, encoding_rs 0.8.44, flate2 1.1.11, kamadak-exif 0.6.2, ksni 0.3.7 and libc 0.2.191; pdf.js 6.5.438 and three.js 0.187; the Tauri CLI 2.12.6, Playwright 1.65.1, Prettier 3.10.1 and axe-core 4.14.1 for the checks; cargo-deny-action 2.1.3.
+
 ## [1.1.0] - 2026-11-23
 
 ### Changed
