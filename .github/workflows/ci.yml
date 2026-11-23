@@ -112,7 +112,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2 (v2.1.1, verified with git ls-remote)
+      - uses: EmbarkStudios/cargo-deny-action@17aeb3c839e42274e2b8adf721c8c65edfdc74dd # v2 (v2.1.1, verified with git ls-remote)
         with:
           manifest-path: src-tauri/Cargo.toml
           arguments: --workspace --all-features
@@ -127,7 +127,7 @@ jobs:
   # Tier 1: the preview on headless Hyprland (Link's desktop harness), from the AppImage built above.
   desktop:
     needs: installers
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.13
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.14
     with:
       name: look
       test: tests/desktop/look_desktop.py

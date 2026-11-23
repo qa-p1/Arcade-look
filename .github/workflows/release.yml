@@ -56,7 +56,7 @@ jobs:
     needs: [prepare, stage]
     permissions:
       contents: write
-    uses: qa-p1/Arcade-Link/.github/workflows/app-publish.yml@v1.0.13
+    uses: qa-p1/Arcade-Link/.github/workflows/app-publish.yml@v1.0.14
     with:
       app: arcade.look
       version: ${{ needs.prepare.outputs.version }}
