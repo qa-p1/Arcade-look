@@ -1,5 +1,24 @@
 # Arcade Look: status
 
+## 2026-11-23: 1.1.0 released
+
+Current release: [1.1.0](https://github.com/qa-p1/Arcade-look/releases/tag/v1.1.0), promoted from `v1.1.0-rc.1` after
+Gates passed 12/12 on its published files (Linux conformance and the app's own checks, N-1 peers, Tools' delta update
+with signature and tampered-chunk checks, memory and performance budgets, the Windows installer and macOS dmg smokes,
+and the desktop smokes on Hyprland, KWin, Mutter, Sway and X11). Before it, 1.0.0 (2026-11-17).
+
+1.1.0 moved Look onto Arcade Link 1.1.1: the Actions menu is Link's shared offers list, Look's card says where its
+actions appear (Quick Look in file and folder menus, browser links and downloads, and the palette; "Inspect file"
+for other apps only), and files of Link 1.1's exact kinds (SVG, CSV, JSON, HTML, Markdown, e-books, subtitles) reach
+the apps made for them.
+
+Not verified yet: Look's menu entries on a real Windows or macOS desktop (CI covers the installers and the Linux
+desktops above), and the browser surfaces, which wait for the Arcade browser extension. Open: the Tauri 2.12 upgrade
+(with the plugin updates Dependabot proposed), and notify-rust 4.19 and zip 9.8, which need Rust 1.89. To watch: the
+Chromium build that comes with Playwright 1.65.1 aborts (`Check failed: has_site_`) when the sandboxed HTML preview
+runs, so the checks stay on Playwright 1.64.1; WebView2 on Windows is Chromium too, so check the HTML preview there
+when WebView2 reaches that version.
+
 ## 2026-11-06: keyboard control follow-up for 0.4.3
 
 The Terra UX audit identified toolbar key activation being intercepted by preview
