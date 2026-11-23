@@ -4,6 +4,14 @@ All notable changes to Arcade Look. The format follows [Keep a Changelog](https:
 
 ## [Unreleased]
 
+### Changed
+
+- The Actions menu (A) is Arcade Link's shared answer for this file instead of a list built into Look: the same actions, order and names as Arcade's entries in your file manager's menu, from every installed app (best matches first, at most four per app). Actions the catalog renames or that you hid elsewhere follow along. Clipboard's 16 MB limit still shows as a reason, and the current PDF page still goes to Lens.
+- Arcade Box 1.0 lists each saved pipeline as its own action, so Look no longer asks Box for its pipelines.
+- Files of the kinds Arcade Link 1.1 names exactly reach the apps made for them: SVG drawings, CSV, JSON, HTML, Markdown, e-books and subtitles.
+- Quick Look appears in Arcade's file manager menus and the browser extension (links and downloads), ranked after the tools made for a file type; "Inspect file" is only for other apps and the selection preview is a palette command.
+- Arcade Link 1.1.1 (from 1.0.13); url 2.5.9 (RUSTSEC-2026-0592) and cookie 0.18.3 (RUSTSEC-2026-0594); quick-xml 0.42 and lzma-rust2 0.25; GitHub Actions checkout 7, setup-node 7, upload-artifact 7 and download-artifact 8.
+
 ## [1.0.0] - 2026-11-16
 
 ### Added

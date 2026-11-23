@@ -8,6 +8,10 @@ since: 0.2.0
 
 Arcade Link lets Look offer file preview, inspection and selection resolution to compatible Arcade apps. Look also shows actions supplied by installed peers. Manage these connections in **Settings → Connected apps**; actions appear only when the peer supports the current content and is enabled.
 
+Look's **A** Actions menu lists the same actions, in the same order and with the same names, as Arcade's entries in your file manager's right-click menu: what each installed app offers for this kind of file, its best matches first, at most four per app. Actions you hid elsewhere in Arcade stay hidden here.
+
+Quick Look itself appears in that right-click menu as well (under **Arcade…**), and in the browser extension for links and downloads.
+
 ## Arcade Box
 
 Send a compatible file to a Box tool, preset or saved pipeline from Look's **A** Actions menu. Box owns the transformation. Returned files open in Look, so you can inspect the result without leaving the preview flow.
