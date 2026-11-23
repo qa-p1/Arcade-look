@@ -2,6 +2,16 @@
 
 Detail for `qa-p1/Arcade-catalog` > `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-23 (cloud session) - 1.1.0 released
+
+[#45](https://github.com/qa-p1/Arcade-look/pull/45) (Arcade Link 1.1.1 offers in the Actions menu, Link 1.1 file kinds
+and card fields) merged as e9518e6 and was tagged `v1.1.0-rc.1`. [Gates](https://github.com/qa-p1/Arcade-look/actions/runs/45180237137)
+passed 12/12 on its published files (previous: 1.0.0), and [Promote](https://github.com/qa-p1/Arcade-look/actions/runs/45182488147)
+made it [1.1.0](https://github.com/qa-p1/Arcade-look/releases/tag/v1.1.0). The AppImage, dmg, setup.exe and SHA256SUMS
+have the same SHA-256 digests as rc.1; `manifest.json` and `arcade-release.json` differ only in the channel, the tag and
+the notes link, and `manifest.json.sig` is new. Dependabot #26-#29, #34 and #35 were folded into #45; #32 (zbus 6, a
+second zbus beside 5) and #33 (lofty 0.25, needs Rust 1.89) were closed with the reason.
+
 ## 2026-11-17 (cloud session) - 1.0.0 promoted
 
 `v1.0.0-rc.3` (b25664e, Link 1.0.13) passed [Gates](https://github.com/qa-p1/Arcade-look/actions/runs/44048439660)

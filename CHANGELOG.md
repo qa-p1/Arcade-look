@@ -4,6 +4,8 @@ All notable changes to Arcade Look. The format follows [Keep a Changelog](https:
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-23
+
 ### Changed
 
 - The Actions menu (A) is Arcade Link's shared answer for this file instead of a list built into Look: the same actions, order and names as Arcade's entries in your file manager's menu, from every installed app (best matches first, at most four per app). Actions the catalog renames or that you hid elsewhere follow along. Clipboard's 16 MB limit still shows as a reason, and the current PDF page still goes to Lens.
