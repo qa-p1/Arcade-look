@@ -14,7 +14,10 @@ the apps made for them.
 
 Not verified yet: Look's menu entries on a real Windows or macOS desktop (CI covers the installers and the Linux
 desktops above), and the browser surfaces, which wait for the Arcade browser extension. Open: the Tauri 2.12 upgrade
-(with the plugin updates Dependabot proposed), and notify-rust 4.19 and zip 9.8, which need Rust 1.89.
+(with the plugin updates Dependabot proposed), and notify-rust 4.19 and zip 9.8, which need Rust 1.89. To watch: the
+Chromium build that comes with Playwright 1.65.1 aborts (`Check failed: has_site_`) when the sandboxed HTML preview
+runs, so the checks stay on Playwright 1.64.1; WebView2 on Windows is Chromium too, so check the HTML preview there
+when WebView2 reaches that version.
 
 ## 2026-11-06: keyboard control follow-up for 0.4.3
 

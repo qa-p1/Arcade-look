@@ -27,7 +27,7 @@
     "@tauri-apps/cli": "2.12.6",
     "@types/three": "0.187.0",
     "axe-core": "4.14.1",
-    "playwright": "1.65.1",
+    "playwright": "1.64.1",
     "prettier": "3.10.1",
     "typescript": "7.0.2",
     "vite": "8.3.8"
