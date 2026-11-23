@@ -73,6 +73,15 @@ When Arcade Tools is running, its tray icon hosts Look's menu. When Tools quits,
 
 See [Use Arcade Look with other apps](docs/user/with-other-apps.md) and the [Arcade Link reference](docs/dev/link.md).
 
+## Use it from anywhere
+
+With [Arcade Tools](https://github.com/qa-p1/Arcade-tools) 1.1 or later installed, its Arcade helper puts Look's
+**Quick Look** in your file manager's right-click menu for files and folders (Files, Dolphin, Caja, Nemo, Thunar and
+"Open With" on Linux, File Explorer on Windows, Finder's Quick Actions on macOS), below the tools made for that file
+type. The same entry appears in searchable Arcade lists (the command palette), and the Arcade browser extension will
+offer it on links and downloads when it ships. See Tools' [Everywhere guide](https://github.com/qa-p1/Arcade-tools/blob/main/docs/user/everywhere.md)
+for pinning, defaults and where results go.
+
 ## Usage
 
 The preview trigger depends on your platform:
