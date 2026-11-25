@@ -31,6 +31,8 @@
       if (command === 'set_config') { Object.assign(config, args.patch); send('config', { ...config }); return { ...config }; }
       if (command === 'link_save_shortcut') { config.globalShortcut = args.accelerator; send('config', { ...config }); return { ...config }; }
       if (command === 'link_shortcut_owner') return args.accelerator === 'Ctrl+Alt+F' ? 'Arcade Find' : null;
+      if (command === 'files_needs_restart') return window.__mock.filesRestart ?? true;
+      if (command === 'restart_files') { window.__mock.filesRestart = false; return null; }
       if (command === 'integration_status') return [['GNOME Files', true], ['Dolphin', true], ['Nemo', false]];
       if (command === 'list_plugins') return [];
       if (command === 'about_info') return { channel: 'stable', tools: false, logs: '/home/user/.local/share/arcade/look/logs' };

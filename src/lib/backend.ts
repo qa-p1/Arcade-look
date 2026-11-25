@@ -261,6 +261,8 @@ export const api = {
   getAutostart: () => invoke<boolean>('get_autostart'),
   setAutostart: (enabled: boolean) => invoke<boolean>('set_autostart', { enabled }),
   integrationStatus: () => invoke<[string, boolean][]>('integration_status'),
+  filesNeedsRestart: () => invoke<boolean>('files_needs_restart'),
+  restartFiles: () => invoke<void>('restart_files'),
   setConfig: (patch: Partial<Config>) => invoke<Config>('set_config', { patch }),
 };
 

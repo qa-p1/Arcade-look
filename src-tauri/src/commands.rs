@@ -450,6 +450,16 @@ pub async fn set_autostart(enabled: bool) -> Res<bool> {
 }
 
 #[tauri::command]
+pub async fn files_needs_restart() -> Res<bool> {
+    blocking(|| Ok(crate::integration::files_needs_restart())).await
+}
+
+#[tauri::command]
+pub async fn restart_files() -> Res<()> {
+    blocking(crate::integration::restart_files).await
+}
+
+#[tauri::command]
 pub async fn integration_status() -> Res<Vec<(String, bool)>> {
     blocking(|| Ok(crate::integration::status())).await
 }

@@ -4,6 +4,12 @@ All notable changes to Arcade Look. The format follows [Keep a Changelog](https:
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-25
+
+### Added
+
+- Settings › File manager notices when GNOME Files was already open before Look was set up (so Space doesn't open Look yet) and offers Restart Files, which closes Files and opens it again. The setup summary is shorter and only mentions the restart when it's needed.
+
 ### Changed
 
 - serde_json 1.0.154, encoding_rs 0.8.44, flate2 1.1.11, kamadak-exif 0.6.2, ksni 0.3.7 and libc 0.2.191; pdf.js 6.5.438 and three.js 0.187; the Tauri CLI 2.12.6, Prettier 3.10.1 and axe-core 4.14.1 for the checks; cargo-deny-action 2.1.3. Playwright stays on 1.64.1: the Chromium build that comes with 1.65.1 crashes (`Check failed: has_site_`) in the check that a script in a sandboxed HTML preview does not run.

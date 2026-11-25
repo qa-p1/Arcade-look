@@ -234,6 +234,8 @@ pub fn run() {
             commands::get_autostart,
             commands::set_autostart,
             commands::integration_status,
+            commands::files_needs_restart,
+            commands::restart_files,
             commands::set_config,
             link_consumer::link_available,
             link_consumer::link_actions,

@@ -254,6 +254,17 @@ test('LK-9: Settings shows labelled sections and leaves updates to Tools', async
   assert.equal(await page.getByText('Check for updates').count(), 0);
 });
 
+test('File manager: a Files that predates the setup gets a Restart Files button', async (page) => {
+  await page.addInitScript(mock);
+  await page.goto(url + '/?settings');
+  await page.getByRole('tab', { name: 'File manager', exact: true }).click();
+  await page.getByText('GNOME Files was already open', { exact: false }).waitFor();
+  await page.getByRole('button', { name: 'Restart Files', exact: true }).click();
+  await page.waitForFunction(() => window.__mock.calls.some(([n]) => n === 'restart_files'));
+  await page.getByText('GNOME Files was already open', { exact: false }).waitFor({ state: 'detached' });
+  await page.getByRole('button', { name: 'Set up file manager integration' }).waitFor();
+});
+
 test('LK-4: counts are singular for one and an empty file says so', async (page) => {
   await open(page);
   await preview(page, { name: 'one.bin', ext: 'bin', kind: 'binary', format: 'binary', size: 10, mime: 'application/octet-stream' });
