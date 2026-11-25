@@ -602,10 +602,84 @@ pub fn install() -> Res<String> {
         Ok(()) => "  • Arcade Look now starts in the background when you log in (change this in Settings).\n".to_string(),
         Err(e) => format!("  • Start at login could not be turned on: {e}\n"),
     };
+    let files = if files_needs_restart() {
+        "  • GNOME Files: select a file and press Space, after restarting Files once (Settings › File manager › \
+         Restart Files, or `nautilus -q`).\n"
+    } else {
+        "  • GNOME Files: select a file and press Space.\n"
+    };
     Ok(format!(
-        "Installed:\n  • GNOME Files: press Space on any file (restart Files once: `nautilus -q`).\n    If GNOME Sushi is installed and running, Arcade Look takes over the next time it starts.\n  • Dolphin: right-click → Quick Look\n  • Nemo: right-click → Quick Look\n  • \"Open With → Arcade Look\" in any file manager\n{autostart}Files written under {}",
-        data_home().display()
+        "Set up:\n{files}  • Dolphin and Nemo: right-click → Quick Look.\n  • Any file manager: Open With → Arcade Look.\n{autostart}"
     ))
+}
+
+/// GNOME Files asks for its previewer when it starts, so a Files that was already running when Look registered as
+/// the previewer keeps the old one (or none) until it restarts.
+pub fn files_needs_restart() -> bool {
+    let Ok(registered) = std::fs::metadata(files().dbus).and_then(|m| m.modified()) else {
+        return false;
+    };
+    nautilus_started()
+        .into_iter()
+        .any(|started| started < registered)
+}
+
+/// When each of this user's GNOME Files processes started (from /proc; empty when there is none).
+fn nautilus_started() -> Vec<std::time::SystemTime> {
+    use std::os::unix::fs::MetadataExt;
+    let boot = std::fs::read_to_string("/proc/stat").ok().and_then(|stat| {
+        stat.lines()
+            .find_map(|line| line.strip_prefix("btime ")?.trim().parse::<u64>().ok())
+    });
+    let (Some(boot), Ok(dir)) = (boot, std::fs::read_dir("/proc")) else {
+        return Vec::new();
+    };
+    // SAFETY: sysconf only reads a system constant.
+    let ticks = unsafe { libc::sysconf(libc::_SC_CLK_TCK) }.max(1) as u64;
+    let uid = unsafe { libc::getuid() };
+    dir.flatten()
+        .filter(|entry| entry.metadata().is_ok_and(|m| m.uid() == uid))
+        .filter_map(|entry| {
+            let stat = std::fs::read_to_string(entry.path().join("stat")).ok()?;
+            let start = nautilus_start_ticks(&stat)?;
+            Some(
+                std::time::UNIX_EPOCH
+                    + std::time::Duration::from_secs(boot)
+                    + std::time::Duration::from_millis(start * 1000 / ticks),
+            )
+        })
+        .collect()
+}
+
+/// The start time (clock ticks after boot) in a `/proc/<pid>/stat` line, if that process is GNOME Files. The name
+/// sits in parentheses and may itself hold spaces and parentheses, so the fields are counted after the last `)`.
+fn nautilus_start_ticks(stat: &str) -> Option<u64> {
+    let (head, rest) = stat.rsplit_once(')')?;
+    if head.split_once('(')?.1 != "nautilus" {
+        return None;
+    }
+    // `rest` starts at field 3 (state); field 22 is the start time.
+    rest.split_whitespace().nth(19)?.parse().ok()
+}
+
+/// Quits GNOME Files and starts it again, so it picks up Look as its previewer. Its windows close and one opens.
+pub fn restart_files() -> Res<()> {
+    let mut quit = std::process::Command::new("nautilus");
+    arcade_link::childenv::detach_from_image(&mut quit)
+        .arg("-q")
+        .status()
+        .map_err(|e| format!("Couldn't restart Files. {e}"))?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while !nautilus_started().is_empty() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let mut start = std::process::Command::new("nautilus");
+    arcade_link::childenv::detach_from_image(&mut start)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Files closed but didn't start again. Open it from the app menu. {e}"))
 }
 
 /// After the self-installer placed the AppImage: rewrite its launcher entry
@@ -734,6 +808,22 @@ pub fn migrate_entries() -> Res<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn files_start_time_comes_from_its_stat_line() {
+        use super::nautilus_start_ticks;
+        let fields = "S 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 987654 20 21";
+        assert_eq!(
+            nautilus_start_ticks(&format!("4242 (nautilus) {fields}")),
+            Some(987654)
+        );
+        assert_eq!(nautilus_start_ticks(&format!("4243 (bash) {fields}")), None);
+        // A name with ") (" in it must not shift the fields or pass as Files.
+        assert_eq!(
+            nautilus_start_ticks(&format!("4244 (x) (nautilus) {fields}")),
+            None
+        );
+        assert_eq!(nautilus_start_ticks("garbage"), None);
+    }
 
     #[test]
     fn single_instance_name_matches_the_plugin() {

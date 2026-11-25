@@ -294,6 +294,21 @@ pub fn install() -> Res<String> {
     Err("No integration is available for this platform.".into())
 }
 
+/// Whether GNOME Files has to restart before Space opens Look (Linux; always false elsewhere).
+pub fn files_needs_restart() -> bool {
+    #[cfg(target_os = "linux")]
+    return linux::files_needs_restart();
+    #[allow(unreachable_code)]
+    false
+}
+
+pub fn restart_files() -> Res<()> {
+    #[cfg(target_os = "linux")]
+    return linux::restart_files();
+    #[allow(unreachable_code)]
+    Err("Only GNOME Files needs a restart.".into())
+}
+
 pub fn uninstall() -> Res<String> {
     #[cfg(target_os = "linux")]
     return linux::uninstall();

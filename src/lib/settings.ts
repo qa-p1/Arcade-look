@@ -384,6 +384,28 @@ export class Settings {
             row(label, '', h(`span.badge${on ? '.ok' : ''}`, on ? 'Connected' : 'Not installed')),
           ),
         );
+        if (await api.filesNeedsRestart().catch(() => false)) {
+          if (generation !== this.generation) return;
+          content.append(
+            h(
+              'div.notice.warn.files-restart',
+              h(
+                'div.row-main',
+                'GNOME Files was already open when Look was set up. Restart it once so Space opens Look. Its windows close and a new one opens.',
+              ),
+              button(
+                'Restart Files',
+                () => {
+                  void api
+                    .restartFiles()
+                    .then(() => this.show(this.current))
+                    .catch(this.report);
+                },
+                'primary',
+              ),
+            ),
+          );
+        }
         content.append(
           button(
             'Set up file manager integration',
